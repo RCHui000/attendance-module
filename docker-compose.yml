@@ -1,0 +1,14 @@
+services:
+  attendance-module:
+    build: .
+    container_name: attendance-module
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      ATTENDANCE_HOST: 0.0.0.0
+      ATTENDANCE_PORT: 8767
+      ATTENDANCE_DB_PATH: /data/attendance_demo.sqlite3
+    ports:
+      - "8767:8767"
+    volumes:
+      - ./data:/data

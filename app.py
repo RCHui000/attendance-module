@@ -300,6 +300,31 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "approval_logs", "to_status", "TEXT")
     ensure_column(conn, "workflow_tasks", "assignee_user_id", "INTEGER")
     conn.execute("UPDATE approval_logs SET target_id = timesheet_id WHERE target_id IS NULL")
+    sync_employee_account_logins(conn)
+
+
+def sync_employee_account_logins(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT u.id AS user_id, u.name, a.login
+        FROM users u
+        JOIN employee_profiles p ON p.user_id = u.id
+        JOIN auth_accounts a ON a.user_id = u.id
+        WHERE u.is_active = 1
+          AND a.login NOT IN ('admin')
+          AND u.name NOT IN ('admin')
+        """
+    ).fetchall()
+    for row in rows:
+        if row["login"] == row["name"]:
+            continue
+        duplicate = conn.execute(
+            "SELECT user_id FROM auth_accounts WHERE login = ? AND user_id != ?",
+            (row["name"], row["user_id"]),
+        ).fetchone()
+        if duplicate:
+            continue
+        conn.execute("UPDATE auth_accounts SET login = ? WHERE user_id = ?", (row["name"], row["user_id"]))
 
 
 def ensure_timesheet(conn: sqlite3.Connection, user_id: int, week_start: str) -> int:
@@ -1221,7 +1246,18 @@ def save_employee(conn: sqlite3.Connection, payload: dict) -> dict:
     department = org["org_name"] if org else payload.get("department", "")
     is_active = 1 if payload.get("status") != "terminated" else 0
     employee_no = payload.get("employeeNo") or None
-    login = payload.get("login")
+    requested_login = (payload.get("login") or "").strip() or None
+    existing_user = None
+    existing_account = None
+    if user_id:
+        existing_user = conn.execute("SELECT id, name FROM users WHERE id = ?", (user_id,)).fetchone()
+        existing_account = conn.execute("SELECT id, login FROM auth_accounts WHERE user_id = ?", (user_id,)).fetchone()
+    login = requested_login
+    if user_id and not login:
+        if not existing_account:
+            login = name
+        elif existing_user and existing_account["login"] == existing_user["name"]:
+            login = name
     if employee_no:
         duplicate = conn.execute(
             """
@@ -1251,19 +1287,20 @@ def save_employee(conn: sqlite3.Connection, payload: dict) -> dict:
             return {"ok": False, "message": "登录账号已存在，请换一个账号。"}
 
     if user_id:
+        if not existing_user:
+            return {"ok": False, "message": "员工不存在。"}
         conn.execute(
             "UPDATE users SET name = ?, role = ?, department = ?, is_active = ? WHERE id = ?",
             (name, role, department, is_active, user_id),
         )
         if login:
-            conn.execute(
-                """
-                INSERT INTO auth_accounts(user_id, login, password_hash)
-                VALUES(?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET login = excluded.login
-                """,
-                (user_id, login, password_hash(payload.get("password") or "123456")),
-            )
+            if existing_account:
+                conn.execute("UPDATE auth_accounts SET login = ? WHERE user_id = ?", (login, user_id))
+            else:
+                conn.execute(
+                    "INSERT INTO auth_accounts(user_id, login, password_hash) VALUES(?, ?, ?)",
+                    (user_id, login, password_hash(payload.get("password") or "123456")),
+                )
     else:
         cur = conn.execute(
             "INSERT INTO users(name, role, department, is_active) VALUES(?, ?, ?, ?)",

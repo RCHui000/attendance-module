@@ -19,9 +19,10 @@
           </div>
         </div>
         <label for="loginName">账号</label>
-        <input id="loginName" name="login" value="admin" autocomplete="username" spellcheck="false" />
+        <input id="loginName" name="login" placeholder="请输入账号" autocomplete="username" spellcheck="false" />
         <label for="loginPassword">密码</label>
-        <input id="loginPassword" name="password" type="password" value="123456" autocomplete="current-password" />
+        <input id="loginPassword" name="password" type="password" placeholder="请输入密码" autocomplete="current-password" />
+        <p id="loginError" class="login-error"></p>
         <button id="loginButton" class="primary" type="button">登录</button>
         <button id="showPasswordForm" class="secondary login-link-button" type="button">修改登录密码</button>
         <div class="password-panel" id="passwordPanel" hidden>
@@ -59,10 +60,20 @@
         <header class="topbar">
           <div>
             <h1 id="pageTitle">我的周表</h1>
-            <p id="pageSubtitle">每天按项目填写工日比例，合计超过 100% 不允许提交。</p>
+            <p id="pageSubtitle"></p>
           </div>
           <div class="toolbar">
             <span class="current-user" id="currentUser">未登录</span>
+            <div class="reminder-toolbar-wrap">
+              <button id="reminderInfoBtn" class="secondary" type="button" title="提醒事项">提醒</button>
+              <div id="reminderFloat" class="reminder-float" hidden>
+                <div class="reminder-float-head">
+                  <strong>提醒事项</strong>
+                  <button id="reminderCloseBtn" class="icon-btn" type="button" aria-label="关闭">x</button>
+                </div>
+                <div id="employeeReminders" class="reminder-list"></div>
+              </div>
+            </div>
             <button class="secondary" id="changePasswordTopButton" type="button">修改密码</button>
             <button class="secondary" id="logoutButton" type="button">退出</button>
           </div>
@@ -71,7 +82,7 @@
         <section class="view active" id="timesheetView">
           <div class="sheet-header">
             <div class="sheet-title-block">
-              <span class="eyebrow" id="sheetOwner">当前登录员工</span>
+              <span class="eyebrow" id="sheetOwner"></span>
               <div class="sheet-title-row">
                 <h2 id="weekTitle">本周</h2>
                 <div class="week-switcher">
@@ -209,7 +220,6 @@
                 <div class="panel-head">
                   <div>
                     <strong>部门列表</strong>
-                    <span>部门 / 负责人</span>
                   </div>
                   <div class="panel-actions">
                     <button id="newOrg" class="secondary" type="button">新增部门</button>
@@ -218,15 +228,6 @@
                 <label class="sr-only" for="orgSearch">搜索部门</label>
                 <input id="orgSearch" class="full-input" name="orgSearch" type="search" autocomplete="off" placeholder="搜索部门…">
                 <div id="orgList" class="org-list"></div>
-              </div>
-              <div class="panel reminder-panel">
-                <div class="panel-head">
-                  <div>
-                    <strong>提醒事项</strong>
-                    <span>合同、薪酬和直属领导配置</span>
-                  </div>
-                </div>
-                <div id="employeeReminders" class="reminder-list"></div>
               </div>
             </aside>
           </div>

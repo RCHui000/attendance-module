@@ -279,6 +279,8 @@ function bindLoginEvents() {
   $("#loginPassword").addEventListener("keydown", (event) => {
     if (event.key === "Enter") login();
   });
+  $("#loginName").addEventListener("input", clearLoginError);
+  $("#loginPassword").addEventListener("input", clearLoginError);
   $("#showPasswordForm").addEventListener("click", togglePasswordPanel);
   $("#changePasswordButton").addEventListener("click", changePassword);
 }
@@ -291,7 +293,7 @@ function showLogin() {
 function showApp() {
   $("#loginScreen").classList.remove("active");
   document.querySelector(".app-shell").style.display = "grid";
-  $("#currentUser").textContent = `${state.currentUser.name} · ${roleText[state.currentUser.role] || state.currentUser.role}`;
+  $("#currentUser").textContent = `${state.currentUser.department || "未分配部门"} · ${state.currentUser.name} · ${roleText[state.currentUser.role] || state.currentUser.role}`;
   $("#systemRole").textContent = roleText[state.currentUser.role] || "内部管理";
   $("#changeLoginName").value = "";
 }
@@ -330,6 +332,11 @@ async function changePassword() {
   }
 }
 
+function clearLoginError() {
+  const el = $("#loginError");
+  if (el) el.textContent = "";
+}
+
 async function login() {
   try {
     await api("/api/login", {
@@ -341,7 +348,8 @@ async function login() {
     });
     window.location.reload();
   } catch (error) {
-    toast(error.message);
+    const el = $("#loginError");
+    if (el) el.textContent = error.message || "登录失败，请重试";
   }
 }
 
@@ -392,6 +400,20 @@ function bindEvents() {
   $("#deleteEmployeeToolbar").addEventListener("click", deleteSelectedEmployee);
   $("#newOrg").addEventListener("click", newOrganization);
   $("#orgSearch").addEventListener("input", renderOrganizations);
+  $("#reminderInfoBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const float = $("#reminderFloat");
+    float.hidden = !float.hidden;
+  });
+  $("#reminderCloseBtn").addEventListener("click", () => {
+    $("#reminderFloat").hidden = true;
+  });
+  document.addEventListener("click", (e) => {
+    const float = $("#reminderFloat");
+    if (!float.hidden && !e.target.closest("#reminderFloat") && !e.target.closest("#reminderInfoBtn")) {
+      float.hidden = true;
+    }
+  });
   $("#exportCsv").addEventListener("click", exportCsv);
   $("#logoutButton").addEventListener("click", async () => {
     await api("/api/logout", { method: "POST", body: "{}" });
@@ -517,7 +539,7 @@ async function handleRemoteSync(modules) {
 
 function setPageTitle(view) {
   const titles = {
-    timesheet: ["我的周表", "每天按项目填写工日比例，合计超过 100% 不允许提交。"],
+    timesheet: ["我的周表", ""],
     review: ["审批中心", "主管审核已提交周表，退回时需要说明原因。"],
     report: ["项目汇总", "按项目查看本周投入工日，支持导出 CSV。"],
     employees: ["员工与组织架构", "管理员维护员工、部门、合同类型和薪酬基础。"],
@@ -586,7 +608,7 @@ function normalizeOvertime(items) {
 function renderSheet() {
   const sheet = state.sheet;
   const weekEnd = addDays(sheet.week_start_date, 6);
-  $("#sheetOwner").textContent = `${sheet.user_name} · ${sheet.department}`;
+  $("#sheetOwner").textContent = "";
   $("#weekTitle").textContent = `${sheet.week_start_date} 至 ${weekEnd}`;
   $("#remark").value = sheet.remark || "";
   const status = $("#statusBadge");
@@ -859,16 +881,24 @@ function renderOrganizations() {
   const keyword = ($("#orgSearch")?.value || "").trim().toLowerCase();
   const organizations = state.organizations.filter((org) => {
     const manager = state.employees.find((user) => user.id === org.manager_user_id);
-    return `${org.org_name} ${org.org_type} ${manager?.name || ""}`.toLowerCase().includes(keyword);
+    return `${org.org_name} ${manager?.name || ""}`.toLowerCase().includes(keyword);
   });
   $("#orgList").innerHTML = organizations
     .map((org) => {
-      if (state.editingOrgId === org.id) return organizationEditItem(org);
+      if (state.editingOrgId === org.id) {
+        return `<div class="org-item org-edit-item">
+          <div><strong>${org.parent_id ? "　" : ""}${escapeHtml(org.org_name)}</strong><span>编辑中…</span></div>
+          <div class="org-actions">
+            <button class="primary compact-action" type="button" data-org-save="${org.id || ""}">保存</button>
+            <button class="secondary compact-action" type="button" data-org-cancel>取消</button>
+          </div>
+        </div>${organizationEditDrawer(org)}`;
+      }
       const manager = state.employees.find((user) => user.id === org.manager_user_id);
       const prefix = org.parent_id ? "　" : "";
       const count = state.employees.filter((employee) => Number(employee.org_id) === org.id).length;
       return `<div class="org-item">
-        <div><strong>${prefix}${escapeHtml(org.org_name)}</strong><span>${escapeHtml(org.org_type)} · ${escapeHtml(manager?.name || "未设置")}</span></div>
+        <div><strong>${prefix}${escapeHtml(org.org_name)}</strong><span>${escapeHtml(manager?.name || "未设置负责人")}</span></div>
         <div class="org-actions">
           <em>${count} 人</em>
           <button class="secondary compact-action" type="button" data-org-edit="${org.id}">编辑</button>
@@ -880,25 +910,21 @@ function renderOrganizations() {
   bindOrganizationActions();
 }
 
-function organizationEditItem(org) {
+function organizationEditDrawer(org) {
   const managerOptions = managementOptions(org.id, org.manager_user_id);
   const parentOptions = state.organizations
     .filter((item) => item.id !== org.id && item.org_type === "company")
     .map((item) => `<option value="${item.id}" ${Number(org.parent_id) === item.id ? "selected" : ""}>${escapeHtml(item.org_name)}</option>`)
     .join("");
-  return `<div class="org-item org-edit-item">
+  return `<div class="org-drawer">
     <div class="org-edit-fields">
-      <input data-org-field="orgName" name="orgName" autocomplete="off" aria-label="部门名称" value="${escapeHtml(org.org_name || "")}" placeholder="部门名称…">
-      <select data-org-field="orgType" name="orgType" aria-label="部门类型">
+      <label>部门名称<input data-org-field="orgName" name="orgName" autocomplete="off" aria-label="部门名称" value="${escapeHtml(org.org_name || "")}" placeholder="部门名称…"></label>
+      <label>部门类型<select data-org-field="orgType" name="orgType" aria-label="部门类型">
         <option value="department" ${org.org_type !== "company" ? "selected" : ""}>部门</option>
         <option value="company" ${org.org_type === "company" ? "selected" : ""}>公司</option>
-      </select>
-      <select data-org-field="parentId" name="parentId" aria-label="上级部门"><option value="">无上级</option>${parentOptions}</select>
-      <select data-org-field="managerUserId" name="managerUserId" aria-label="部门负责人"><option value="">未设置负责人</option>${managerOptions}</select>
-    </div>
-    <div class="row-actions">
-      <button class="primary compact-action" type="button" data-org-save="${org.id || ""}">保存</button>
-      <button class="secondary compact-action" type="button" data-org-cancel>取消</button>
+      </select></label>
+      <label>上级部门<select data-org-field="parentId" name="parentId" aria-label="上级部门"><option value="">无上级</option>${parentOptions}</select></label>
+      <label>部门负责人<select data-org-field="managerUserId" name="managerUserId" aria-label="部门负责人"><option value="">未设置负责人</option>${managerOptions}</select></label>
     </div>
   </div>`;
 }
@@ -1000,6 +1026,8 @@ function renderEmployeeReminders() {
     }
   });
 
+  const count = reminders.length;
+  $("#reminderInfoBtn").textContent = count ? `提醒 (${count})` : "提醒";
   $("#employeeReminders").innerHTML = reminders.slice(0, 8).map((item) => `
     <div class="reminder-item ${item.level}">
       <strong>${escapeHtml(item.title)}</strong>

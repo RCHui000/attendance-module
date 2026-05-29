@@ -50,6 +50,7 @@
         </div>
         <nav aria-label="主导航">
           <button class="nav-item active" type="button" data-view="timesheet">我的周表</button>
+          <button class="nav-item" type="button" data-view="dashboard" data-review-only>数据看板</button>
           <button class="nav-item" type="button" data-view="review" data-review-only>审批中心</button>
           <button class="nav-item" type="button" data-view="report" data-review-only>项目汇总</button>
           <button class="nav-item" type="button" data-view="employees" data-admin-only>员工与组织</button>
@@ -153,6 +154,7 @@
                 <div class="table-wrap compact-wrap">
                   <table class="report-table" id="reviewTable"></table>
                 </div>
+                <div id="reviewDrawer" class="review-drawer" hidden></div>
               </div>
               <div class="approval-section">
                 <div class="subsection-head">
@@ -174,7 +176,17 @@
               <h2>项目工日汇总</h2>
               <p class="note">汇总员工周表沉淀出的项目工日，用于主管复核、管理员导出和后续成本核算。</p>
             </div>
-            <button id="exportCsv" class="secondary" type="button">导出项目工日</button>
+            <div class="panel-actions">
+              <fieldset class="employee-mode-switch report-mode-switch">
+                <legend class="sr-only">项目汇总切换</legend>
+                <input class="employee-mode-input" id="reportModeLabor" type="radio" name="reportMode" value="labor" checked>
+                <label class="employee-mode-option" for="reportModeLabor">工时统计</label>
+                <input class="employee-mode-input" id="reportModeProjects" type="radio" name="reportMode" value="projects">
+                <label class="employee-mode-option" for="reportModeProjects">项目基础</label>
+              </fieldset>
+              <button id="newProject" class="primary" type="button" hidden>新增项目</button>
+              <button id="exportCsv" class="secondary" type="button">导出项目工日</button>
+            </div>
           </div>
           <div class="metric-row">
             <div class="metric"><span>已填员工</span><strong id="metricPeople">0</strong></div>
@@ -183,6 +195,26 @@
           </div>
           <div class="table-wrap">
             <table class="report-table" id="projectReportTable"></table>
+          </div>
+        </section>
+
+        <section class="view" id="dashboardView">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow">项目看板</span>
+              <h2>经营与人力投入</h2>
+              <p class="note">按项目查看合同额、回款、人力成本、毛利和本周工日投入。</p>
+            </div>
+            <button id="refreshDashboard" class="secondary" type="button">刷新</button>
+          </div>
+          <div class="metric-row dashboard-metrics">
+            <div class="metric"><span>合同额</span><strong id="metricContract">0</strong></div>
+            <div class="metric"><span>已回款</span><strong id="metricReceived">0</strong></div>
+            <div class="metric"><span>待回款</span><strong id="metricReceivable">0</strong></div>
+            <div class="metric"><span>人力成本</span><strong id="metricLaborCost">0</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table class="report-table" id="projectDashboardTable"></table>
           </div>
         </section>
 

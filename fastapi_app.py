@@ -194,6 +194,27 @@ async def timesheet(request: Request, weekStart: str | None = None):
         return legacy.get_timesheet(conn, int(user["id"]), legacy.normalize_week_start(weekStart))
 
 
+@api.get("/api/timesheet/{timesheet_id}")
+async def timesheet_detail(request: Request, timesheet_id: int):
+    user = require_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not can_review(user):
+        return error("无权查看他人周表。", 403)
+    with legacy.connect() as conn:
+        if not legacy.can_view_timesheet_detail(conn, row_user(user), timesheet_id):
+            return error("无权查看该周表详情。", 403)
+        sheet = legacy.get_timesheet_by_id(conn, timesheet_id)
+        if not sheet:
+            return error("周表不存在。", 404)
+        return sheet
+
+
+@api.get("/api/timesheet-detail")
+async def timesheet_detail_query(request: Request, timesheetId: int):
+    return await timesheet_detail(request, timesheetId)
+
+
 @api.get("/api/reports/weekly")
 async def weekly_report(request: Request, weekStart: str | None = None):
     user = require_user(request)
@@ -203,6 +224,42 @@ async def weekly_report(request: Request, weekStart: str | None = None):
         return error("无权访问汇总报表。", 403)
     with legacy.connect() as conn:
         return legacy.weekly_report(conn, legacy.normalize_week_start(weekStart))
+
+
+@api.get("/api/project-dashboard")
+async def project_dashboard(request: Request, weekStart: str | None = None):
+    user = require_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not can_review(user):
+        return error("无权访问项目看板。", 403)
+    with legacy.connect() as conn:
+        return legacy.project_dashboard(conn, legacy.normalize_week_start(weekStart))
+
+
+@api.get("/api/projects")
+async def projects(request: Request):
+    user = require_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not can_review(user):
+        return error("无权访问项目基础数据。", 403)
+    with legacy.connect() as conn:
+        return legacy.project_rows(conn)
+
+
+@api.post("/api/projects/save")
+async def projects_save(request: Request, payload: dict[str, Any]):
+    user = require_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not can_review(user):
+        return error("无权维护项目基础数据。", 403)
+    with legacy.connect() as conn:
+        result = legacy.save_project(conn, payload)
+    if result.get("ok"):
+        await hub.broadcast(["dashboard", "reports"], client_id(request))
+    return result
 
 
 @api.post("/api/login")

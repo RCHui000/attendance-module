@@ -167,7 +167,22 @@ def init_db() -> None:
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               code TEXT UNIQUE NOT NULL,
               name TEXT NOT NULL,
+              contract_amount REAL NOT NULL DEFAULT 0,
+              received_amount REAL NOT NULL DEFAULT 0,
+              owner_org_id INTEGER,
               status TEXT NOT NULL DEFAULT 'active'
+            );
+
+            CREATE TABLE IF NOT EXISTS contracts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              project_id INTEGER NOT NULL,
+              contract_no TEXT DEFAULT '',
+              contract_name TEXT NOT NULL DEFAULT '',
+              contract_amount REAL NOT NULL DEFAULT 0,
+              received_amount REAL NOT NULL DEFAULT 0,
+              status TEXT NOT NULL DEFAULT 'active',
+              signed_at TEXT,
+              FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS timesheets (
@@ -194,6 +209,17 @@ def init_db() -> None:
               hours REAL NOT NULL DEFAULT 0 CHECK(hours >= 0 AND hours <= 1),
               description TEXT DEFAULT '',
               FOREIGN KEY(timesheet_id) REFERENCES timesheets(id) ON DELETE CASCADE,
+              FOREIGN KEY(project_id) REFERENCES projects(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS project_labor_costs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              project_id INTEGER NOT NULL,
+              week_start_date TEXT NOT NULL,
+              labor_days REAL NOT NULL DEFAULT 0,
+              labor_cost REAL NOT NULL DEFAULT 0,
+              calculated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE(project_id, week_start_date),
               FOREIGN KEY(project_id) REFERENCES projects(id)
             );
 
@@ -239,6 +265,25 @@ def init_db() -> None:
               FOREIGN KEY(assignee_user_id) REFERENCES users(id),
               FOREIGN KEY(created_by) REFERENCES users(id),
               FOREIGN KEY(completed_by) REFERENCES users(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS workflow_templates (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              workflow_key TEXT UNIQUE NOT NULL,
+              name TEXT NOT NULL,
+              target_type TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'active'
+            );
+
+            CREATE TABLE IF NOT EXISTS workflow_steps (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              template_id INTEGER NOT NULL,
+              step_order INTEGER NOT NULL,
+              step_key TEXT NOT NULL,
+              assignee_role TEXT NOT NULL DEFAULT 'manager',
+              assignee_strategy TEXT NOT NULL DEFAULT 'direct_manager',
+              action_policy TEXT NOT NULL DEFAULT 'approve_reject',
+              FOREIGN KEY(template_id) REFERENCES workflow_templates(id) ON DELETE CASCADE
             );
             """
         )
@@ -287,6 +332,9 @@ def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition:
 
 
 def migrate_schema(conn: sqlite3.Connection) -> None:
+    ensure_column(conn, "projects", "contract_amount", "REAL NOT NULL DEFAULT 0")
+    ensure_column(conn, "projects", "received_amount", "REAL NOT NULL DEFAULT 0")
+    ensure_column(conn, "projects", "owner_org_id", "INTEGER")
     ensure_column(conn, "employee_profiles", "contract_start", "TEXT")
     ensure_column(conn, "employee_profiles", "contract_end", "TEXT")
     ensure_column(conn, "employee_profiles", "job_level", "TEXT NOT NULL DEFAULT 'employee'")
@@ -300,7 +348,35 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "approval_logs", "to_status", "TEXT")
     ensure_column(conn, "workflow_tasks", "assignee_user_id", "INTEGER")
     conn.execute("UPDATE approval_logs SET target_id = timesheet_id WHERE target_id IS NULL")
+    seed_workflow_templates(conn)
     sync_employee_account_logins(conn)
+
+
+def seed_workflow_templates(conn: sqlite3.Connection) -> None:
+    templates = [
+        ("timesheet", "周表审批", "timesheet"),
+        ("overtime", "加班 OT 审批", "overtime"),
+    ]
+    for workflow_key, name, target_type in templates:
+        cur = conn.execute(
+            """
+            INSERT INTO workflow_templates(workflow_key, name, target_type)
+            SELECT ?, ?, ?
+            WHERE NOT EXISTS (SELECT 1 FROM workflow_templates WHERE workflow_key = ?)
+            """,
+            (workflow_key, name, target_type, workflow_key),
+        )
+        template = conn.execute("SELECT id FROM workflow_templates WHERE workflow_key = ?", (workflow_key,)).fetchone()
+        if not template:
+            continue
+        conn.execute(
+            """
+            INSERT INTO workflow_steps(template_id, step_order, step_key, assignee_role, assignee_strategy, action_policy)
+            SELECT ?, 1, 'manager_review', 'manager', 'direct_manager', 'approve_reject'
+            WHERE NOT EXISTS (SELECT 1 FROM workflow_steps WHERE template_id = ? AND step_key = 'manager_review')
+            """,
+            (template["id"], template["id"]),
+        )
 
 
 def sync_employee_account_logins(conn: sqlite3.Connection) -> None:
@@ -580,6 +656,52 @@ def get_timesheet(conn: sqlite3.Connection, user_id: int, week_start: str) -> di
     return result
 
 
+def get_timesheet_by_id(conn: sqlite3.Connection, timesheet_id: int) -> dict | None:
+    sheet = conn.execute(
+        """
+        SELECT t.*, u.name AS user_name, u.department
+        FROM timesheets t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.id = ?
+        """,
+        (timesheet_id,),
+    ).fetchone()
+    if not sheet:
+        return None
+    entries = dict_rows(
+        conn.execute(
+            """
+            SELECT e.*, p.code AS project_code, p.name AS project_name
+            FROM timesheet_entries e
+            JOIN projects p ON p.id = e.project_id
+            WHERE e.timesheet_id = ?
+            ORDER BY p.code, e.work_date
+            """,
+            (timesheet_id,),
+        )
+    )
+    overtime = dict_rows(
+        conn.execute(
+            """
+            SELECT id, work_date, overtime_hours, reason, status, reject_comment,
+                   approved_by, approved_at
+            FROM overtime_entries
+            WHERE timesheet_id = ?
+            ORDER BY work_date
+            """,
+            (timesheet_id,),
+        )
+    )
+    result = dict(sheet)
+    result["entries"] = entries
+    result["overtime"] = overtime
+    result["days"] = [
+        (date.fromisoformat(result["week_start_date"]) + timedelta(days=i)).isoformat()
+        for i in range(7)
+    ]
+    return result
+
+
 def json_response(handler: SimpleHTTPRequestHandler, payload: object, status: int = 200) -> None:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
@@ -774,6 +896,40 @@ def user_can_handle_task(conn: sqlite3.Connection, user: sqlite3.Row, workflow_k
     if task["assignee_user_id"] is not None:
         return int(task["assignee_user_id"]) == int(user["id"])
     return task["assignee_role"] == user["role"]
+
+
+def can_view_timesheet_detail(conn: sqlite3.Connection, user: sqlite3.Row | dict, timesheet_id: int) -> bool:
+    if is_admin(user):
+        return True
+    row = conn.execute("SELECT user_id FROM timesheets WHERE id = ?", (timesheet_id,)).fetchone()
+    if row and int(row["user_id"]) == int(user["id"]):
+        return True
+    pending = conn.execute(
+        """
+        SELECT 1
+        FROM workflow_tasks
+        WHERE workflow_key = 'timesheet'
+          AND target_type = 'timesheet'
+          AND target_id = ?
+          AND status = 'pending'
+          AND assignee_user_id = ?
+        """,
+        (timesheet_id, int(user["id"])),
+    ).fetchone()
+    if pending:
+        return True
+    reviewed = conn.execute(
+        """
+        SELECT 1
+        FROM approval_logs
+        WHERE target_type = 'timesheet'
+          AND target_id = ?
+          AND actor_id = ?
+          AND action IN ('approve', 'reject', 'reopen')
+        """,
+        (timesheet_id, int(user["id"])),
+    ).fetchone()
+    return bool(reviewed)
 
 
 def complete_workflow_tasks(
@@ -991,6 +1147,34 @@ class AppHandler(SimpleHTTPRequestHandler):
                 week_start = normalize_week_start(query.get("weekStart", [None])[0])
                 return json_response(self, get_timesheet(conn, user_id, week_start))
 
+            if parsed.path.startswith("/api/timesheet/"):
+                if not require_user(self, user):
+                    return
+                try:
+                    timesheet_id = int(parsed.path.rsplit("/", 1)[1])
+                except ValueError:
+                    return json_response(self, {"ok": False, "message": "周表编号无效。"}, 400)
+                if not can_view_timesheet_detail(conn, user, timesheet_id):
+                    return json_response(self, {"ok": False, "message": "无权查看该周表详情。"}, 403)
+                sheet = get_timesheet_by_id(conn, timesheet_id)
+                if not sheet:
+                    return json_response(self, {"ok": False, "message": "周表不存在。"}, 404)
+                return json_response(self, sheet)
+
+            if parsed.path == "/api/timesheet-detail":
+                if not require_user(self, user):
+                    return
+                try:
+                    timesheet_id = int(query.get("timesheetId", [""])[0])
+                except ValueError:
+                    return json_response(self, {"ok": False, "message": "周表编号无效。"}, 400)
+                if not can_view_timesheet_detail(conn, user, timesheet_id):
+                    return json_response(self, {"ok": False, "message": "无权查看该周表详情。"}, 403)
+                sheet = get_timesheet_by_id(conn, timesheet_id)
+                if not sheet:
+                    return json_response(self, {"ok": False, "message": "周表不存在。"}, 404)
+                return json_response(self, sheet)
+
             if parsed.path == "/api/reports/weekly":
                 if not require_user(self, user):
                     return
@@ -998,6 +1182,21 @@ class AppHandler(SimpleHTTPRequestHandler):
                     return json_response(self, {"ok": False, "message": "无权访问汇总报表。"}, 403)
                 week_start = normalize_week_start(query.get("weekStart", [None])[0])
                 return json_response(self, weekly_report(conn, week_start))
+
+            if parsed.path == "/api/project-dashboard":
+                if not require_user(self, user):
+                    return
+                if not can_review(user):
+                    return json_response(self, {"ok": False, "message": "无权访问项目看板。"}, 403)
+                week_start = normalize_week_start(query.get("weekStart", [None])[0])
+                return json_response(self, project_dashboard(conn, week_start))
+
+            if parsed.path == "/api/projects":
+                if not require_user(self, user):
+                    return
+                if not can_review(user):
+                    return json_response(self, {"ok": False, "message": "无权访问项目基础数据。"}, 403)
+                return json_response(self, project_rows(conn))
 
         return json_response(self, {"error": "Not found"}, 404)
 
@@ -1098,6 +1297,14 @@ class AppHandler(SimpleHTTPRequestHandler):
                 if not is_admin(user):
                     return json_response(self, {"ok": False, "message": "无权删除部门。"}, 403)
                 return json_response(self, delete_organization(conn, payload))
+
+            if parsed.path == "/api/projects/save":
+                user = cookie_user(self, conn)
+                if not require_user(self, user):
+                    return
+                if not can_review(user):
+                    return json_response(self, {"ok": False, "message": "无权维护项目基础数据。"}, 403)
+                return json_response(self, save_project(conn, payload))
 
             if parsed.path == "/api/overtime/action":
                 user = cookie_user(self, conn)
@@ -1640,6 +1847,95 @@ def update_overtime_status(conn: sqlite3.Connection, payload: dict, user: sqlite
         result["to_status"],
     )
     return {"ok": True}
+
+
+def project_rows(conn: sqlite3.Connection) -> list[dict]:
+    return dict_rows(
+        conn.execute(
+            """
+            SELECT p.id, p.code, p.name, p.contract_amount, p.received_amount,
+                   MAX(p.contract_amount - p.received_amount, 0) AS receivable_amount,
+                   p.owner_org_id, o.org_name AS owner_org_name, p.status
+            FROM projects p
+            LEFT JOIN organizations o ON o.id = p.owner_org_id
+            WHERE p.status = 'active'
+            ORDER BY p.code
+            """
+        )
+    )
+
+
+def save_project(conn: sqlite3.Connection, payload: dict) -> dict:
+    project_id = int(payload.get("id") or 0) or None
+    code = (payload.get("code") or "").strip()
+    name = (payload.get("name") or "").strip()
+    if not code or not name:
+        return {"ok": False, "message": "项目编号和名称不能为空。"}
+    contract_amount = float(payload.get("contractAmount") or payload.get("contract_amount") or 0)
+    received_amount = float(payload.get("receivedAmount") or payload.get("received_amount") or 0)
+    duplicate = conn.execute(
+        "SELECT id FROM projects WHERE code = ? AND (? IS NULL OR id != ?)",
+        (code, project_id, project_id),
+    ).fetchone()
+    if duplicate:
+        return {"ok": False, "message": "项目编号已存在。"}
+    if project_id:
+        conn.execute(
+            """
+            UPDATE projects
+            SET code = ?, name = ?, contract_amount = ?, received_amount = ?
+            WHERE id = ?
+            """,
+            (code, name, contract_amount, received_amount, project_id),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO projects(code, name, contract_amount, received_amount)
+            VALUES(?, ?, ?, ?)
+            """,
+            (code, name, contract_amount, received_amount),
+        )
+    return {"ok": True, "projects": project_rows(conn)}
+
+
+def project_dashboard(conn: sqlite3.Connection, week_start: str) -> dict:
+    rows = dict_rows(
+        conn.execute(
+            """
+            SELECT p.id, p.code, p.name, p.contract_amount, p.received_amount,
+                   MAX(p.contract_amount - p.received_amount, 0) AS receivable_amount,
+                   COALESCE(SUM(e.hours), 0) AS labor_days,
+                   COALESCE(SUM(
+                     CASE
+                       WHEN ep.contract_type = 'service' THEN COALESCE(ep.daily_wage, 0) * e.hours
+                       ELSE COALESCE(ep.monthly_salary, 0) / 26.0 * e.hours
+                     END
+                   ), 0) AS labor_cost,
+                   COUNT(DISTINCT CASE WHEN e.id IS NOT NULL THEN t.user_id END) AS people_count
+            FROM projects p
+            LEFT JOIN timesheets t ON t.week_start_date = ?
+            LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id AND e.project_id = p.id
+            LEFT JOIN employee_profiles ep ON ep.user_id = t.user_id
+            WHERE p.status = 'active'
+            GROUP BY p.id
+            ORDER BY labor_days DESC, p.code
+            """,
+            (week_start,),
+        )
+    )
+    for row in rows:
+        gross_profit = Number_safe(row["contract_amount"]) - Number_safe(row["labor_cost"])
+        row["gross_profit"] = round(gross_profit, 2)
+        row["gross_margin"] = round(gross_profit / Number_safe(row["contract_amount"]) * 100, 1) if Number_safe(row["contract_amount"]) else 0
+    return {"weekStart": week_start, "projects": rows}
+
+
+def Number_safe(value: object) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def weekly_report(conn: sqlite3.Connection, week_start: str) -> dict:

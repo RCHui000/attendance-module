@@ -17,7 +17,11 @@ const state = {
   rows: [],
   overtime: {},
   report: null,
+  dashboard: null,
+  projectBase: [],
   approvalTasks: null,
+  reportTab: "labor",
+  editingProjectId: null,
 };
 
 const dayNames = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -395,7 +399,9 @@ function bindEvents() {
   $("#saveDraft").addEventListener("click", saveDraft);
   $("#submitSheet").addEventListener("click", submitSheet);
   $("#refreshReview").addEventListener("click", loadReport);
+  $("#refreshDashboard").addEventListener("click", loadReport);
   $("#refreshEmployees").addEventListener("click", loadEmployees);
+  $("#newProject").addEventListener("click", newProject);
   $("#newEmployee").addEventListener("click", () => newEmployeeWithRole(state.employeeTab === "management" ? "manager" : "employee"));
   $("#deleteEmployeeToolbar").addEventListener("click", deleteSelectedEmployee);
   $("#newOrg").addEventListener("click", newOrganization);
@@ -434,7 +440,7 @@ function bindEvents() {
       button.classList.add("active");
       $(`#${button.dataset.view}View`).classList.add("active");
       setPageTitle(button.dataset.view);
-      if (button.dataset.view === "review" || button.dataset.view === "report") await loadReport();
+      if (["review", "report", "dashboard"].includes(button.dataset.view)) await loadReport();
       if (button.dataset.view === "employees") await loadEmployees();
     });
   });
@@ -448,6 +454,13 @@ function bindEvents() {
     if (approvalMode) {
       state.approvalTab = approvalMode.value;
       renderReview();
+      return;
+    }
+    const reportMode = event.target.closest('input[name="reportMode"]');
+    if (reportMode) {
+      state.reportTab = reportMode.value;
+      state.editingProjectId = null;
+      renderReport();
     }
   });
   document.addEventListener("click", (event) => {
@@ -528,7 +541,7 @@ async function handleRemoteSync(modules) {
       }
     }
 
-    if (canReview() && modules.some((item) => ["approvals", "reports"].includes(item)) && ["review", "report"].includes(view)) {
+    if (canReview() && modules.some((item) => ["approvals", "reports"].includes(item)) && ["review", "report", "dashboard"].includes(view)) {
       await loadReport();
       toast("审批/汇总数据已同步");
     }
@@ -540,6 +553,7 @@ async function handleRemoteSync(modules) {
 function setPageTitle(view) {
   const titles = {
     timesheet: ["我的周表", ""],
+    dashboard: ["数据看板", "查看项目合同、回款、人力成本和毛利表现。"],
     review: ["审批中心", "主管审核已提交周表，退回时需要说明原因。"],
     report: ["项目汇总", "按项目查看本周投入工日，支持导出 CSV。"],
     employees: ["员工与组织架构", "管理员维护员工、部门、合同类型和薪酬基础。"],
@@ -855,11 +869,21 @@ function buildPayload() {
 
 async function loadReport() {
   if (!canReview()) return;
-  state.report = await api(`/api/reports/weekly?weekStart=${$("#weekStart").value}`);
-  state.approvalTasks = await api(`/api/approvals/tasks?weekStart=${$("#weekStart").value}`);
+  const weekStart = $("#weekStart").value;
+  const [report, dashboard, projectBase, approvalTasks] = await Promise.all([
+    api(`/api/reports/weekly?weekStart=${weekStart}`),
+    api(`/api/project-dashboard?weekStart=${weekStart}`),
+    api("/api/projects"),
+    api(`/api/approvals/tasks?weekStart=${weekStart}`),
+  ]);
+  state.report = report;
+  state.dashboard = dashboard;
+  state.projectBase = projectBase;
+  state.approvalTasks = approvalTasks;
   state.otPending = state.approvalTasks.overtime || [];
   renderReview();
   renderReport();
+  renderDashboard();
 }
 
 async function loadEmployees() {
@@ -1279,23 +1303,27 @@ function renderReview() {
   const timesheets = reviewedMode ? state.approvalTasks?.reviewed || [] : state.approvalTasks?.timesheets || [];
   const rows = timesheets.map((item) => {
     if (reviewedMode) {
-      return `<tr>
+      return `<tr class="review-row" data-review-detail="${item.timesheet_id}">
         <td>${item.name}</td>
-        <td>${item.department}</td>
-        <td><span class="status ${item.status}">${statusText[item.status] || item.status}</span></td>
-        <td>${Number(item.total_hours).toFixed(2)}</td>
-        <td>${item.review_comment || "-"}</td>
-        <td><button class="danger" type="button" data-reopen="${item.timesheet_id}">退回重开</button></td>
-      </tr>`;
+      <td>${item.department}</td>
+      <td><span class="status ${item.status}">${statusText[item.status] || item.status}</span></td>
+      <td>${Number(item.total_hours).toFixed(2)}</td>
+      <td>${item.review_comment || "-"}</td>
+      <td>
+        <button class="secondary compact-action" type="button" data-review-open="${item.timesheet_id}">查看</button>
+        <button class="danger compact-action" type="button" data-reopen="${item.timesheet_id}">退回重开</button>
+      </td>
+    </tr>`;
     }
-    return `<tr>
+    return `<tr class="review-row" data-review-detail="${item.timesheet_id}">
       <td>${item.name}</td>
       <td>${item.department}</td>
       <td><span class="status ${item.status || "draft"}">${statusText[item.status] || "未填写"}</span></td>
       <td>${Number(item.total_hours).toFixed(2)}</td>
       <td>
-        <button class="primary" type="button" data-approve="${item.timesheet_id}">通过</button>
-        <button class="danger" type="button" data-reject="${item.timesheet_id}">退回</button>
+        <button class="secondary compact-action" type="button" data-review-open="${item.timesheet_id}">查看</button>
+        <button class="primary compact-action" type="button" data-approve="${item.timesheet_id}">通过</button>
+        <button class="danger compact-action" type="button" data-reject="${item.timesheet_id}">退回</button>
       </td>
     </tr>`;
   });
@@ -1319,6 +1347,18 @@ function renderReview() {
     button.addEventListener("click", () => {
       const comment = window.prompt("请输入退回重开原因", "审批后复查退回，请重新调整周表");
       if (comment !== null) reviewAction(button.dataset.reopen, "reopen", comment);
+    });
+  });
+  document.querySelectorAll("[data-review-open]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      showReviewDrawer(button.dataset.reviewOpen);
+    });
+  });
+  document.querySelectorAll("[data-review-detail]").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      showReviewDrawer(row.dataset.reviewDetail);
     });
   });
   renderOtApproval();
@@ -1379,6 +1419,71 @@ async function overtimeAction(id, status, comment = "") {
   }
 }
 
+async function showReviewDrawer(timesheetId) {
+  const drawer = $("#reviewDrawer");
+  if (!timesheetId) {
+    toast("周表编号缺失，无法查看详情");
+    return;
+  }
+  try {
+    const sheet = await api(`/api/timesheet-detail?timesheetId=${encodeURIComponent(timesheetId)}`);
+    const weekEnd = addDays(sheet.week_start_date, 6);
+    const dayLabels = sheet.days.map((d) => d.slice(5));
+    const projects = [...new Set(sheet.entries.map((e) => e.project_name))];
+    const entriesByProject = projects.map((pname) => ({
+      name: pname,
+      code: sheet.entries.find((e) => e.project_name === pname).project_code,
+      days: sheet.days.map((d) => {
+        const entry = sheet.entries.find((e) => e.project_name === pname && e.work_date === d);
+        return entry ? Number(entry.hours).toFixed(2) : "";
+      }),
+    }));
+    const dailyTotals = sheet.days.map((d) => {
+      const dayEntries = sheet.entries.filter((e) => e.work_date === d);
+      const sum = dayEntries.reduce((acc, e) => acc + Number(e.hours), 0);
+      return sum > 0 ? sum.toFixed(2) : "";
+    });
+    const otByDay = {};
+    (sheet.overtime || []).forEach((ot) => {
+      otByDay[ot.work_date] = Number(ot.overtime_hours).toFixed(1);
+    });
+
+    const headerRows = `<tr><th></th>${dayLabels.map((d) => `<th>${d}</th>`).join("")}<th>合计</th></tr>`;
+    const projectRows = entriesByProject.map((p) =>
+      `<tr><td>${escapeHtml(p.code)} ${escapeHtml(p.name)}</td>${sheet.days.map((d, i) => `<td>${p.days[i]}</td>`).join("")}<td></td></tr>`
+    ).join("");
+    const grandTotal = sheet.entries.reduce((acc, e) => acc + Number(e.hours), 0).toFixed(2);
+    const totalRow = `<tr class="review-drawer-subtotal"><td>每日合计</td>${dailyTotals.map((v) => `<td>${v}</td>`).join("")}<td>${grandTotal}</td></tr>`;
+    const otRow = `<tr class="review-drawer-ot"><td>加班 (h)</td>${sheet.days.map((d) => `<td>${otByDay[d] || ""}</td>`).join("")}<td></td></tr>`;
+
+    drawer.innerHTML = `
+      <div class="review-drawer-head">
+        <div>
+          <strong>${escapeHtml(sheet.user_name)} · ${escapeHtml(sheet.department)}</strong>
+          <span>${sheet.week_start_date} 至 ${weekEnd} · ${statusText[sheet.status] || sheet.status}</span>
+        </div>
+        <button class="icon-btn" type="button" id="closeReviewDrawer" aria-label="关闭">x</button>
+      </div>
+      <div class="review-drawer-body">
+        <div class="table-wrap compact-wrap">
+          <table class="report-table compact-table review-drawer-table">
+            <thead>${headerRows}</thead>
+            <tbody>${projectRows}${totalRow}${otRow}</tbody>
+          </table>
+        </div>
+      </div>
+      ${sheet.remark ? `<div class="review-drawer-remark">备注：${escapeHtml(sheet.remark)}</div>` : ""}
+    `;
+    drawer.hidden = false;
+    $("#closeReviewDrawer").addEventListener("click", () => {
+      drawer.hidden = true;
+    });
+    drawer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 async function reviewAction(timesheetId, action, comment = "") {
   try {
     const result = await api("/api/timesheet/action", {
@@ -1406,6 +1511,14 @@ async function reviewAction(timesheetId, action, comment = "") {
 }
 
 function renderReport() {
+  const modeInput = document.querySelector(`input[name="reportMode"][value="${state.reportTab}"]`);
+  if (modeInput) modeInput.checked = true;
+  $("#newProject").hidden = state.reportTab !== "projects";
+  $("#exportCsv").hidden = state.reportTab !== "labor";
+  if (state.reportTab === "projects") {
+    renderProjectBase();
+    return;
+  }
   const projectDays = state.report.projects.reduce((sum, item) => sum + Number(item.total_hours), 0);
   $("#metricPeople").textContent = state.report.employees.filter((item) => Number(item.total_hours) > 0).length;
   $("#metricHours").textContent = projectDays.toFixed(2);
@@ -1422,6 +1535,109 @@ function renderReport() {
     </tr>`;
   });
   $("#projectReportTable").innerHTML = `<thead><tr><th>项目编号</th><th>项目名称</th><th>投入人数</th><th>总工日</th><th>占比</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+}
+
+function renderProjectBase() {
+  const rows = state.projectBase.map((item) => {
+    const editing = state.editingProjectId === item.id;
+    if (editing) {
+      return `<tr>
+        <td><input class="employee-input" data-project-field="code" value="${escapeHtml(item.code || "")}"></td>
+        <td><input class="employee-input" data-project-field="name" value="${escapeHtml(item.name || "")}"></td>
+        <td><input class="employee-input salary" data-project-field="contractAmount" inputmode="decimal" value="${item.contract_amount || ""}"></td>
+        <td><input class="employee-input salary" data-project-field="receivedAmount" inputmode="decimal" value="${item.received_amount || ""}"></td>
+        <td>${formatMoney(Number(item.contract_amount || 0) - Number(item.received_amount || 0))}</td>
+        <td><button class="primary compact-action" type="button" data-project-save="${item.id || ""}">保存</button><button class="secondary compact-action" type="button" data-project-cancel>取消</button></td>
+      </tr>`;
+    }
+    return `<tr>
+      <td>${escapeHtml(item.code)}</td>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${formatMoney(item.contract_amount)}</td>
+      <td>${formatMoney(item.received_amount)}</td>
+      <td>${formatMoney(item.receivable_amount)}</td>
+      <td><button class="secondary compact-action" type="button" data-project-edit="${item.id}">编辑</button></td>
+    </tr>`;
+  });
+  $("#projectReportTable").innerHTML = `<thead><tr><th>项目编号</th><th>项目名称</th><th>合同额</th><th>已回款</th><th>待回款</th><th>操作</th></tr></thead><tbody>${rows.join("") || `<tr><td colspan="6">暂无项目</td></tr>`}</tbody>`;
+  document.querySelectorAll("[data-project-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.editingProjectId = Number(button.dataset.projectEdit);
+      renderReport();
+    });
+  });
+  document.querySelectorAll("[data-project-cancel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.editingProjectId = null;
+      state.projectBase = state.projectBase.filter((item) => item.id !== 0);
+      renderReport();
+    });
+  });
+  document.querySelectorAll("[data-project-save]").forEach((button) => {
+    button.addEventListener("click", () => saveProject(button));
+  });
+}
+
+function renderDashboard() {
+  if (!state.dashboard) return;
+  const rows = state.dashboard.projects || [];
+  const totals = rows.reduce((acc, item) => {
+    acc.contract += Number(item.contract_amount || 0);
+    acc.received += Number(item.received_amount || 0);
+    acc.receivable += Number(item.receivable_amount || 0);
+    acc.laborCost += Number(item.labor_cost || 0);
+    return acc;
+  }, { contract: 0, received: 0, receivable: 0, laborCost: 0 });
+  $("#metricContract").textContent = formatMoney(totals.contract);
+  $("#metricReceived").textContent = formatMoney(totals.received);
+  $("#metricReceivable").textContent = formatMoney(totals.receivable);
+  $("#metricLaborCost").textContent = formatMoney(totals.laborCost);
+  $("#projectDashboardTable").innerHTML = `<thead><tr><th>项目编号</th><th>项目名称</th><th>合同额</th><th>已回款</th><th>待回款</th><th>本周工日</th><th>人力成本</th><th>毛利</th><th>KPI</th></tr></thead><tbody>${rows.map((item) => `
+    <tr>
+      <td>${escapeHtml(item.code)}</td>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${formatMoney(item.contract_amount)}</td>
+      <td>${formatMoney(item.received_amount)}</td>
+      <td>${formatMoney(item.receivable_amount)}</td>
+      <td>${Number(item.labor_days || 0).toFixed(2)}</td>
+      <td>${formatMoney(item.labor_cost)}</td>
+      <td>${formatMoney(item.gross_profit)}</td>
+      <td>${Number(item.gross_margin || 0).toFixed(1)}%</td>
+    </tr>`).join("") || `<tr><td colspan="9">暂无项目数据</td></tr>`}</tbody>`;
+}
+
+function newProject() {
+  state.reportTab = "projects";
+  state.editingProjectId = 0;
+  state.projectBase = [{ id: 0, code: "", name: "", contract_amount: 0, received_amount: 0 }, ...state.projectBase.filter((item) => item.id !== 0)];
+  renderReport();
+}
+
+async function saveProject(button) {
+  const row = button.closest("tr");
+  const payload = { id: Number(button.dataset.projectSave) || null };
+  row.querySelectorAll("[data-project-field]").forEach((field) => {
+    payload[field.dataset.projectField] = field.value;
+  });
+  if (!payload.code?.trim() || !payload.name?.trim()) {
+    toast("请填写项目编号和名称");
+    return;
+  }
+  await withBusyButton(button, "保存中", async () => {
+    const result = ensureOk(await api("/api/projects/save", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }));
+    state.projectBase = result.projects || [];
+    state.projects = state.projectBase;
+    state.editingProjectId = null;
+    await loadReport();
+    toast("项目基础数据已保存");
+  });
+}
+
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
 }
 
 function exportCsv() {

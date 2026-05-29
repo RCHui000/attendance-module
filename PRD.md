@@ -432,6 +432,36 @@ outsourced 外包
 
 ## 6. 数据模型建议
 
+目标数据分层：
+
+```text
+基础数据层
+├── employees
+├── departments
+├── projects
+└── contracts
+
+工时成本层
+├── timesheets
+├── timesheet_entries
+└── project_labor_costs
+
+流程层
+├── workflow_templates
+├── workflow_steps
+├── workflow_tasks
+└── approval_logs
+
+汇总层 / 商务看板
+└── project_dashboard
+    ├── 合同额 / 已回款 / 待回款
+    ├── 项目工日投入
+    ├── 人力成本开支
+    └── 毛利 / KPI
+```
+
+当前 Demo 保留 `users + employee_profiles + organizations` 兼容实现；正式系统应逐步拆为 `employees`、`departments` 和独立账号体系。
+
 ## 6.1 users
 
 登录与基础身份。
@@ -582,6 +612,42 @@ user_id + week_start_date
 - 生成任务时根据员工直属领导或部门负责人写入 `assignee_user_id`。
 - 审批中心必须按当前登录人的 `assignee_user_id` 过滤待审核任务。
 - 管理员账号保留全局兜底查看和处理能力。
+
+## 6.9 projects / contracts / project_labor_costs
+
+项目基础数据字段：
+
+- code
+- name
+- contract_amount
+- received_amount
+- receivable_amount
+- owner_org_id
+- status
+
+合同表字段：
+
+- project_id
+- contract_no
+- contract_name
+- contract_amount
+- received_amount
+- status
+- signed_at
+
+项目人力成本快照字段：
+
+- project_id
+- week_start_date
+- labor_days
+- labor_cost
+- calculated_at
+
+说明：
+
+- 项目基础数据用于维护项目编号、项目名称、合同额和回款状态。
+- `project_labor_costs` 可由周表和员工薪酬基础定期计算生成，作为后续商务看板和薪酬核算的稳定快照。
+- Demo 阶段允许实时聚合计算；正式系统建议落表保存周期快照。
 
 ## 7. 审计与安全
 

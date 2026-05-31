@@ -1,7 +1,7 @@
 services:
   attendance-module:
     build: .
-    image: attendance-module:latest
+    image: attendance-module:${IMAGE_TAG:-latest}
     container_name: attendance-module
     restart: unless-stopped
     environment:

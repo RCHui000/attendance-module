@@ -1,6 +1,6 @@
 #!/bin/bash
-# 部署：构建镜像 → 打版本标签 → 更新容器
-# 用法: ./deploy.sh V0.11
+# 部署新版本：构建镜像 → 打不可变版本标签 → 更新 .env → 启动
+# 用法: ./deploy.sh V0.12
 set -e
 cd "$(dirname "$0")"
 
@@ -11,20 +11,24 @@ fi
 
 echo "=== 部署 attendance-module:${VERSION} ==="
 
-# 1. 构建新镜像
+# 1. 构建镜像
 docker compose build
+
+# 2. 打不可变版本标签（永远不覆盖）
 docker tag attendance-module:latest "attendance-module:${VERSION}"
+echo "镜像已标签: attendance-module:${VERSION}"
 
-# 2. 记录当前版本（用于回滚）
-PREV=$(cat .current-version 2>/dev/null || echo "none")
-echo "$VERSION" > .current-version
-echo "上一版本: $PREV"
-echo "当前版本: $VERSION"
+# 3. 更新 .env 指向新版本
+PREV=$(grep IMAGE_TAG .env 2>/dev/null | cut -d= -f2 || echo "latest")
+sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${VERSION}/" .env
+echo "版本切换: ${PREV} → ${VERSION}"
 
-# 3. 启动
+# 4. 启动
 docker compose up -d
 
 echo ""
 echo "=== 部署完成 ==="
-echo "回滚到上一版本: ./rollback.sh"
-echo "回滚到指定版本: ./rollback.sh V0.10"
+echo "当前运行: attendance-module:${VERSION}"
+echo "回滚命令:  ./rollback.sh"
+echo "指定回滚:  ./rollback.sh v0.10"
+echo "查看版本:  ./rollback.sh --list"

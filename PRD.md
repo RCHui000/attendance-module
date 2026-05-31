@@ -135,7 +135,11 @@ approved/rejected -> draft（管理员重开）
 - 不允许直接任意更新状态。
 - 员工只能提交自己的周表。
 - 审批任务必须路由到具体审核人，不只按 `manager` 角色泛化展示。
-- 审核人解析优先级：员工档案 `manager_user_id`（直属领导） -> 所属部门 `organizations.manager_user_id`（部门负责人） -> 管理员兜底。
+- **V0.10 审批流**：提交周表 → 按周表中的项目分别路由：
+  - Stage 1: `projects.project_owner_id`（项目负责人，可为任意员工）
+  - Stage 2: 员工所在部门的 `organizations.manager_user_id`（部门负责人）
+  - 若项目负责人与部门负责人为同一人，自动合并为 1 道审批，不重复。
+- 审核人解析优先级：`project_owner_id` → `organizations.manager_user_id` → 管理员兜底。
 - 主管只能查看和处理分配给自己的审批任务；管理员可查看和处理全部任务。
 - 锁定后原则上不允许修改原始周表。
 - 锁定后如需调整，应通过调整单进入后续周期。
@@ -806,14 +810,15 @@ Demo 当前仅配置单步 `manager_review`，后续可扩展多级审批。
 - 审批状态通过状态机控制，不允许任意改状态。
 - 数据库模型尽量按 Postgres 兼容方式设计，避免后续迁移大改。
 
-## 8.2 当前 Demo 架构
+## 8.2 当前 V0.10 架构
 
-当前 Demo 已从 Python 标准库 HTTP Server 迁移为 FastAPI + WebSocket 单体服务：
+V0.10 已从原生 HTML/CSS/JS 迁移为 React + shadcn/ui 前端，后端保持 FastAPI + SQLite 单体：
 
 ```text
 Browser
   |
-  | HTML / CSS / JS / WebSocket
+  | React SPA (TypeScript + Tailwind CSS + shadcn/ui)
+  | /api/* → HTTP, /ws/sync → WebSocket
   v
 FastAPI / Uvicorn
   |
@@ -824,27 +829,49 @@ SQLite Database
 
 技术组成：
 
-- 前端：原生 HTML / CSS / JavaScript
-- 后端：FastAPI + Uvicorn
-- 实时同步：FastAPI WebSocket，写操作广播模块更新
-- 数据库：SQLite
-- 登录：账号密码 + Cookie Session
-- 数据文件：`attendance_demo.sqlite3`
+- **前端**：React 19 + TypeScript + Vite 8 + Tailwind CSS v4 + shadcn/ui (18 组件)
+- **状态管理**：Zustand（客户端表单状态）+ TanStack Query（服务端缓存）
+- **路由**：React Router 6，SPA 模式，6 个页面
+- **后端**：FastAPI + Uvicorn
+- **实时同步**：FastAPI WebSocket (useRealtime hook，模块化缓存失效)
+- **数据库**：SQLite → `attendance_demo.sqlite3`
+- **登录**：账号密码 + Cookie Session (HttpOnly)
+- **部署**：Docker Compose（Python:3.12-slim 单阶段），NAS 端口 8767
+- **版本管理**：Git Tags (V0.01, V0.10...) + Docker 镜像标签 + `.env` IMAGE_TAG
+
+前端结构 (`frontend/src/`)：
+
+```text
+components/
+  ui/          shadcn 自动生成 (Button, Card, Table, Sheet, Tabs, ...)
+  layout/      AppLayout, Sidebar, Topbar, Brand, LoginScreen
+  dashboard/   MetricCards, DashboardTable, PeriodFilter
+  review/      ApprovalTable, ExpandedReviewRow (行内展开)
+  report/      ProjectList (项目 CRUD + 负责人/累计工日/累计支出)
+  timesheet/   TimesheetTable, WeekNavigator, SheetWarnings, SheetActions
+  employees/   EmployeeTable, EmployeeEditRow, OrganizationPanel, ReminderFloat
+stores/        authStore, timesheetStore, appStore
+hooks/         useTimesheet, useApprovals, useReport, useEmployees, useProjects, useRealtime
+types/         auth, timesheet, approval, project, employee
+utils/         dates, validation
+pages/         6 个页面 (Login, Dashboard, Review, Report, Timesheet, Employees)
+```
 
 优点：
 
-- 启动快。
-- 适合内部讨论和流程验证。
-- 便于快速调整 PRD 中的业务细节。
-- 已具备多客户端变更通知能力。
+- 组件化前端，维护性好，一致性强
+- TanStack Query 自动管理请求缓存与乐观更新
+- WebSocket 实时同步，多端数据一致
+- Docker 部署 + 镜像版本标签，支持秒级回滚
+- shadcn/ui 提供一致的 UI 语言
 
 限制：
 
-- 不适合正式多人并发。
-- 权限模型较简化。
-- 缺少正式迁移脚本。
-- 缺少生产级日志、审计、备份和监控。
-- SQLite 不适合承担正式实时协作、长期审计和复杂权限。
+- 前端为 CSR SPA，首屏 ~600KB (后续可代码分割)
+- 审批状态机仍为 hardcode，未完全配置化
+- SQLite 不适合正式多人并发写
+- 缺少生产级日志、审计、备份和监控
+- `project_labor_costs` 周期快照未启用，成本为实时计算
 
 ## 8.3 正式系统推荐架构
 

@@ -1,6 +1,7 @@
 services:
   attendance-module:
     build: .
+    image: attendance-module:latest
     container_name: attendance-module
     restart: unless-stopped
     environment:

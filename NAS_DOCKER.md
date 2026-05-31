@@ -22,22 +22,19 @@ Docker 构建时通过多阶段构建自动编译为静态文件，无需在 NAS
 ### 1. 同步代码到 NAS
 
 ```bash
-# 将本地代码推送到 git，然后在 NAS 上 pull
-# 或者直接用 rsync/scp 同步整个项目目录到 NAS
+cd /vol1/@team/个人工作文件/惠若超/attendance-module
+git pull origin main
 ```
 
-### 2. 构建并启动（Docker）
+### 2. 部署新版本
 
 ```bash
-cd /vol1/@team/个人工作文件/惠若超/attendance-module
-docker compose up -d --build
+./deploy.sh V0.11
 ```
 
-首次构建会执行：
-1. **Stage 1** (node:22-alpine): 安装 `frontend/` 的 npm 依赖并执行 `npm run build`，产出 `frontend/dist/`
-2. **Stage 2** (python:3.12-slim): 安装 FastAPI/uvicorn，复制 Python 代码 + 旧 `static/` + 新 `frontend/dist/`
+脚本会自动：构建镜像 → 打版本标签 → 启动容器 → 记录当前版本。
 
-启动后 FastAPI (uvicorn) 会在 `0.0.0.0:8767` 提供服务。
+首次使用需先给脚本执行权限：`chmod +x deploy.sh rollback.sh`
 
 ### 3. 查看日志
 
@@ -45,12 +42,11 @@ docker compose up -d --build
 docker logs -f attendance-module
 ```
 
-### 4. 更新部署
+### 4. 更新到新版本
 
 ```bash
-cd /vol1/@team/个人工作文件/惠若超/attendance-module
-git pull   # 拉取最新代码
-docker compose up -d --build   # 重新构建并重启
+git pull origin main
+./deploy.sh V0.12
 ```
 
 ## Docker Compose
@@ -71,6 +67,38 @@ services:
     volumes:
       - ./data:/data
 ```
+
+## 回滚
+
+### 回滚到上一版本
+
+```bash
+./rollback.sh
+```
+
+### 回滚到指定版本
+
+```bash
+./rollback.sh V0.10
+```
+
+### 查看所有可用版本
+
+```bash
+./rollback.sh --list
+```
+
+回滚秒级完成——不重新构建，只切换镜像标签然后重启容器。
+
+## 版本管理
+
+| 层级 | 工具 | 作用 |
+|------|------|------|
+| 源码版本 | Git + GitHub | 代码变更记录、分支协作、blame 溯源 |
+| 发布版本 | Git Tags (`V0.01`, `V0.10`...) | 标记每个稳定版本，对应 MR/PR |
+| 运行时版本 | Docker 镜像标签 (`v0.10`, `v0.11`...) | 生产环境快速回滚，审计 `docker images` |
+
+三者配合：Git 管源码历史，Tag 管发布节点，Docker 镜像管运行时回滚。
 
 ## 持久化
 

@@ -1,0 +1,26 @@
+{
+  "version": "V0.11",
+  "status": "draft",
+  "git_branch": "feature/V0.11-supabase",
+  "previous_version": "V0.10",
+  "previous_git_commit": "4ab68ca",
+  "database_provider": "supabase",
+  "supabase_project_url": "http://192.168.2.100:8777",
+  "db_schema_version": "0.11.0",
+  "migration_files": [
+    "supabase-psa/migrations/001_v0.11_schema.sql",
+    "supabase-psa/migrations/002_v0.11_rls.sql"
+  ],
+  "migration_scripts": [
+    "scripts/migrate_sqlite_to_supabase.py"
+  ],
+  "backup_files": [],
+  "deployed_at": null,
+  "deployed_by": null,
+  "rollback_plan": "Restore V0.10 SQLite backup + switch .env IMAGE_TAG back to v0.10",
+  "known_risks": [
+    "Supabase Auth JWT keys need proper generation",
+    "NAS registry may block supabase/* Docker images",
+    "Data migration script requires psycopg2 on NAS"
+  ]
+}

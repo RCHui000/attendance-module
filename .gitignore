@@ -17,3 +17,5 @@ data/
 
 .DS_Store
 Thumbs.db
+.env
+supabase-psa/.env

@@ -1,5 +1,4 @@
-# Supabase PSA — Self-hosted on NAS
-# CockroachDB-style simplified stack for internal use
+# Supabase PSA — Self-hosted on NAS (minimal stack)
 
 services:
   # Core database
@@ -11,10 +10,8 @@ services:
       POSTGRES_DB: psa
       POSTGRES_USER: psa_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - ./pgdata:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
     ports:
       - "5433:5432"
     healthcheck:
@@ -32,38 +29,22 @@ services:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa?sslmode=disable
-      GOTRUE_SITE_URL: ${SUPABASE_PUBLIC_URL:-http://192.168.2.100:8767}
+      GOTRUE_DB_DATABASE_URL: "postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa?sslmode=disable"
+      GOTRUE_SITE_URL: "http://192.168.2.100:8767"
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_EXP: 86400
-      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_DISABLE_SIGNUP: "true"
       GOTRUE_MAILER_AUTOCONFIRM: "true"
       GOTRUE_SMTP_ADMIN_EMAIL: admin@psa.local
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: "false"
+      API_EXTERNAL_URL: "http://192.168.2.100:8777"
+      GOTRUE_EXTERNAL_URL: "http://192.168.2.100:8777"
+    ports:
+      - "8777:9999"
     depends_on:
       postgres:
         condition: service_healthy
-
-  # Kong API Gateway (for auth endpoints)
-  kong:
-    image: kong:3.9-alpine
-    container_name: psa-kong
-    restart: unless-stopped
-    environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_LISTEN: 0.0.0.0:8001
-      KONG_PROXY_LISTEN: 0.0.0.0:8000
-    volumes:
-      - ./kong.yml:/etc/kong/kong.yml:ro
-    ports:
-      - "8777:8000"  # Auth API
-    depends_on:
-      - gotrue
 
   # Supabase Realtime
   realtime:
@@ -82,42 +63,24 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       REPLICATION_MODE: RLS
       REPLICATION_POLL_INTERVAL: 100
+    ports:
+      - "8778:4000"
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "8778:4000"
 
-  # PostgREST (REST API for Supabase)
+  # PostgREST (REST API)
   postgrest:
     image: postgrest/postgrest:v12.2.3
     container_name: psa-postgrest
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa
+      PGRST_DB_URI: "postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa"
       PGRST_DB_SCHEMA: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET}
-      PGRST_DB_USE_LEGACY_GUCS: "false"
     ports:
       - "8779:3000"
     depends_on:
       postgres:
         condition: service_healthy
-
-  # Supabase Studio (optional — for dev/admin)
-  studio:
-    image: supabase/studio:2025.04.14-sha-8f68b93
-    container_name: psa-studio
-    restart: unless-stopped
-    environment:
-      STUDIO_PG_META_URL: postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa
-      SUPABASE_URL: ${SUPABASE_PUBLIC_URL:-http://192.168.2.100:8777}
-      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://192.168.2.100:8777}
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
-    ports:
-      - "8780:3000"
-    depends_on:
-      - postgrest
-      - gotrue

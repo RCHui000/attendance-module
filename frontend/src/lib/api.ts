@@ -2,17 +2,24 @@ const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
   : `${Date.now()}-${Math.random()}`;
 
+import { getStoredToken } from "./supabase";
+
 export async function api<T = unknown>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Client-Id": CLIENT_ID,
+    ...(options.headers as Record<string, string> || {}),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const response = await fetch(path, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Client-Id": CLIENT_ID,
-      ...(options.headers || {}),
-    },
+    headers,
   });
   const text = await response.text();
   let data: unknown;

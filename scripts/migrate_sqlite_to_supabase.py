@@ -241,7 +241,7 @@ def migrate_overtime(sqlite_conn, pg_conn):
     print(f"  ✓ overtime_entries: {len(rows)} rows")
 
 def migrate_workflow(sqlite_conn, pg_conn):
-    for table in ["workflow_templates", "workflow_steps", "workflow_tasks", "approval_logs"]:
+    for table in ["workflow_templates", "workflow_steps", "workflow_tasks"]:
         try:
             rows = sqlite_conn.execute(f"SELECT * FROM {table}").fetchall()
             if not rows:
@@ -261,6 +261,23 @@ def migrate_workflow(sqlite_conn, pg_conn):
             print(f"  ✓ {table}: {len(rows)} rows")
         except Exception as e:
             print(f"  ⚠ {table}: {e}")
+
+def migrate_approval_logs(sqlite_conn, pg_conn):
+    """Migrate approval_logs with column mapping (timesheet_id → target_id, target_type='timesheet')"""
+    rows = sqlite_conn.execute("SELECT id, timesheet_id, actor_id, action, comment, from_status, to_status, created_at FROM approval_logs").fetchall()
+    if not rows:
+        print("  - approval_logs: 0 rows (skipped)")
+        return
+    with pg_conn.cursor() as cur:
+        for r in rows:
+            cur.execute(
+                """INSERT INTO approval_logs(id, target_type, target_id, actor_id, action, comment, from_status, to_status, created_at)
+                   VALUES(%s, 'timesheet', %s, %s, %s, %s, %s, %s, %s) ON CONFLICT(id) DO NOTHING""",
+                (r["id"], r["timesheet_id"], r["actor_id"], r["action"], r["comment"],
+                 r["from_status"], r["to_status"], r["created_at"]),
+            )
+    pg_conn.commit()
+    print(f"  ✓ approval_logs: {len(rows)} rows (mapped timesheet_id → target_id)")
 
 def validate(sqlite_conn, pg_conn):
     """迁移后数据校验"""
@@ -311,6 +328,8 @@ def main():
     migrate_entries(sqlite_conn, pg_conn)
     migrate_overtime(sqlite_conn, pg_conn)
     migrate_workflow(sqlite_conn, pg_conn)
+
+    migrate_approval_logs(sqlite_conn, pg_conn)
 
     # Reset sequences
     with pg_conn.cursor() as cur:

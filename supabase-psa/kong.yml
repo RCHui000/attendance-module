@@ -1,0 +1,42 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: auth
+    url: http://gotrue:9999
+    routes:
+      - name: auth-route
+        paths:
+          - /auth/v1
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins: ["*"]
+          credentials: true
+
+  - name: rest
+    url: http://postgrest:3000
+    routes:
+      - name: rest-route
+        paths:
+          - /rest/v1
+        strip_path: true
+    plugins:
+      - name: cors
+        config:
+          origins: ["*"]
+          credentials: true
+
+  - name: realtime
+    url: http://realtime:4000
+    routes:
+      - name: realtime-route
+        paths:
+          - /realtime/v1
+        strip_path: true
+    plugins:
+      - name: cors
+        config:
+          origins: ["*"]
+          credentials: true

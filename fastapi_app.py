@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import secrets
+import urllib.request
+import urllib.error
 from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -13,9 +16,9 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import app as legacy
+import db
 
-
-api = FastAPI(title="考勤统计模块")
+api = FastAPI(title="项目核算自动化系统")
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND_DIST = ROOT / "frontend" / "dist"
@@ -28,6 +31,140 @@ api.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---- Auth utilities ----
+
+def resolve_user_from_jwt(request: Request) -> dict | None:
+    """Try to resolve user from Bearer JWT token."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[7:]
+    user_id = db.get_user_id_from_jwt(token)
+    if not user_id:
+        return None
+    with db.get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT e.id, e.name, e.auth_user_id, ur.role
+               FROM employees e
+               LEFT JOIN user_roles ur ON ur.employee_id = e.id
+               WHERE e.auth_user_id = %s AND e.is_active = TRUE""",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {"id": row[0], "name": row[1], "auth_user_id": row[2], "role": row[3] or "employee"}
+
+def resolve_user_from_cookie(request: Request) -> dict | None:
+    """Fallback: resolve user from cookie (V0.10 compatibility)."""
+    cookie_header = request.headers.get("cookie") or request.headers.get("Cookie", "")
+    if not cookie_header:
+        return None
+    return legacy.get_user_from_cookie(cookie_header)
+
+def get_current_user(request: Request) -> dict:
+    """Resolve current user: JWT first, cookie fallback."""
+    user = resolve_user_from_jwt(request)
+    if user:
+        return user
+    user = resolve_user_from_cookie(request)
+    if user:
+        return user
+    return {}
+
+def require_user(request: Request) -> dict:
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录。")
+    return user
+
+def can_review(user: dict) -> bool:
+    return user.get("role") in ("manager", "admin") or user.get("name") in ("鞠松松", "admin")
+
+def is_admin(user: dict) -> bool:
+    return user.get("role") == "admin" or user.get("name") in ("鞠松松", "admin")
+
+from fastapi import HTTPException
+
+
+# ---- V0.11: Supabase Auth login ----
+GOTRUE_URL = os.environ.get("GOTRUE_URL", "http://127.0.0.1:8777")
+GOTRUE_ANON_KEY = os.environ.get("GOTRUE_ANON_KEY", "")
+
+
+@api.post("/api/login")
+async def login_v2(request: Request):
+    """Login via Supabase GoTrue: login_name → login_name@psa.local → GoTrue token"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="请求格式错误。")
+    login = (body.get("login") or "").strip()
+    password = (body.get("password") or "")
+    if not login or not password:
+        raise HTTPException(status_code=400, detail="请输入账号和密码。")
+
+    # Map login_name to auth email
+    with db.get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT auth_email FROM profiles WHERE login_name = %s", (login,))
+        row = cur.fetchone()
+    if row and row[0]:
+        email = row[0]
+    else:
+        email = f"{login}@psa.local"
+
+    # Call GoTrue token endpoint
+    token_body = json.dumps({"email": email, "password": password, "gotrue_meta_security": {}}).encode()
+    req = urllib.request.Request(
+        f"{GOTRUE_URL}/token?grant_type=password",
+        data=token_body,
+        headers={"Content-Type": "application/json", "apikey": GOTRUE_ANON_KEY},
+    )
+    try:
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = _json.loads(resp.read())
+        access_token = data.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=401, detail="登录失败：令牌无效。")
+        # Set cookie for backward compat
+        response = JSONResponse({"ok": True, "token": access_token})
+        response.set_cookie(
+            key="attendance_sid",
+            value=access_token,
+            httponly=True,
+            samesite="lax",
+            max_age=86400,
+        )
+        return response
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode()[:200]
+        raise HTTPException(status_code=401, detail=f"登录失败：账号或密码错误。")
+
+
+@api.get("/api/bootstrap")
+async def bootstrap_v2(request: Request):
+    """Bootstrap data for V0.11: current user + projects + week info."""
+    user = get_current_user(request)
+    if not user:
+        return {"currentUser": None, "users": [], "projects": [], "currentWeek": legacy.monday_of_week().isoformat()}
+
+    with db.get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, login_name, auth_user_id FROM profiles WHERE is_active = TRUE")
+        users = [{"id": r[0], "name": r[1], "role": "employee", "department": ""} for r in cur.fetchall()]
+        cur.execute("SELECT id, code, name FROM projects WHERE status = 'active' ORDER BY code")
+        projects = [{"id": r[0], "code": r[1], "name": r[2]} for r in cur.fetchall()]
+
+    return {
+        "currentUser": {"id": user["id"], "name": user["name"], "role": user["role"], "department": "", "is_active": 1},
+        "users": users,
+        "projects": projects,
+        "currentWeek": legacy.monday_of_week().isoformat(),
+        "dbRecommendation": "V0.11 Supabase Postgres",
+    }
 
 
 class SyncHub:

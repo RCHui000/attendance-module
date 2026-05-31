@@ -8,9 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi "uvicorn[standard]"
+RUN pip install --no-cache-dir fastapi "uvicorn[standard]" psycopg2-binary
 
-COPY app.py fastapi_app.py /app/
+COPY app.py fastapi_app.py db.py /app/
 COPY static /app/static
 
 # New React frontend (pre-built locally, synced via rsync/scp)

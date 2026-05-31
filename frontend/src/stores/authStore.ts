@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { SUPERUSER_NAMES, SUPERUSER_IDS } from "@/lib/constants";
 import { mondayOfWeek } from "@/utils/dates";
 import { useAppStore } from "@/stores/appStore";
+import { setStoredToken, clearStoredToken } from "@/lib/supabase";
 import type { CurrentUser, BootstrapData } from "@/types/auth";
 
 interface AuthState {
@@ -41,16 +42,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   login: async (login: string, password: string) => {
-    await api("/api/login", {
+    const data = await api<{ ok: boolean; token: string }>("/api/login", {
       method: "POST",
       body: JSON.stringify({ login, password }),
     });
-    // Reload the page so the cookie is picked up
+    if (data.token) {
+      setStoredToken(data.token);
+    }
     window.location.reload();
   },
 
   logout: async () => {
-    await api("/api/logout", { method: "POST" });
+    try { await api("/api/logout", { method: "POST" }); } catch {}
+    clearStoredToken();
     window.location.reload();
   },
 

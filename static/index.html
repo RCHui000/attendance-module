@@ -173,29 +173,44 @@
           <div class="section-title">
             <div>
               <span class="eyebrow">周表统计</span>
-              <h2>项目工日汇总</h2>
-              <p class="note">汇总员工周表沉淀出的项目工日，用于主管复核、管理员导出和后续成本核算。</p>
+              <h2>项目汇总</h2>
+              <p class="note">按时间跨度查看项目工日投入，或维护项目基础数据。</p>
             </div>
+            <fieldset class="employee-mode-switch report-mode-switch">
+              <legend class="sr-only">项目汇总切换</legend>
+              <input class="employee-mode-input" id="reportModeLabor" type="radio" name="reportMode" value="labor" checked>
+              <label class="employee-mode-option" for="reportModeLabor">工时统计</label>
+              <input class="employee-mode-input" id="reportModeProjects" type="radio" name="reportMode" value="projects">
+              <label class="employee-mode-option" for="reportModeProjects">项目列表</label>
+            </fieldset>
             <div class="panel-actions">
-              <fieldset class="employee-mode-switch report-mode-switch">
-                <legend class="sr-only">项目汇总切换</legend>
-                <input class="employee-mode-input" id="reportModeLabor" type="radio" name="reportMode" value="labor" checked>
-                <label class="employee-mode-option" for="reportModeLabor">工时统计</label>
-                <input class="employee-mode-input" id="reportModeProjects" type="radio" name="reportMode" value="projects">
-                <label class="employee-mode-option" for="reportModeProjects">项目基础</label>
-              </fieldset>
               <button id="newProject" class="primary" type="button" hidden>新增项目</button>
               <button id="exportCsv" class="secondary" type="button">导出项目工日</button>
             </div>
           </div>
+          <div class="metric-row" id="reportPeriodRow">
+            <fieldset class="employee-mode-switch period-switch">
+              <legend class="sr-only">统计周期</legend>
+              <input class="employee-mode-input" id="periodMonth" type="radio" name="reportPeriod" value="month" checked>
+              <label class="employee-mode-option" for="periodMonth">月</label>
+              <input class="employee-mode-input" id="periodQuarter" type="radio" name="reportPeriod" value="quarter">
+              <label class="employee-mode-option" for="periodQuarter">季</label>
+              <input class="employee-mode-input" id="periodYear" type="radio" name="reportPeriod" value="year">
+              <label class="employee-mode-option" for="periodYear">年</label>
+            </fieldset>
+            <select id="reportYear" class="time-select" aria-label="选择年份"></select>
+            <select id="reportMonth" class="time-select" aria-label="选择月份"></select>
+            <select id="reportQuarter" class="time-select" aria-label="选择季度" hidden></select>
+          </div>
           <div class="metric-row">
             <div class="metric"><span>已填员工</span><strong id="metricPeople">0</strong></div>
-            <div class="metric"><span>本周总工日</span><strong id="metricHours">0</strong></div>
+            <div class="metric"><span>期间总工日</span><strong id="metricHours">0</strong></div>
             <div class="metric"><span>活跃项目</span><strong id="metricProjects">0</strong></div>
           </div>
           <div class="table-wrap">
             <table class="report-table" id="projectReportTable"></table>
           </div>
+          <div id="projectDrawer" class="review-drawer" hidden></div>
         </section>
 
         <section class="view" id="dashboardView">

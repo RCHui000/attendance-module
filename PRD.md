@@ -389,15 +389,13 @@ outsourced 外包
 
 解锁建议要求填写原因，并写入审计日志。
 
-## 5.5 项目工日统计
+## 5.5 项目汇总
 
-导航建议命名为：`项目工日统计`。
+导航命名为：`项目汇总`。
 
 页面目的：
 
-> 汇总员工周表沉淀出的项目工日，用于主管复核、管理员导出和后续人工成本核算。
-
-它不是项目管理后台，不负责项目进度和项目资料维护。
+> 双标签页面——工时统计标签用于查看本周项目工日投入，项目基础标签用于维护项目编号、名称、合同额和回款数据。
 
 可见角色：
 
@@ -405,13 +403,13 @@ outsourced 外包
 - 管理员
 - 后续财务/成本岗
 
+### 工时统计标签
+
 关键指标：
 
 - 已填报员工
 - 本周项目工日
 - 有投入项目
-- 待审核周表
-- 已通过周表
 
 表格字段：
 
@@ -423,12 +421,93 @@ outsourced 外包
 
 后续扩展：
 
-- 按部门筛选。
-- 按员工筛选。
+- 按部门/员工筛选。
 - 按周表状态筛选。
-- 点击项目查看员工、日期、工日、备注明细。
 - 只统计已通过/已锁定数据。
-- 生成项目人工成本。
+
+### 项目基础标签
+
+维护项目基础信息（编号、名称、合同额、已回款）。支持行内编辑和新增项目。
+
+表格字段：
+
+- 项目编号
+- 项目名称
+- 合同额
+- 已回款
+- 待回款（系统计算）
+- 操作（编辑/保存/取消）
+
+说明：
+
+- 项目基础不是项目管理后台，不负责项目进度和资料维护。
+- 合同额和回款数据用于后续数据看板的毛利计算。
+
+## 5.6 数据看板
+
+导航命名为：`数据看板`。
+
+页面目的：
+
+> 按项目维度汇总经营与人力投入——合同额、回款、人力成本和毛利，为主管和管理员提供经营视角。
+
+可见角色：
+
+- 主管
+- 管理员
+- 后续财务/成本岗
+
+页面元素：
+
+- 顶部指标卡：合同额、已回款、待回款、人力成本（均为所有项目汇总）
+- 项目明细表
+
+表格字段：
+
+- 项目编号
+- 项目名称
+- 合同额
+- 已回款
+- 待回款
+- 本周工日
+- 人力成本（按员工薪酬基础折算）
+- 毛利（合同额 - 人力成本）
+- KPI（毛利率百分比）
+
+计算规则（Demo 阶段实时聚合）：
+
+```text
+人力成本 = SUM(员工日薪 × 项目工日)
+月薪员工日薪 = monthly_salary / 26
+日薪员工日薪 = daily_wage
+
+毛利 = 合同额 - 人力成本
+毛利率 = 毛利 / 合同额 × 100%
+```
+
+说明：
+
+- Demo 阶段实时查询周表 + 薪酬基础计算；正式系统应落表（`project_labor_costs`）保存周期快照。
+- 数据看板不是完整 BI，仅提供关键经营指标一目了然。
+
+## 5.7 审批详情抽屉
+
+审批中心周表行支持点击展开详情抽屉。
+
+抽屉内容：
+
+- 员工 · 部门 + 周期 + 周表状态
+- 7 天每日各项目工日明细表
+- 每日合计 + 周总工日
+- 加班时数行
+- 周备注（如有）
+
+交互：
+
+- 点击行任意位置（除按钮外）展开抽屉
+- 已审核模式下提供"查看"按钮
+- 抽屉内提供关闭按钮
+- 点击其他行切换查看内容
 
 ## 6. 数据模型建议
 
@@ -572,22 +651,40 @@ user_id + week_start_date
 - approved_at
 - reject_comment
 
-## 6.7 approval_logs
+## 6.7 workflow_templates
 
-审批日志。
+工作流模板，定义审批流程类型与步骤编排。
 
-建议扩展字段：
+字段：
 
-- target_type
-- target_id
-- from_status
-- to_status
-- actor_id
-- action
-- comment
-- created_at
+- workflow_key（唯一标识，如 `timesheet`、`overtime`）
+- name（模板名称）
+- target_type（关联业务实体类型）
+- status（`active` / `inactive`）
 
-## 6.8 workflow_tasks / approval_tasks
+Demo 已录入模板：
+
+```text
+timesheet → 周表审批
+overtime  → 加班 OT 审批
+```
+
+## 6.8 workflow_steps
+
+工作流步骤，每个模板下可定义多步审批。
+
+字段：
+
+- template_id → workflow_templates.id
+- step_order（步骤序号）
+- step_key（步骤标识，如 `manager_review`）
+- assignee_role（默认审核人角色）
+- assignee_strategy（审核人解析策略，如 `direct_manager`）
+- action_policy（操作策略，如 `approve_reject`）
+
+Demo 当前仅配置单步 `manager_review`，后续可扩展多级审批。
+
+## 6.9 workflow_tasks / approval_tasks
 
 审批任务表。周表和 OT 提交后必须生成审批任务，状态流转由工作流配置控制。
 
@@ -613,7 +710,22 @@ user_id + week_start_date
 - 审批中心必须按当前登录人的 `assignee_user_id` 过滤待审核任务。
 - 管理员账号保留全局兜底查看和处理能力。
 
-## 6.9 projects / contracts / project_labor_costs
+## 6.10 approval_logs
+
+审批日志。
+
+字段：
+
+- target_type
+- target_id
+- from_status
+- to_status
+- actor_id
+- action
+- comment
+- created_at
+
+## 6.11 projects / contracts / project_labor_costs
 
 项目基础数据字段：
 
@@ -863,34 +975,53 @@ backend/
 
 所有写操作应放在数据库事务中。
 
-关键接口应遵循：
+关键接口（当前 Demo 实际路由）：
 
 ```text
+# 认证
 POST /api/login
 POST /api/logout
+POST /api/password/change
 GET  /api/me
+GET  /api/bootstrap
 
-GET  /api/timesheets/current
-POST /api/timesheets/save
-POST /api/timesheets/submit
+# 周表（当前用户）
+GET  /api/timesheet?weekStart=
+POST /api/timesheet/save
+POST /api/timesheet/submit
 
-GET  /api/approvals/tasks
-POST /api/approvals/timesheets/{id}/approve
-POST /api/approvals/timesheets/{id}/reject
+# 周表详情（审批人查看他人周表）
+GET  /api/timesheet/{timesheet_id}
+GET  /api/timesheet-detail?timesheetId=
 
-GET  /api/overtime/tasks
-POST /api/overtime/{id}/approve
-POST /api/overtime/{id}/reject
+# 审批
+GET  /api/approvals/tasks?weekStart=
+POST /api/timesheet/action
+POST /api/overtime/action
 
+# 加班
+GET  /api/overtime/pending?weekStart=
+
+# 员工与组织
 GET  /api/employees
-POST /api/employees
-PATCH /api/employees/{id}
-POST /api/employees/{id}/terminate
-POST /api/employees/{id}/lock
-POST /api/employees/{id}/unlock
+POST /api/employees/save
+POST /api/employees/delete
+GET  /api/organizations
+POST /api/organizations/save
+POST /api/organizations/delete
 
-GET  /api/project-workdays
-GET  /api/audit-logs
+# 项目汇总
+GET  /api/reports/weekly?weekStart=
+
+# 项目基础数据
+GET  /api/projects
+POST /api/projects/save
+
+# 数据看板
+GET  /api/project-dashboard?weekStart=
+
+# 实时同步
+WS  /ws/sync
 ```
 
 ## 8.6 数据库架构
@@ -1259,50 +1390,65 @@ Workflow / Payroll / Export / Integration
 
 当前已有：
 
-- 登录
-- 当前用户周表
-- 项目工日比例填写
-- 加班时长记录
-- 周表提交/审批
-- 员工组织页面雏形
-- 项目工日统计
+- 登录（账号密码 + Cookie Session，前端已移除默认账号暴露）
+- 登录失败内联错误提示
+- 当前用户周表（项目工日比例填写、加班时长、草稿/提交）
+- 右上角用户信息（部门 · 姓名 · 职位）
+- 审批中心（待审核/已审核周表与 OT，审核人路由到具体 `assignee_user_id`）
+- 审批详情抽屉（点击周表行展开完整 7 天工日明细 + 加班 + 备注）
+- 员工与组织管理（员工列表、部门列表、新增/编辑/删除）
+- 部门列表单行显示（部门名称 + 负责人 | 人数 / 编辑 / 删除）
+- 部门编辑下拉抽屉
+- 提醒事项浮动卡片（topbar 右上角弹出）
+- 项目汇总（工时统计标签 + 项目基础标签，行内编辑合同额/回款）
+- 数据看板（合同额、回款、待回款、人力成本、毛利、KPI）
+- 项目表扩展（contract_amount、received_amount）
+- contracts 表 + project_labor_costs 表（落表结构就绪，Demo 阶段实时计算）
+- workflow_templates + workflow_steps（工作流引擎基础就绪，当前单步审批）
+- WebSocket 实时同步（多客户端变更通知）
+- Docker 部署（NAS 192.168.2.100:8767）
 
 仍需完善：
 
-- 员工新增/编辑/解聘完整交互。
-- 员工行锁定原因与审计。
-- 部门树编辑。
-- OT 独立审批状态完整闭环。
-- 审批状态机配置化。
-- 项目汇总按审批状态筛选。
+- 员工解聘完整交互与审计。
+- 员工行锁定原因与审计日志。
+- OT 独立审批状态完整闭环（已通过/已退回后 settle）。
+- 审批状态机配置化（当前 hardcode workflow_key 匹配）。
 - 月度锁定和归档。
 - 薪酬核算预览。
 - 导出记录与审计。
-- 正式权限模型和数据范围控制。
+- project_labor_costs 定期快照计算（当前实时聚合）。
+- 正式权限模型和数据范围控制（当前 admin/manager 简化判断）。
 
 ## 10. MVP 迭代优先级
 
-### P0
+### P0（已完成）
 
 - 当前用户绑定周表。
 - 周表比例填写与提交校验。
 - 管理员员工组织页。
-- 员工新增/编辑/锁定。
-- 待审批周表。
-- OT 待审批。
+- 员工新增/编辑。
+- 待审批周表 + OT 审批。
+- 审批详情抽屉。
+- 部门列表管理。
+- 数据看板（合同额/回款/人力成本/毛利/KPI）。
 
-### P1
+### P1（进行中）
 
-- 状态机统一封装。
 - 员工解聘流程。
-- 部门绑定与部门树。
-- 项目工日统计按状态筛选。
+- 员工行锁定原因与审计。
+- OT 独立审批状态完整闭环。
+- 项目汇总按审批状态筛选。
 - 导出项目工日。
+- project_labor_costs 定期快照落表。
 
 ### P2
 
+- 状态机配置化（workflow_templates/steps 驱动多级审批）。
 - 调休、请假、补卡审批。
 - 月度锁定。
 - 薪酬核算预览。
-- 项目人工成本。
+- 项目人工成本自动核算。
+- 审计日志页面。
+- 正式权限模型和数据范围控制。
 - 审计日志页面。

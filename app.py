@@ -21,7 +21,7 @@ WORKFLOWS = {
     "timesheet": {
         "target_type": "timesheet",
         "table": "timesheets",
-        "review_role": "manager",
+        "review_role": "department_head",
         "transitions": {
             "submit": {
                 "from": {"draft", "rejected"},
@@ -34,13 +34,13 @@ WORKFLOWS = {
             "approve": {
                 "from": {"submitted"},
                 "to": "approved",
-                "roles": {"manager", "admin"},
+                "roles": {"employee", "manager", "admin"},
                 "complete_task": True,
             },
             "reject": {
                 "from": {"submitted"},
                 "to": "rejected",
-                "roles": {"manager", "admin"},
+                "roles": {"employee", "manager", "admin"},
                 "complete_task": True,
             },
             "reopen": {
@@ -301,7 +301,7 @@ def init_db() -> None:
 
         if conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0:
             conn.executemany(
-                "INSERT INTO projects(code, name) VALUES(?, ?)",
+                "INSERT INTO projects(code, name, owner_org_id) VALUES(?, ?, 1)",
                 [
                     ("P001", "顶点公园"),
                     ("P002", "海昌海洋公园"),
@@ -335,6 +335,7 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "projects", "contract_amount", "REAL NOT NULL DEFAULT 0")
     ensure_column(conn, "projects", "received_amount", "REAL NOT NULL DEFAULT 0")
     ensure_column(conn, "projects", "owner_org_id", "INTEGER")
+    ensure_column(conn, "projects", "project_owner_id", "INTEGER")
     ensure_column(conn, "employee_profiles", "contract_start", "TEXT")
     ensure_column(conn, "employee_profiles", "contract_end", "TEXT")
     ensure_column(conn, "employee_profiles", "job_level", "TEXT NOT NULL DEFAULT 'employee'")
@@ -796,20 +797,25 @@ def create_workflow_task(
     target_id: int,
     actor_id: int,
     assignee_role: str,
-) -> None:
+    step_order: int = 1,
+) -> int | None:
+    """Create a pending workflow task. Returns the assignee user_id or None."""
     assignee_user_id = resolve_workflow_assignee(conn, target_type, target_id, assignee_role)
+    if not assignee_user_id:
+        return None
     exists = conn.execute(
         """
-        SELECT 1 FROM workflow_tasks
+        SELECT id FROM workflow_tasks
         WHERE workflow_key = ?
           AND target_type = ?
           AND target_id = ?
+          AND assignee_role = ?
           AND status = 'pending'
         """,
-        (workflow_key, target_type, target_id),
+        (workflow_key, target_type, target_id, assignee_role),
     ).fetchone()
     if exists:
-        return
+        return assignee_user_id
     conn.execute(
         """
         INSERT INTO workflow_tasks(
@@ -819,6 +825,107 @@ def create_workflow_task(
         """,
         (workflow_key, target_type, target_id, assignee_role, assignee_user_id, actor_id),
     )
+    return assignee_user_id
+
+
+def create_timesheet_approval_tasks(
+    conn: sqlite3.Connection,
+    timesheet_id: int,
+    actor_id: int,
+) -> None:
+    """Create approval tasks for a submitted timesheet.
+
+    For each project in the timesheet, find the project_owner and department_head.
+    If they are the same person, create only 1 task (department_head).
+    If different, create 2 sequential tasks (project_owner → department_head).
+    """
+    # Get all projects involved with their project_owner and department_head
+    projects = conn.execute(
+        """
+        SELECT DISTINCT e.project_id, p.name AS project_name,
+               -- Project owner: use project_owner_id directly, fallback to org manager
+               COALESCE(
+                   p.project_owner_id,
+                   o.manager_user_id
+               ) AS project_owner_id,
+               COALESCE(pe.manager_user_id, dept.manager_user_id) AS dept_head_id
+        FROM timesheet_entries e
+        JOIN projects p ON p.id = e.project_id
+        LEFT JOIN organizations o ON o.id = p.owner_org_id
+        LEFT JOIN timesheets t ON t.id = e.timesheet_id
+        LEFT JOIN users u ON u.id = t.user_id
+        LEFT JOIN employee_profiles pe ON pe.user_id = u.id
+        LEFT JOIN organizations dept ON dept.id = pe.org_id
+        WHERE e.timesheet_id = ?
+        """,
+        (timesheet_id,),
+    ).fetchall()
+
+    seen_tasks = set()  # (role, assignee_id) pairs to deduplicate
+
+    for proj in projects:
+        # Resolve project owner (direct field on project, with org fallback)
+        po_id = None
+        if proj["project_owner_id"]:
+            mgr = conn.execute(
+                "SELECT id FROM users WHERE id = ? AND is_active = 1",
+                (proj["project_owner_id"],),
+            ).fetchone()
+            if mgr:
+                po_id = int(mgr["id"])
+
+        # Resolve department head
+        dh_id = None
+        if proj["dept_head_id"]:
+            dh = conn.execute(
+                "SELECT id FROM users WHERE id = ? AND is_active = 1",
+                (proj["dept_head_id"],),
+            ).fetchone()
+            if dh:
+                dh_id = int(dh["id"])
+
+        # Fallback to admin
+        fallback = _fallback_admin(conn)
+        if not po_id:
+            po_id = fallback
+        if not dh_id:
+            dh_id = fallback
+
+        # Deduplicate: same person for both roles → create only 1 task
+        if po_id == dh_id:
+            key = ("department_head", dh_id)
+            if key not in seen_tasks and dh_id:
+                seen_tasks.add(key)
+                conn.execute(
+                    """INSERT INTO workflow_tasks(
+                        workflow_key, target_type, target_id, status,
+                        assignee_role, assignee_user_id, created_by
+                    ) VALUES('timesheet', 'timesheet', ?, 'pending', 'department_head', ?, ?)""",
+                    (timesheet_id, dh_id, actor_id),
+                )
+        else:
+            # Create project_owner task
+            key_po = ("project_owner", po_id)
+            if key_po not in seen_tasks and po_id:
+                seen_tasks.add(key_po)
+                conn.execute(
+                    """INSERT INTO workflow_tasks(
+                        workflow_key, target_type, target_id, status,
+                        assignee_role, assignee_user_id, created_by
+                    ) VALUES('timesheet', 'timesheet', ?, 'pending', 'project_owner', ?, ?)""",
+                    (timesheet_id, po_id, actor_id),
+                )
+            # Create department_head task
+            key_dh = ("department_head", dh_id)
+            if key_dh not in seen_tasks and dh_id:
+                seen_tasks.add(key_dh)
+                conn.execute(
+                    """INSERT INTO workflow_tasks(
+                        workflow_key, target_type, target_id, status,
+                        assignee_role, assignee_user_id, created_by
+                    ) VALUES('timesheet', 'timesheet', ?, 'pending', 'department_head', ?, ?)""",
+                    (timesheet_id, dh_id, actor_id),
+                )
 
 
 def resolve_workflow_assignee(
@@ -827,8 +934,6 @@ def resolve_workflow_assignee(
     target_id: int,
     assignee_role: str,
 ) -> int | None:
-    if assignee_role != "manager":
-        return None
     if target_type == "timesheet":
         row = conn.execute("SELECT user_id FROM timesheets WHERE id = ?", (target_id,)).fetchone()
     elif target_type == "overtime":
@@ -846,24 +951,64 @@ def resolve_workflow_assignee(
     if not row:
         return None
 
-    assignee = conn.execute(
-        """
-        SELECT COALESCE(p.manager_user_id, o.manager_user_id) AS reviewer_id
-        FROM users u
-        LEFT JOIN employee_profiles p ON p.user_id = u.id
-        LEFT JOIN organizations o ON o.id = p.org_id
-        WHERE u.id = ?
-        """,
-        (row["user_id"],),
-    ).fetchone()
-    reviewer_id = assignee["reviewer_id"] if assignee else None
-    if reviewer_id:
-        reviewer = conn.execute(
-            "SELECT id FROM users WHERE id = ? AND is_active = 1 AND role IN ('manager', 'admin')",
-            (reviewer_id,),
+    if assignee_role == "department_head":
+        # Find the employee's department manager
+        assignee = conn.execute(
+            """
+            SELECT COALESCE(p.manager_user_id, o.manager_user_id) AS reviewer_id
+            FROM users u
+            LEFT JOIN employee_profiles p ON p.user_id = u.id
+            LEFT JOIN organizations o ON o.id = p.org_id
+            WHERE u.id = ?
+            """,
+            (row["user_id"],),
         ).fetchone()
-        if reviewer:
-            return int(reviewer["id"])
+        reviewer_id = assignee["reviewer_id"] if assignee else None
+        if reviewer_id:
+            reviewer = conn.execute(
+                "SELECT id FROM users WHERE id = ? AND is_active = 1",
+                (reviewer_id,),
+            ).fetchone()
+            if reviewer:
+                return int(reviewer["id"])
+        return _fallback_admin(conn)
+
+    if assignee_role == "project_owner":
+        # Find the manager of the project's owning organization
+        # First collect unique projects in this timesheet, then find their org managers
+        projects = conn.execute(
+            """
+            SELECT DISTINCT e.project_id, p.owner_org_id
+            FROM timesheet_entries e
+            JOIN projects p ON p.id = e.project_id
+            WHERE e.timesheet_id = ?
+            """,
+            (target_id,),
+        ).fetchall()
+        # Return the first valid project owner, or fallback
+        for proj in projects:
+            if proj["owner_org_id"]:
+                org_mgr = conn.execute(
+                    "SELECT manager_user_id FROM organizations WHERE id = ?",
+                    (proj["owner_org_id"],),
+                ).fetchone()
+                if org_mgr and org_mgr["manager_user_id"]:
+                    mgr = conn.execute(
+                        "SELECT id FROM users WHERE id = ? AND is_active = 1",
+                        (org_mgr["manager_user_id"],),
+                    ).fetchone()
+                    if mgr:
+                        return int(mgr["id"])
+        return _fallback_admin(conn)
+
+    if assignee_role == "manager":
+        # Legacy support: same as department_head
+        return resolve_workflow_assignee(conn, target_type, target_id, "department_head")
+
+    return None
+
+
+def _fallback_admin(conn: sqlite3.Connection) -> int | None:
     fallback = conn.execute(
         """
         SELECT id
@@ -1180,8 +1325,13 @@ class AppHandler(SimpleHTTPRequestHandler):
                     return
                 if not can_review(user):
                     return json_response(self, {"ok": False, "message": "无权访问汇总报表。"}, 403)
+                start_date = query.get("startDate", [None])[0]
+                end_date = query.get("endDate", [None])[0]
+                if start_date and end_date:
+                    return json_response(self, weekly_report(conn, start_date, end_date))
                 week_start = normalize_week_start(query.get("weekStart", [None])[0])
-                return json_response(self, weekly_report(conn, week_start))
+                week_end = (date.fromisoformat(week_start) + timedelta(days=6)).isoformat()
+                return json_response(self, weekly_report(conn, week_start, week_end))
 
             if parsed.path == "/api/project-dashboard":
                 if not require_user(self, user):
@@ -1197,6 +1347,18 @@ class AppHandler(SimpleHTTPRequestHandler):
                 if not can_review(user):
                     return json_response(self, {"ok": False, "message": "无权访问项目基础数据。"}, 403)
                 return json_response(self, project_rows(conn))
+
+            if parsed.path == "/api/project-detail":
+                if not require_user(self, user):
+                    return
+                if not can_review(user):
+                    return json_response(self, {"ok": False, "message": "无权访问项目详情。"}, 403)
+                project_id = int(query.get("projectId", ["0"])[0])
+                start_date = query.get("startDate", [""])[0]
+                end_date = query.get("endDate", [""])[0]
+                if not start_date or not end_date:
+                    return json_response(self, {"ok": False, "message": "缺少日期范围参数。"}, 400)
+                return json_response(self, project_detail(conn, project_id, start_date, end_date))
 
         return json_response(self, {"error": "Not found"}, 404)
 
@@ -1305,6 +1467,14 @@ class AppHandler(SimpleHTTPRequestHandler):
                 if not can_review(user):
                     return json_response(self, {"ok": False, "message": "无权维护项目基础数据。"}, 403)
                 return json_response(self, save_project(conn, payload))
+
+            if parsed.path == "/api/projects/delete":
+                user = cookie_user(self, conn)
+                if not require_user(self, user):
+                    return
+                if not can_review(user):
+                    return json_response(self, {"ok": False, "message": "无权删除项目。"}, 403)
+                return json_response(self, delete_project(conn, payload["id"]))
 
             if parsed.path == "/api/overtime/action":
                 user = cookie_user(self, conn)
@@ -1416,16 +1586,60 @@ def update_status(conn: sqlite3.Connection, payload: dict, user: sqlite3.Row) ->
     conn.execute(f"UPDATE timesheets SET {', '.join(fields)} WHERE id = ?", params)
     target_type = result["workflow"]["target_type"]
     if result["transition"].get("create_task"):
-        create_workflow_task(
-            conn,
-            "timesheet",
-            target_type,
-            timesheet_id,
-            actor_id,
-            result["workflow"]["review_role"],
-        )
+        # Multi-step routing: project_owner → department_head
+        create_timesheet_approval_tasks(conn, timesheet_id, actor_id)
     if result["transition"].get("complete_task"):
-        complete_workflow_tasks(conn, "timesheet", target_type, timesheet_id, actor_id, action, comment)
+        # Find and complete the task assigned to the current actor
+        task_row = conn.execute(
+            """SELECT id FROM workflow_tasks
+               WHERE workflow_key = 'timesheet'
+                 AND target_type = ?
+                 AND target_id = ?
+                 AND assignee_user_id = ?
+                 AND status = 'pending'
+               LIMIT 1""",
+            (target_type, timesheet_id, actor_id),
+        ).fetchone()
+
+        if task_row:
+            conn.execute(
+                """UPDATE workflow_tasks
+                   SET status = 'completed', completed_by = ?, completed_at = ?,
+                       result_action = ?, comment = ?
+                   WHERE id = ?""",
+                (actor_id, datetime.now().isoformat(timespec="seconds"),
+                 action, comment, task_row["id"]),
+            )
+
+        if action == "approve":
+            # Check if all tasks are complete → timesheet approved
+            pending = conn.execute(
+                """SELECT COUNT(*) FROM workflow_tasks
+                   WHERE workflow_key = 'timesheet'
+                     AND target_type = ?
+                     AND target_id = ?
+                     AND status = 'pending'""",
+                (target_type, timesheet_id),
+            ).fetchone()[0]
+            if pending == 0:
+                result["to_status"] = "approved"
+                conn.execute(
+                    "UPDATE timesheets SET status = 'approved', approved_by = ?, approved_at = ? WHERE id = ?",
+                    (actor_id, datetime.now().isoformat(timespec="seconds"), timesheet_id),
+                )
+        elif action == "reject":
+            # Cancel all remaining pending tasks
+            conn.execute(
+                """UPDATE workflow_tasks
+                   SET status = 'completed', result_action = 'cancelled',
+                       completed_by = ?, completed_at = ?
+                   WHERE workflow_key = 'timesheet'
+                     AND target_type = ?
+                     AND target_id = ?
+                     AND status = 'pending'""",
+                (actor_id, datetime.now().isoformat(timespec="seconds"),
+                 target_type, timesheet_id),
+            )
     insert_approval_log(
         conn,
         target_type,
@@ -1699,24 +1913,23 @@ def approval_tasks(conn: sqlite3.Connection, week_start: str, user: sqlite3.Row 
     timesheets = dict_rows(
         conn.execute(
             """
-            SELECT wt.id AS task_id, wt.workflow_key, wt.target_id AS timesheet_id,
-                   wt.assignee_user_id, reviewer.name AS assignee_name,
+            SELECT DISTINCT t.id AS timesheet_id,
+                   t.user_id,
                    t.week_start_date, t.status, u.name, u.department,
-                   COALESCE(SUM(e.hours), 0) AS total_hours
+                   COALESCE(SUM(e.hours), 0) AS total_hours,
+                   t.submitted_at
             FROM workflow_tasks wt
             JOIN timesheets t ON t.id = wt.target_id
             JOIN users u ON u.id = t.user_id
-            LEFT JOIN users reviewer ON reviewer.id = wt.assignee_user_id
             LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id
             WHERE wt.workflow_key = 'timesheet'
               AND wt.target_type = 'timesheet'
               AND wt.status = 'pending'
-              AND t.week_start_date = ?
               AND (? OR wt.assignee_user_id = ? OR wt.assignee_user_id IS NULL)
-            GROUP BY wt.id, t.id
-            ORDER BY wt.created_at, u.name
+            GROUP BY t.id
+            ORDER BY t.week_start_date ASC, u.name
             """,
-            (week_start, int(admin_view), reviewer_id),
+            (int(admin_view), reviewer_id),
         )
     )
     reviewed = dict_rows(
@@ -1737,13 +1950,12 @@ def approval_tasks(conn: sqlite3.Connection, week_start: str, user: sqlite3.Row 
             )
             LEFT JOIN users reviewer ON reviewer.id = l.actor_id
             LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id
-            WHERE t.week_start_date = ?
-              AND t.status IN ('approved', 'rejected')
+            WHERE t.status IN ('approved', 'rejected')
               AND (? OR l.actor_id = ?)
             GROUP BY t.id
             ORDER BY COALESCE(t.approved_at, t.updated_at) DESC, u.name
             """,
-            (week_start, int(admin_view), reviewer_id),
+            (int(admin_view), reviewer_id),
         )
     )
     overtime = overtime_pending(conn, week_start, user)
@@ -1855,9 +2067,33 @@ def project_rows(conn: sqlite3.Connection) -> list[dict]:
             """
             SELECT p.id, p.code, p.name, p.contract_amount, p.received_amount,
                    MAX(p.contract_amount - p.received_amount, 0) AS receivable_amount,
-                   p.owner_org_id, o.org_name AS owner_org_name, p.status
+                   p.owner_org_id, o.org_name AS owner_org_name,
+                   p.project_owner_id,
+                   -- project owner: use project_owner_id directly, fallback to org manager
+                   COALESCE(
+                       po.name,
+                       (SELECT u2.name FROM users u2 WHERE u2.id = o.manager_user_id),
+                       '—'
+                   ) AS project_owner_name,
+                   COALESCE(labor.total_hours, 0) AS total_labor_hours,
+                   COALESCE(labor.total_cost, 0) AS total_labor_cost,
+                   p.status
             FROM projects p
             LEFT JOIN organizations o ON o.id = p.owner_org_id
+            LEFT JOIN users po ON po.id = p.project_owner_id
+            LEFT JOIN (
+                SELECT e.project_id,
+                       COALESCE(SUM(e.hours), 0) AS total_hours,
+                       COALESCE(SUM(CASE
+                           WHEN p2.contract_type = 'service' THEN e.hours * (p2.daily_wage)
+                           ELSE e.hours * (p2.monthly_salary / CASE WHEN p2.standard_monthly_workdays > 0 THEN p2.standard_monthly_workdays ELSE 21.75 END)
+                       END), 0) AS total_cost
+                FROM timesheet_entries e
+                JOIN timesheets t2 ON t2.id = e.timesheet_id
+                JOIN users u2 ON u2.id = t2.user_id
+                JOIN employee_profiles p2 ON p2.user_id = u2.id
+                GROUP BY e.project_id
+            ) labor ON labor.project_id = p.id
             WHERE p.status = 'active'
             ORDER BY p.code
             """
@@ -1873,6 +2109,8 @@ def save_project(conn: sqlite3.Connection, payload: dict) -> dict:
         return {"ok": False, "message": "项目编号和名称不能为空。"}
     contract_amount = float(payload.get("contractAmount") or payload.get("contract_amount") or 0)
     received_amount = float(payload.get("receivedAmount") or payload.get("received_amount") or 0)
+    project_owner_id = int(payload.get("projectOwnerId") or 0) or None
+    owner_org_id = int(payload.get("ownerOrgId") or 0) or None
     duplicate = conn.execute(
         "SELECT id FROM projects WHERE code = ? AND (? IS NULL OR id != ?)",
         (code, project_id, project_id),
@@ -1883,18 +2121,22 @@ def save_project(conn: sqlite3.Connection, payload: dict) -> dict:
         conn.execute(
             """
             UPDATE projects
-            SET code = ?, name = ?, contract_amount = ?, received_amount = ?
+            SET code = ?, name = ?, contract_amount = ?, received_amount = ?,
+                project_owner_id = ?, owner_org_id = ?
             WHERE id = ?
             """,
-            (code, name, contract_amount, received_amount, project_id),
+            (code, name, contract_amount, received_amount,
+             project_owner_id, owner_org_id, project_id),
         )
     else:
         conn.execute(
             """
-            INSERT INTO projects(code, name, contract_amount, received_amount)
-            VALUES(?, ?, ?, ?)
+            INSERT INTO projects(code, name, contract_amount, received_amount,
+                                 project_owner_id, owner_org_id)
+            VALUES(?, ?, ?, ?, ?, ?)
             """,
-            (code, name, contract_amount, received_amount),
+            (code, name, contract_amount, received_amount,
+             project_owner_id, owner_org_id),
         )
     return {"ok": True, "projects": project_rows(conn)}
 
@@ -1938,20 +2180,20 @@ def Number_safe(value: object) -> float:
         return 0.0
 
 
-def weekly_report(conn: sqlite3.Connection, week_start: str) -> dict:
+def weekly_report(conn: sqlite3.Connection, start_date: str, end_date: str) -> dict:
     employee_rows = dict_rows(
         conn.execute(
             """
             SELECT u.name, u.department, t.id AS timesheet_id, t.status,
                    COALESCE(SUM(e.hours), 0) AS total_hours
             FROM users u
-            LEFT JOIN timesheets t ON t.user_id = u.id AND t.week_start_date = ?
-            LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id
+            LEFT JOIN timesheets t ON t.user_id = u.id
+            LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id AND e.work_date BETWEEN ? AND ?
             WHERE u.role = 'employee'
             GROUP BY u.id, t.id
             ORDER BY u.id
             """,
-            (week_start,),
+            (start_date, end_date),
         )
     )
     project_rows = dict_rows(
@@ -1960,16 +2202,41 @@ def weekly_report(conn: sqlite3.Connection, week_start: str) -> dict:
             SELECT p.code, p.name, COALESCE(SUM(e.hours), 0) AS total_hours,
                    COUNT(DISTINCT CASE WHEN e.id IS NOT NULL THEN t.user_id END) AS people_count
             FROM projects p
-            LEFT JOIN timesheets t ON t.week_start_date = ?
-            LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id AND e.project_id = p.id
+            LEFT JOIN timesheet_entries e ON e.project_id = p.id AND e.work_date BETWEEN ? AND ?
+            LEFT JOIN timesheets t ON t.id = e.timesheet_id
+            WHERE p.status = 'active'
             GROUP BY p.id
             HAVING total_hours > 0
             ORDER BY total_hours DESC
             """,
-            (week_start,),
+            (start_date, end_date),
         )
     )
-    return {"weekStart": week_start, "employees": employee_rows, "projects": project_rows}
+    return {"startDate": start_date, "endDate": end_date, "employees": employee_rows, "projects": project_rows}
+
+
+def project_detail(conn: sqlite3.Connection, project_id: int, start_date: str, end_date: str) -> list[dict]:
+    return dict_rows(
+        conn.execute(
+            """
+            SELECT u.id, u.name, u.department,
+                   COALESCE(SUM(e.hours), 0) AS total_hours,
+                   COUNT(DISTINCT e.work_date) AS work_days
+            FROM users u
+            JOIN timesheets t ON t.user_id = u.id
+            JOIN timesheet_entries e ON e.timesheet_id = t.id
+                AND e.project_id = ? AND e.work_date BETWEEN ? AND ?
+            GROUP BY u.id
+            ORDER BY total_hours DESC
+            """,
+            (project_id, start_date, end_date),
+        )
+    )
+
+
+def delete_project(conn: sqlite3.Connection, project_id: int) -> dict:
+    conn.execute("UPDATE projects SET status = 'deleted' WHERE id = ?", (project_id,))
+    return {"ok": True, "projects": project_rows(conn)}
 
 
 if __name__ == "__main__":

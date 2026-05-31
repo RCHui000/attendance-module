@@ -1,0 +1,132 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* ===== shadcn/ui Theme — mapped from existing design tokens ===== */
+@theme {
+  /* Color tokens — converted from existing hex values to HSL */
+  --color-background: hsl(220 14% 96%);      /* #f4f5f7 */
+  --color-foreground: hsl(222 20% 11%);      /* #101318 */
+  --color-card: hsl(0 0% 100%);              /* #ffffff */
+  --color-card-foreground: hsl(222 20% 11%); /* #101318 */
+  --color-popover: hsl(0 0% 100%);           /* #ffffff */
+  --color-popover-foreground: hsl(222 20% 11%);
+  --color-primary: hsl(221 39% 11%);         /* #111827 */
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-dark: #000000;             /* primary hover */
+  --color-secondary: hsl(220 14% 96%);       /* #f4f5f7 */
+  --color-secondary-foreground: hsl(222 20% 11%);
+  --color-muted: hsl(218 11% 45%);           /* #667085 */
+  --color-muted-foreground: hsl(218 11% 45%);
+  --color-accent: hsl(220 14% 96%);          /* #f4f5f7 */
+  --color-accent-foreground: hsl(222 20% 11%);
+  --color-destructive: hsl(0 72% 51%);       /* #dc2626 */
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-success: hsl(142 76% 36%);         /* #16a34a */
+  --color-warning: hsl(35 92% 44%);          /* #d97706 */
+  --color-border: hsl(220 13% 91%);          /* #e4e7ec */
+  --color-input: hsl(220 13% 91%);
+  --color-ring: hsl(221 39% 11%);            /* #111827 */
+
+  /* Sidebar colors */
+  --color-sidebar-bg: #0f1115;
+  --color-sidebar-text: #d7dbe3;
+  --color-sidebar-active: #ffffff;
+  --color-sidebar-muted: #b8c0cf;
+
+  /* Status colors */
+  --color-status-draft-text: #344054;
+  --color-status-draft-bg: #f2f4f7;
+  --color-status-submitted-text: #000000;
+  --color-status-submitted-bg: #dbeafe;
+  --color-status-approved-text: #16a34a;
+  --color-status-approved-bg: #dcfce7;
+  --color-status-rejected-text: #dc2626;
+  --color-status-rejected-bg: #fee2e2;
+
+  /* Additional utility colors */
+  --color-table-header: hsl(216 50% 98%);    /* #f8fafc */
+  --color-row-hover: hsl(226 100% 96%);      /* #f0f4ff */
+  --color-row-selected: hsl(222 89% 96%);    /* #eef4ff */
+  --color-progress: #2f80ed;
+  --color-toast: #111827;
+
+  /* Border radius */
+  --radius-sm: 5px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-app: 0 10px 30px rgba(16, 19, 24, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(17, 24, 39, 0.18);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Typography */
+  --font-sans: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+  --font-mono: "Cascadia Code", "Fira Code", "Consolas", monospace;
+
+  /* Animation */
+  --animate-fade-in: fade-in 0.18s ease;
+}
+
+/* ---- Base layer ---- */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: hsl(222 20% 11%);
+  background: linear-gradient(180deg, #fbfbfc 0%, hsl(220 14% 96%) 100%);
+  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+  font-size: 14px;
+  letter-spacing: 0;
+  -webkit-tap-highlight-color: rgba(17, 24, 39, 0.08);
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ---- Focus ring ---- */
+*:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #edf1f6;
+}
+::-webkit-scrollbar-thumb {
+  background: #9aa6b8;
+  border-radius: 999px;
+}
+
+/* ---- Animation keyframes ---- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Utility ---- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

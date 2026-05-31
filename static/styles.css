@@ -732,6 +732,40 @@ td {
   box-shadow: var(--focus);
 }
 
+.period-switch {
+  grid-template-columns: repeat(3, max-content);
+}
+
+#reportPeriodRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 0 12px;
+}
+
+#reportPeriodRow[hidden] {
+  display: none;
+}
+
+.time-select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  background: #f2f4f7;
+  font-size: 0.85rem;
+  color: #101318;
+  align-self: center;
+}
+
+.project-row {
+  cursor: pointer;
+}
+
+.project-row:hover {
+  background: #f0f4ff;
+}
+
 .employee-table-wrap {
   flex: 1;
   min-height: 0;

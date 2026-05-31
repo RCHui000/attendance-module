@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -15,6 +16,18 @@ import app as legacy
 
 
 api = FastAPI(title="考勤统计模块")
+
+ROOT = Path(__file__).resolve().parent
+FRONTEND_DIST = ROOT / "frontend" / "dist"
+
+# Allow the Vite dev server (port 5173) to access the API
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class SyncHub:
@@ -216,14 +229,29 @@ async def timesheet_detail_query(request: Request, timesheetId: int):
 
 
 @api.get("/api/reports/weekly")
-async def weekly_report(request: Request, weekStart: str | None = None):
+async def weekly_report(request: Request, weekStart: str | None = None, startDate: str | None = None, endDate: str | None = None):
     user = require_user(request)
     if isinstance(user, JSONResponse):
         return user
     if not can_review(user):
         return error("无权访问汇总报表。", 403)
     with legacy.connect() as conn:
-        return legacy.weekly_report(conn, legacy.normalize_week_start(weekStart))
+        if startDate and endDate:
+            return legacy.weekly_report(conn, startDate, endDate)
+        ws = legacy.normalize_week_start(weekStart)
+        we = (date.fromisoformat(ws) + timedelta(days=6)).isoformat()
+        return legacy.weekly_report(conn, ws, we)
+
+
+@api.get("/api/project-detail")
+async def project_detail_route(request: Request, projectId: int, startDate: str, endDate: str):
+    user = require_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not can_review(user):
+        return error("无权访问项目详情。", 403)
+    with legacy.connect() as conn:
+        return legacy.project_detail(conn, projectId, startDate, endDate)
 
 
 @api.get("/api/project-dashboard")
@@ -259,6 +287,20 @@ async def projects_save(request: Request, payload: dict[str, Any]):
         result = legacy.save_project(conn, payload)
     if result.get("ok"):
         await hub.broadcast(["dashboard", "reports"], client_id(request))
+    return result
+
+
+@api.post("/api/projects/delete")
+async def projects_delete(request: Request, payload: dict[str, Any]):
+    user = require_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not can_review(user):
+        return error("无权删除项目。", 403)
+    with legacy.connect() as conn:
+        result = legacy.delete_project(conn, payload["id"])
+    if result.get("ok"):
+        await hub.broadcast(["reports"], client_id(request))
     return result
 
 
@@ -413,11 +455,32 @@ async def websocket_sync(websocket: WebSocket):
         hub.disconnect(websocket)
 
 
-api.mount("/assets", StaticFiles(directory=str(legacy.STATIC_DIR)), name="assets")
+# Serve built frontend assets (JS/CSS chunks)
+if (FRONTEND_DIST / "assets").exists():
+    api.mount(
+        "/assets",
+        StaticFiles(directory=str(FRONTEND_DIST / "assets")),
+        name="frontend_assets",
+    )
+else:
+    # Fallback for local dev without built frontend
+    api.mount(
+        "/assets",
+        StaticFiles(directory=str(legacy.STATIC_DIR)),
+        name="legacy_assets",
+    )
 
 
 @api.get("/{path:path}")
 async def spa(path: str):
+    # Serve new React frontend (SPA) if built
+    if FRONTEND_DIST.exists():
+        target = FRONTEND_DIST / (path or "index.html")
+        if target.exists() and target.is_file():
+            return FileResponse(target)
+        return FileResponse(FRONTEND_DIST / "index.html")
+
+    # Fallback: old vanilla frontend
     target = legacy.STATIC_DIR / (path or "index.html")
     if target.exists() and target.is_file():
         return FileResponse(target)

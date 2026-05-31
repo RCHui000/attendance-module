@@ -12,60 +12,107 @@ http://192.168.2.100:8767
 /vol1/@team/个人工作文件/惠若超/attendance-module
 ```
 
-## Docker Compose
+## 前端技术栈
 
-已准备 `Dockerfile`、`docker-compose.yml` 和 `.dockerignore`。Docker 权限恢复后，在 NAS 执行：
+新前端使用 **React 18 + TypeScript + shadcn/ui + Tailwind CSS**，源码在 `frontend/` 目录。
+Docker 构建时通过多阶段构建自动编译为静态文件，无需在 NAS 上安装 Node.js。
+
+## 部署步骤
+
+### 1. 同步代码到 NAS
+
+```bash
+# 将本地代码推送到 git，然后在 NAS 上 pull
+# 或者直接用 rsync/scp 同步整个项目目录到 NAS
+```
+
+### 2. 构建并启动（Docker）
 
 ```bash
 cd /vol1/@team/个人工作文件/惠若超/attendance-module
 docker compose up -d --build
 ```
 
-容器名：
+首次构建会执行：
+1. **Stage 1** (node:22-alpine): 安装 `frontend/` 的 npm 依赖并执行 `npm run build`，产出 `frontend/dist/`
+2. **Stage 2** (python:3.12-slim): 安装 FastAPI/uvicorn，复制 Python 代码 + 旧 `static/` + 新 `frontend/dist/`
 
-```text
-attendance-module
+启动后 FastAPI (uvicorn) 会在 `0.0.0.0:8767` 提供服务。
+
+### 3. 查看日志
+
+```bash
+docker logs -f attendance-module
 ```
 
-持久化数据库：
+### 4. 更新部署
 
+```bash
+cd /vol1/@team/个人工作文件/惠若超/attendance-module
+git pull   # 拉取最新代码
+docker compose up -d --build   # 重新构建并重启
+```
+
+## Docker Compose
+
+```yaml
+services:
+  attendance-module:
+    build: .
+    container_name: attendance-module
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      ATTENDANCE_HOST: 0.0.0.0
+      ATTENDANCE_PORT: 8767
+      ATTENDANCE_DB_PATH: /data/attendance_demo.sqlite3
+    ports:
+      - "8767:8767"
+    volumes:
+      - ./data:/data
+```
+
+## 持久化
+
+数据库文件：
 ```text
 ./data/attendance_demo.sqlite3
 ```
 
-## 当前临时运行方式
+## 容器内运行架构
 
-当前 SSH 用户暂时没有 `/var/run/docker.sock` 访问权限，`sudo` 需要密码，因此 Docker 尚未启动。为了先给局域网用户反馈迭代，NAS 上已用项目内 `.venv` 临时运行：
+```
+                 ┌────────────────────────┐
+  Browser        │  Docker: attendance-module      │
+                 │                        │
+  GET /      ───┤→ frontend/dist/index.html   │  ← React SPA (新前端)
+  GET /assets/* ─┤→ frontend/dist/assets/      │  ← JS/CSS chunks
+  GET /api/*  ───┤→ FastAPI routes             │  ← Python 后端
+  GET /ws/sync ──┤→ WebSocket hub              │  ← 实时同步
+                 │                        │
+                 │  (static/ 保留作为旧前端兜底)  │
+                 └────────────────────────┘
+```
 
+## 新旧前端并存
+
+- **新前端** (`frontend/dist/`)：默认入口，React + shadcn/ui
+- **旧前端** (`static/`)：保留在容器中，如果 `frontend/dist/` 不存在则自动回退到旧版
+
+## 故障排查
+
+### 前端构建失败
 ```bash
-cd /vol1/@team/个人工作文件/惠若超/attendance-module
-nohup env ATTENDANCE_HOST=0.0.0.0 ATTENDANCE_PORT=8767 ATTENDANCE_DB_PATH=/vol1/@team/个人工作文件/惠若超/attendance-module/data/attendance_demo.sqlite3 .venv/bin/python app.py > attendance-module.log 2>&1 &
+# 在本地验证
+cd frontend && npm ci && npm run build
+# 确认 dist/ 目录正常产出
+ls -la dist/
 ```
 
-查看进程：
-
+### 容器无法启动
 ```bash
-ps aux | grep -F 'attendance-module' | grep -v grep
+docker compose logs attendance-module
 ```
 
-查看日志：
-
-```bash
-tail -50 /vol1/@team/个人工作文件/惠若超/attendance-module/attendance-module.log
-```
-
-切换到 Docker 前，先停止临时进程：
-
-```bash
-pkill -f '/vol1/@team/个人工作文件/惠若超/attendance-module/.venv/bin/python app.py'
-```
-
-## Docker 权限待处理
-
-当前现象：
-
-```text
-permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock
-```
-
-需要 NAS 管理员将 SSH 用户加入 `docker` 组，或开放可用的 sudo/Container Manager 权限后再执行 compose 启动。
+### 数据库
+如果数据库文件损坏或丢失，容器启动时会自动创建空库并写入种子数据（3 个用户、10 个项目、1 个部门）。

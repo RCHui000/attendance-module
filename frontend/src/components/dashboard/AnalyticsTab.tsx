@@ -149,32 +149,27 @@ export function AnalyticsTab({ projects, totalLaborHours, totalLaborCost }: Anal
       {/* Header: title + project selector */}
       <div className="flex items-center justify-between mb-1">
         <div>
-          <h3 className="text-sm font-semibold">月度人力开支</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {selectedValue === TOTAL_VALUE
-              ? "所有项目合计"
-              : `${selectedProject?.code} ${selectedProject?.name}`}
-          </p>
+          <h3 className="text-sm font-semibold">堆叠面积图-项目收支</h3>
         </div>
 
         <Select value={selectedValue} onValueChange={setSelectedValue}>
           <SelectTrigger className="h-8 text-sm w-[200px]">
-            <SelectValue />
+            <SelectValue>
+              {selectedValue === TOTAL_VALUE
+                ? "总计 — 所有项目"
+                : projects.find((p) => String(p.id) === selectedValue)?.name || ""}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={TOTAL_VALUE}>总计 — 所有项目</SelectItem>
             {projects.map((p) => (
               <SelectItem key={p.id} value={String(p.id)}>
-                {p.code} - {p.name}
+                {p.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-
-      <p className="text-xs text-muted-foreground mb-5">
-        最近 6 个月，按已提交/已审批/已锁定工时估算
-      </p>
 
       {/* Chart */}
       {isLoading && (

@@ -1,4 +1,4 @@
-import os
+import hashlib, hmac, json, os, time, base64
 import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -9,49 +9,53 @@ from urllib.parse import urljoin
 ROOT = Path("/app")
 SUPABASE_AUTH_URL = os.environ.get("SUPABASE_AUTH_URL", "http://192.168.2.100:8777").rstrip("/")
 SUPABASE_REST_URL = os.environ.get("SUPABASE_REST_URL", "http://192.168.2.100:8779").rstrip("/")
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+GOTRUE_URL = os.environ.get("GOTRUE_URL", "http://192.168.2.100:8777").rstrip("/")
+DEFAULT_INITIAL_PASSWORD = os.environ["DEFAULT_INITIAL_PASSWORD"]  # must be set in env, no default
 HOP_BY_HOP_HEADERS = {
-    "connection",
-    "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
-    "te",
-    "trailers",
-    "transfer-encoding",
-    "upgrade",
+    "connection", "keep-alive", "proxy-authenticate",
+    "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade",
 }
+
+
+def make_service_role_token():
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({
+        "role": "service_role", "iss": "supabase",
+        "iat": int(time.time()), "exp": int(time.time()) + 30,
+    }).encode()).rstrip(b"=").decode()
+    sig = base64.urlsafe_b64encode(
+        hmac.new(JWT_SECRET.encode(), f"{header}.{payload}".encode(), hashlib.sha256).digest()
+    ).rstrip(b"=").decode()
+    return f"{header}.{payload}.{sig}"
 
 
 class SpaHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
-        if self._proxy_supabase():
-            return
+        if self._proxy_supabase(): return
         super().do_GET()
-
     def do_HEAD(self) -> None:
-        if self._proxy_supabase():
-            return
+        if self._proxy_supabase(): return
         super().do_HEAD()
-
     def do_POST(self) -> None:
-        if self._proxy_supabase():
+        if self.path == "/api/create-employee-with-login":
+            self._handle_create_employee()
             return
+        if self.path == "/api/change-password":
+            self._handle_change_password()
+            return
+        if self._proxy_supabase(): return
         self.send_error(404)
-
     def do_PATCH(self) -> None:
-        if self._proxy_supabase():
-            return
+        if self._proxy_supabase(): return
         self.send_error(404)
-
     def do_DELETE(self) -> None:
-        if self._proxy_supabase():
-            return
+        if self._proxy_supabase(): return
         self.send_error(404)
-
     def do_OPTIONS(self) -> None:
-        if self._proxy_supabase():
-            return
+        if self._proxy_supabase(): return
         self.send_response(204)
-        self.send_header("Allow", "GET, HEAD, OPTIONS")
+        self.send_header("Allow", "GET, HEAD, OPTIONS, POST, PATCH, DELETE")
         self.end_headers()
 
     def end_headers(self) -> None:
@@ -63,17 +67,238 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
     def translate_path(self, path: str) -> str:
         translated = Path(super().translate_path(path))
-        if translated.exists():
-            return str(translated)
-        return str(ROOT / "index.html")
+        return str(ROOT / "index.html") if not translated.exists() else str(translated)
+
+    def _handle_create_employee(self) -> None:
+        """POST /api/create-employee-with-login
+        Atomically: validate admin JWT → create GoTrue user → write business tables → link auth UUID.
+        Returns {ok, employee_id, login_name, initial_password}."""
+        auth_uid = None   # for rollback on partial failure
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            body = json.loads(self.rfile.read(length)) if length else {}
+
+            # ── 1. Validate admin JWT ──
+            auth_header = self.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                self._json_error(401, "Not authenticated"); return
+            user_id = self._jwt_sub(auth_header[7:])
+            if not user_id:
+                self._json_error(401, "Invalid token"); return
+            if not self._has_role(user_id, "admin"):
+                self._json_error(403, "Admin only"); return
+
+            # ── 2. Validate inputs ──
+            name = (body.get("name") or "").strip()
+            login_name = (body.get("loginName") or body.get("login_name") or name).strip()
+            email = f"{login_name.replace(chr(32),'').lower()}@psa.local" if login_name else ""
+            if not name:
+                self._json_error(400, "Employee name is required"); return
+            if not login_name:
+                login_name = name
+                email = f"user{int(time.time())}@psa.local"
+            password = DEFAULT_INITIAL_PASSWORD
+
+            # ── 3. Check uniqueness ──
+            if self._rest_get(f"/profiles?login_name=eq.{self._q(login_name)}&limit=1"):
+                self._json_error(409, f"Login name '{login_name}' already exists"); return
+
+            # ── 4. Create GoTrue user ──
+            token = make_service_role_token()
+            req_body = json.dumps({
+                "email": email, "password": password,
+                "email_confirm": True,
+                "user_metadata": {"login_name": login_name},
+            }).encode()
+            req = urllib.request.Request(
+                f"{GOTRUE_URL}/admin/users", data=req_body,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+            )
+            resp = urllib.request.urlopen(req, timeout=15)
+            auth_uid = json.loads(resp.read())["id"]
+
+            # ── 5. Write business tables ──
+            try:
+                body["auth_user_id"] = auth_uid
+                employee_id = self._write_employee(body, login_name, email)
+            except Exception as be:
+                # Rollback: delete GoTrue user
+                self._delete_auth_user(auth_uid)
+                raise be
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "ok": True, "employee_id": employee_id,
+                "login_name": login_name,
+            }).encode())
+
+        except urllib.error.HTTPError as e:
+            self._json_error(e.code, e.read().decode()[:300])
+        except Exception as e:
+            self._json_error(500, str(e))
+
+    # ── helpers ──
+
+    def _jwt_sub(self, token_str: str) -> str | None:
+        try:
+            parts = token_str.split(".")
+            if len(parts) != 3: return None
+            payload_b64 = parts[1] + "=="
+            payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+            return payload.get("sub") if payload.get("exp", 0) > time.time() else None
+        except Exception:
+            return None
+
+    def _has_role(self, auth_uid: str, role: str) -> bool:
+        rows = self._rest_get(f"/user_roles?select=role&employee_id=eq.{self._q(str(self._employee_id_from_auth(auth_uid)))}&role=eq.{self._q(role)}")
+        return len(rows) > 0
+
+    def _employee_id_from_auth(self, auth_uid: str) -> int:
+        rows = self._rest_get(f"/employees?select=id&auth_user_id=eq.{self._q(auth_uid)}&limit=1")
+        return int(rows[0]["id"]) if rows else 0
+
+    def _rest_get(self, path: str) -> list:
+        req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError:
+            return []
+
+    def _write_employee(self, body: dict, login_name: str, email: str) -> int:
+        name = body["name"]
+        contract_type = body.get("contractType") or body.get("contract_type") or "labor"
+        # Get next ID
+        existing = self._rest_get("/employees?select=id&order=id.desc&limit=1")
+        eid = int(existing[0]["id"]) + 1 if existing else 1
+
+        # employees
+        self._rest_post("/employees", [{"id": eid, "employee_no": body.get("employeeNo") or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}])
+        # profiles
+        self._rest_post("/profiles", [{"login_name": login_name, "auth_email": email, "auth_user_id": body["auth_user_id"], "display_name": name, "is_active": True, "must_change_password": True}])
+        # profiles_v2
+        self._rest_post("/employee_profiles_v2", [{"employee_id": eid, "org_id": body.get("orgId") or body.get("org_id") or None, "position_name": body.get("positionName") or body.get("position_name") or "", "employment_status": body.get("status") or "active", "manager_user_id": body.get("managerUserId") or body.get("manager_user_id") or None, "hire_date": body.get("hireDate") or body.get("hire_date") or None}])
+        # contracts
+        self._rest_post("/employee_contracts", [{"employee_id": eid, "contract_type": contract_type, "employment_type": body.get("employmentType") or body.get("employment_type") or "labor", "is_current": True}])
+        # salary
+        self._rest_post("/employee_salary_profiles", [{"employee_id": eid, "salary_mode": "daily_wage" if contract_type == "service" else "monthly_salary", "monthly_salary": 0 if contract_type == "service" else int(body.get("monthlySalary") or body.get("monthly_salary") or 0), "daily_wage": int(body.get("dailyWage") or body.get("daily_wage") or 0) if contract_type == "service" else 0, "is_current": True}])
+        # roles
+        self._rest_post("/user_roles", [{"employee_id": eid, "role": body.get("role") or "employee"}])
+        return eid
+
+    def _rest_post(self, path: str, data: list) -> None:
+        req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}", data=json.dumps(data).encode(), headers={"Content-Type": "application/json", "Prefer": "return=minimal"}, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            pass  # fire-and-forget, errors raise HTTPError
+
+    def _delete_auth_user(self, uid: str) -> None:
+        try:
+            token = make_service_role_token()
+            req = urllib.request.Request(f"{GOTRUE_URL}/admin/users/{uid}", headers={"Authorization": f"Bearer {token}"}, method="DELETE")
+            urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            pass  # best-effort rollback
+
+    @staticmethod
+    def _q(s: str) -> str:
+        return urllib.request.quote(str(s), safe="")
+
+    def _handle_change_password(self) -> None:
+        """POST /api/change-password {oldPassword, newPassword}
+        Verify old → change via GoTrue → clear must_change_password."""
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            body = json.loads(self.rfile.read(length)) if length else {}
+            old_pw = body.get("oldPassword", "")
+            new_pw = body.get("newPassword", "")
+            if not old_pw or not new_pw:
+                self._json_error(400, "oldPassword and newPassword required"); return
+
+            # Get user email: try JWT first, then login_name from body
+            email = ""
+            auth_header = self.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer ") and auth_header[7:]:
+                email = self._jwt_email(auth_header[7:]) or ""
+            if not email:
+                login = (body.get("login") or "").strip()
+                if login:
+                    email = self._login_to_email(login)
+            if not email:
+                self._json_error(401, "Not authenticated"); return
+
+            # Step 1: verify old password
+            verify_body = json.dumps({"email": email, "password": old_pw, "gotrue_meta_security": {}}).encode()
+            req = urllib.request.Request(
+                f"{GOTRUE_URL}/token?grant_type=password", data=verify_body,
+                headers={"Content-Type": "application/json"},
+            )
+            resp = urllib.request.urlopen(req, timeout=10)
+            fresh_token = json.loads(resp.read())["access_token"]
+
+            # Step 2: change password using fresh token
+            change_body = json.dumps({"password": new_pw}).encode()
+            req2 = urllib.request.Request(
+                f"{GOTRUE_URL}/user", data=change_body,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {fresh_token}"},
+                method="PUT",
+            )
+            urllib.request.urlopen(req2, timeout=10)
+
+            # Step 3: clear must_change_password in profiles
+            sub = self._jwt_sub(auth_header[7:])
+            if sub:
+                self._rest_patch(f"/profiles?auth_user_id=eq.{self._q(sub)}", {"must_change_password": False})
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode())
+
+        except urllib.error.HTTPError as e:
+            self._json_error(e.code, "Invalid credentials" if e.code == 400 else e.read().decode()[:200])
+        except Exception as e:
+            self._json_error(500, str(e))
+
+    def _login_to_email(self, login: str) -> str:
+        """Map login name to GoTrue email (same mapping as loginEmail in api.ts)."""
+        mapping = {
+            "admin": "admin@psa.local", "鞠松松": "jss@psa.local",
+            "惠若超": "huirouchao@psa.local", "王长志": "wangchangzhi@psa.local",
+            "陈京京": "chenjingjing@psa.local", "赵嘉琪": "zhaojiaqi@psa.local",
+            "储小海": "chuxiaohai@psa.local", "韩文治": "hanwenzhi@psa.local",
+            "温利峰": "wenlifeng@psa.local",
+        }
+        if login in mapping:
+            return mapping[login]
+        return f"{login}@psa.local"
+
+    def _jwt_email(self, token_str: str) -> str | None:
+        try:
+            parts = token_str.split(".")
+            if len(parts) != 3: return None
+            payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
+            return payload.get("email") if payload.get("exp", 0) > time.time() else None
+        except Exception:
+            return None
+
+    def _rest_patch(self, path: str, data: dict) -> None:
+        req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}", data=json.dumps(data).encode(),
+            headers={"Content-Type": "application/json", "Prefer": "return=minimal"}, method="PATCH")
+        urllib.request.urlopen(req, timeout=10)
+
+    def _json_error(self, code: int, msg: str) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"ok": False, "message": msg}).encode())
 
     def _proxy_supabase(self) -> bool:
         if self.path.startswith("/auth/"):
-            self._forward(SUPABASE_AUTH_URL, "/auth")
-            return True
+            self._forward(SUPABASE_AUTH_URL, "/auth"); return True
         if self.path.startswith("/rest/"):
-            self._forward(SUPABASE_REST_URL, "/rest")
-            return True
+            self._forward(SUPABASE_REST_URL, "/rest"); return True
         return False
 
     def _forward(self, upstream: str, prefix: str) -> None:
@@ -83,10 +308,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if self.command not in {"GET", "HEAD", "OPTIONS"}:
             length = int(self.headers.get("Content-Length", "0") or "0")
             body = self.rfile.read(length) if length else None
-
         headers = {
-            key: value
-            for key, value in self.headers.items()
+            key: value for key, value in self.headers.items()
             if key.lower() not in HOP_BY_HOP_HEADERS and key.lower() != "host"
         }
         request = urllib.request.Request(target, data=body, headers=headers, method=self.command)

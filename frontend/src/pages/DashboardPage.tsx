@@ -27,7 +27,7 @@ const TAB_OPTIONS: { value: DashboardTab; label: string; icon: React.ReactNode }
 export default function DashboardPage() {
   const now = new Date();
 
-  const [periodType, setPeriodType] = useState<PeriodType>("month");
+  const [periodType, setPeriodType] = useState<PeriodType>("year");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [quarter, setQuarter] = useState(Math.floor(now.getMonth() / 3) + 1);

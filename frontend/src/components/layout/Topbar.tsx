@@ -2,7 +2,7 @@ import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/stores/authStore";
-import { LogOut, KeyRound } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   timesheet: { title: "我的周表", subtitle: "" },
@@ -41,18 +41,6 @@ export function Topbar() {
             {user.name}
           </Badge>
         )}
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8"
-          onClick={() => {
-            // Password change will be implemented later with dialog
-          }}
-        >
-          <KeyRound className="size-3.5 mr-1" />
-          修改密码
-        </Button>
 
         <Button
           variant="outline"

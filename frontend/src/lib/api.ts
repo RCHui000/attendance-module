@@ -153,13 +153,20 @@ async function isAdmin(): Promise<boolean> {
 }
 
 async function listEmployees(): Promise<AnyRow[]> {
-  const rows = await rest<AnyRow[]>(
-    "/hr_employee_current_view?select=*&order=employee_id.asc",
-  );
-  return rows.map((row) => ({
-    id: Number(row.employee_id),
+  const [rows, rolesRows] = await Promise.all([
+    rest<AnyRow[]>(
+      "/hr_employee_current_view?select=*&order=employee_id.asc",
+    ),
+    rest<AnyRow[]>("/user_roles?select=employee_id,role"),
+  ]);
+  const roleMap = new Map<number, string>();
+  for (const r of rolesRows) roleMap.set(Number(r.employee_id), r.role);
+  return rows.map((row) => {
+    const eid = Number(row.employee_id);
+    return {
+    id: eid,
     name: row.employee_name,
-    role: "employee",
+    role: roleMap.get(eid) || "employee",
     employee_no: row.employee_no,
     org_id: row.org_id,
     org_name: row.org_name || "",
@@ -176,7 +183,8 @@ async function listEmployees(): Promise<AnyRow[]> {
     employment_type: row.employment_type || "labor",
     status: row.employment_status || "active",
     standard_monthly_workdays: Number(row.standard_monthly_workdays || 21.75),
-  }));
+    };
+  });
 }
 
 async function organizations(): Promise<AnyRow[]> {
@@ -588,59 +596,34 @@ async function saveOrganization(body: AnyRow): Promise<AnyRow> {
 }
 
 async function saveEmployee(body: AnyRow): Promise<AnyRow> {
-  const id = body.id ? Number(body.id) : await nextId("employees");
   const name = body.name || "";
-  const contractType = body.contractType || body.contract_type || "labor";
   if (!name) throw new Error("Employee name is required");
-  const employee = {
-    id,
-    employee_no: body.employeeNo || body.employee_no || `QS${String(id).padStart(6, "0")}`,
-    name,
-    is_active: (body.status || "active") !== "terminated",
-  };
-  if (body.id) {
-    await rest(`/employees?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(employee) });
-  } else {
-    await rest("/employees", { method: "POST", body: JSON.stringify([employee]) });
+
+  // New employee: single atomic endpoint
+  if (!body.id) {
+    const token = getStoredToken();
+    const resp = await fetch("/api/create-employee-with-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.message || "Failed to create employee");
+    }
+    // Return initial password to caller (UI can show it once)
+    return { ok: true, employees: await listEmployees(), initialPassword: data.initial_password };
   }
-  await rest("/employee_profiles_v2?on_conflict=employee_id", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify([{
-      employee_id: id,
-      org_id: body.orgId || body.org_id || null,
-      position_name: body.positionName || body.position_name || "",
-      employment_status: body.status || "active",
-      manager_user_id: body.managerUserId || body.manager_user_id || null,
-      hire_date: body.hireDate || body.hire_date || null,
-    }]),
-  });
+
+  // Edit existing employee: direct PostgREST writes
+  const id = Number(body.id);
+  const contractType = body.contractType || body.contract_type || "labor";
+  await rest(`/employees?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ name, employee_no: body.employeeNo || body.employee_no || `QS${String(id).padStart(6, "0")}`, is_active: (body.status || "active") !== "terminated" }) });
+  await rest(`/employee_profiles_v2?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ org_id: body.orgId || body.org_id || null, position_name: body.positionName || body.position_name || "", employment_status: body.status || "active", manager_user_id: body.managerUserId || body.manager_user_id || null, hire_date: body.hireDate || body.hire_date || null }) });
   await rest(`/employee_contracts?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
-  await rest("/employee_contracts", {
-    method: "POST",
-    body: JSON.stringify([{
-      employee_id: id,
-      contract_type: contractType,
-      employment_type: body.employmentType || body.employment_type || "labor",
-      contract_start: body.hireDate || body.contractStart || null,
-      status: body.status || "active",
-      is_current: true,
-    }]),
-  });
+  await rest("/employee_contracts", { method: "POST", body: JSON.stringify([{ employee_id: id, contract_type: contractType, employment_type: body.employmentType || body.employment_type || "labor", is_current: true }]) });
   await rest(`/employee_salary_profiles?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
-  await rest("/employee_salary_profiles", {
-    method: "POST",
-    body: JSON.stringify([{
-      employee_id: id,
-      salary_mode: contractType === "service" ? "daily_wage" : "monthly_salary",
-      monthly_salary: contractType === "service" ? 0 : Number(body.monthlySalary || body.monthly_salary || 0),
-      daily_wage: contractType === "service" ? Number(body.dailyWage || body.daily_wage || 0) : 0,
-      standard_monthly_workdays: Number(body.standardMonthlyWorkdays || body.standard_monthly_workdays || 21.75),
-      is_current: true,
-    }]),
-  });
-  await rest(`/user_roles?employee_id=eq.${id}`, { method: "DELETE" });
-  await rest("/user_roles", { method: "POST", body: JSON.stringify([{ employee_id: id, role: body.role || "employee" }]) });
+  await rest("/employee_salary_profiles", { method: "POST", body: JSON.stringify([{ employee_id: id, salary_mode: contractType === "service" ? "daily_wage" : "monthly_salary", monthly_salary: contractType === "service" ? 0 : Number(body.monthlySalary || body.monthly_salary || 0), daily_wage: contractType === "service" ? Number(body.dailyWage || body.daily_wage || 0) : 0, is_current: true }]) });
   return { ok: true, employees: await listEmployees() };
 }
 
@@ -658,8 +641,21 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
     return { ok: true } as T;
   }
   if (url.pathname === "/api/password/change") {
-    await auth("/token?grant_type=password", { email: loginEmail(body.login), password: body.oldPassword, gotrue_meta_security: {} });
-    await auth("/user", { password: body.newPassword }, "PUT");
+    const token = getStoredToken();
+    const resp = await fetch("/api/change-password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        login: body.login,
+        oldPassword: body.oldPassword,
+        newPassword: body.newPassword,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.message || "Password change failed");
     return { ok: true } as T;
   }
   if (url.pathname === "/api/me") return { user: await currentUser() } as T;

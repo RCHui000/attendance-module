@@ -110,7 +110,7 @@
 
 | 输入 | GoTrue 邮箱 | 默认密码 |
 |------|-----------|---------|
-| admin | admin@psa.local | zxc,./123 |
+| admin | admin@psa.local | (运维设置) |
 | 鞠松松 | jss@psa.local | 123456 |
 | 惠若超 | huirouchao@psa.local | 123456 |
 | 王长志 | wangchangzhi@psa.local | 123456 |
@@ -194,11 +194,16 @@ sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env && docker compose up -d
 | 审批 | PATCH 直写 → `psa_timesheet_action` / `psa_overtime_action` RPC (SECURITY DEFINER, 单事务) |
 | 审批列表 | 不再按周过滤，全量展示；已审核按 completed_at 降序去重（最新结果优先） |
 | 员工列表 | hr_employee_current_view 加 DISTINCT ON 去重；每人仅保留最新一条 is_current contract/salary |
-| 数据看板 | 分析页图表加数值标签（13px, 常驻, 0 值隐藏）；默认"总计—所有项目" |
+| 员工角色 | listEmployees() 从 user_roles 表读实际 role（不再是硬编码 "employee"） |
+| 新增员工 | `POST /api/create-employee-with-login` 单接口原子操作：校验admin→GoTrue建用户→写6表→绑UUID，失败回滚 |
+| 密码安全 | DEFAULT_INITIAL_PASSWORD 从环境变量读取，不硬编码，不提交 Git，不返回给前端 |
+| 改密 | 支持登录页(login参数)和已登录(JWT)两种模式；改密后置 must_change_password=false |
+| 数据看板 | 分析页图表加数值标签（13px, 常驻, 0 值隐藏）；默认"总计—所有项目"+"年"；项目名显示名称 |
 | 序列修复 | workflow_tasks_id_seq 等从 1 重置到 MAX(id)（修复 duplicate key 错误） |
-| RLS | 新增 auth_read_* 策略；Grant SELECT on hr_employee_current_view |
+| RLS | 新增 auth_read_* + admin_insert/update/delete 策略；Grant SELECT on hr_employee_current_view |
 | FK | 补 timesheets.user_id→employees FK；workflow_tasks FK 因孤儿数据未完成 |
 | GoTrue | 配置 CORS；禁用 signup；中文名→拼音 email 映射 |
+| 前端 | Topbar 移除无效修改密码按钮；登录页改密支持 login 参数 |
 | Realtime | 暂停（RLIMIT_NOFILE bug），用 BroadcastChannel 同源广播 |
 
 ## 9. 已知边界
@@ -206,15 +211,26 @@ sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env && docker compose up -d
 - Realtime 不可用，实时同步通过 BroadcastChannel
 - timesheets→employees / workflow_tasks→timesheets FK 尚未完成（历史孤儿数据）
 - 月度回款额数据源缺失（需后端接口）
-- 新建 GoTrue 账号需通过运维脚本或 Supabase 管理后台
-- admin 密码可能在 GoTrue 重建时丢失
-- service_role key 不应出现在前端
+- 新建 GoTrue 账号通过 `/api/create-employee-with-login`（server-side service_role）
+- admin 密码独立运维设置，不存 Git
+- service_role key 不出前端，仅在 serve_spa.py 使用
+- DEFAULT_INITIAL_PASSWORD 存在 NAS .env，不提交 Git
 
-## 10. Agent 协作规范
+## 10. 服务端点
+
+| 端点 | 方法 | 用途 |
+|------|------|------|
+| `/api/create-employee-with-login` | POST | 管理员新增员工（含 GoTrue 建用户） |
+| `/api/change-password` | POST | 修改密码（支持 JWT 或 login 参数） |
+| `/auth/*` | * | 代理到 GoTrue |
+| `/rest/*` | * | 代理到 PostgREST |
+
+## 11. Agent 协作规范
 
 1. 前端改动 → `npm run build` → `tar + ssh` 部署
 2. DB 变更 → `migrations/` 目录，按序号命名，部署后 `restart postgrest`
 3. 审批 → 必须走 RPC，不 PATCH 业务表
 4. PostgREST 查询 → 无 FK 则平铺 + JS 关联
 5. 权限 → 用 `current_user_has_role()` / `current_user_can_review()`
-6. 不改 `serve_spa.py`、端口映射、IMAGE_TAG
+6. 密码 → 绝不出现在前端代码、Git、API 返回中
+7. 不改 `serve_spa.py` 端口映射、IMAGE_TAG

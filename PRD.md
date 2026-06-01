@@ -810,70 +810,138 @@ Demo 当前仅配置单步 `manager_review`，后续可扩展多级审批。
 - 审批状态通过状态机控制，不允许任意改状态。
 - 数据库模型尽量按 Postgres 兼容方式设计，避免后续迁移大改。
 
-## 8.2 当前 V0.10 架构
+## 8.2 当前 V0.11 架构 (2026-06-01)
 
-V0.10 已从原生 HTML/CSS/JS 迁移为 React + shadcn/ui 前端，后端保持 FastAPI + SQLite 单体：
+### 8.2.1 整体拓扑
 
-```text
-Browser
-  |
-  | React SPA (TypeScript + Tailwind CSS + shadcn/ui)
-  | /api/* → HTTP, /ws/sync → WebSocket
+```
+Browser (192.168.2.100:8767)
+  │
+  │ React SPA (frontend/dist/ → /)
+  │ /api/* → HTTP Bearer JWT
+  │ /ws/sync → FastAPI WebSocket
   v
-FastAPI / Uvicorn
-  |
-  | sqlite3
-  v
-SQLite Database
+┌──────────────────────────────────────────────────┐
+│  Docker: attendance-module (python:3.12-slim)    │
+│  ├─ FastAPI + Uvicorn :8767                     │
+│  ├─ app.py (legacy, SQLite read/write)          │
+│  ├─ db.py  (Postgres pool + PyJWT)              │
+│  └─ fastapi_app.py (routes, auth middleware)    │
+└──────────────────────────────────────────────────┘
+  │                    │                    │
+  │ SQLite (legacy)    │ Postgres           │ GoTrue
+  │ ./data/attendance  │ 192.168.2.100:5433 │ 192.168.2.100:8777
+  │ _demo.sqlite3      │                    │
+  v                    v                    v
+┌──────────────────────────────────────────────────┐
+│  Docker: supabase-psa stack                     │
+│  ├─ psa-postgres (PostgreSQL 16) :5433          │
+│  ├─ psa-gotrue (Supabase Auth) :8777            │
+│  ├─ psa-postgrest (REST) :8779                  │
+│  └─ psa-realtime (WebSocket) :8778 (paused)     │
+└──────────────────────────────────────────────────┘
 ```
 
-技术组成：
+### 8.2.2 技术栈
 
-- **前端**：React 19 + TypeScript + Vite 8 + Tailwind CSS v4 + shadcn/ui (18 组件)
-- **状态管理**：Zustand（客户端表单状态）+ TanStack Query（服务端缓存）
-- **路由**：React Router 6，SPA 模式，6 个页面
-- **后端**：FastAPI + Uvicorn
-- **实时同步**：FastAPI WebSocket (useRealtime hook，模块化缓存失效)
-- **数据库**：SQLite → `attendance_demo.sqlite3`
-- **登录**：账号密码 + Cookie Session (HttpOnly)
-- **部署**：Docker Compose（Python:3.12-slim 单阶段），NAS 端口 8767
-- **版本管理**：Git Tags (V0.01, V0.10...) + Docker 镜像标签 + `.env` IMAGE_TAG
+| 层 | 技术 |
+|----|------|
+| 前端 | React 19 + TypeScript + Vite 8 + Tailwind CSS v4 + shadcn/ui (18 组件) + Recharts |
+| 状态 | Zustand (客户端) + TanStack Query (服务端缓存) |
+| 路由 | React Router 6, SPA, 6 页面 |
+| 后端 | FastAPI (Uvicorn) + 旧版 app.py (Python 标准库 HTTP handler) |
+| 认证 | Supabase GoTrue JWT (HS256) → `/api/*` Bearer token; Cookie 兼容回退 |
+| 数据库 | SQLite (旧版事务读写) + PostgreSQL 16 (新 schema,部分路由接入) |
+| 实时 | FastAPI WebSocket `/ws/sync` (模块广播 + 客户端去重) |
+| 图表 | Recharts (BarChart, AreaChart) |
+| 部署 | Docker Compose × 2 (attendance-module + supabase-psa), NAS 192.168.2.100 |
+| 版本 | Git Tags + GitHub Releases + `.env` IMAGE_TAG 回滚 |
 
-前端结构 (`frontend/src/`)：
+### 8.2.3 前端组件树
 
 ```text
-components/
-  ui/          shadcn 自动生成 (Button, Card, Table, Sheet, Tabs, ...)
-  layout/      AppLayout, Sidebar, Topbar, Brand, LoginScreen
-  dashboard/   MetricCards, DashboardTable, PeriodFilter
-  review/      ApprovalTable, ExpandedReviewRow (行内展开)
-  report/      ProjectList (项目 CRUD + 负责人/累计工日/累计支出)
-  timesheet/   TimesheetTable, WeekNavigator, SheetWarnings, SheetActions
-  employees/   EmployeeTable, EmployeeEditRow, OrganizationPanel, ReminderFloat
-stores/        authStore, timesheetStore, appStore
-hooks/         useTimesheet, useApprovals, useReport, useEmployees, useProjects, useRealtime
-types/         auth, timesheet, approval, project, employee
-utils/         dates, validation
-pages/         6 个页面 (Login, Dashboard, Review, Report, Timesheet, Employees)
+frontend/src/
+├── App.tsx                    # 认证守卫 + 路由
+├── main.tsx                   # QueryClient + Router + Toaster
+├── index.css                  # Tailwind v4 + shadcn theme
+├── lib/
+│   ├── api.ts                 # fetch 封装, X-Client-Id + Bearer token
+│   ├── supabase.ts            # token 存储 (localStorage)
+│   ├── constants.ts           # holidayInfo, statusText, roleText, dayNames
+│   └── utils.ts               # cn() helper
+├── types/                     # TypeScript 接口
+│   ├── auth.ts                # CurrentUser, BootstrapData, ProjectBrief
+│   ├── timesheet.ts           # Timesheet, TimesheetRow, SavePayload
+│   ├── approval.ts            # ApprovalTasks, TimesheetDetail
+│   ├── project.ts             # DashboardData, ProjectBase, ReportData
+│   └── employee.ts            # Employee, Organization
+├── stores/
+│   ├── authStore.ts           # Zustand: user, login, logout, isAdmin, canReview
+│   ├── timesheetStore.ts      # Zustand: rows[], overtime{}, isDirty
+│   └── appStore.ts            # Zustand: activeView, report/employee/review tab state, currentWeek
+├── hooks/
+│   ├── useTimesheet.ts        # TanStack: timesheet CRUD
+│   ├── useApprovals.ts        # TanStack: approval tasks + review actions
+│   ├── useReport.ts           # TanStack: report + project CRUD
+│   ├── useEmployees.ts        # TanStack: employee/org CRUD
+│   ├── useProjects.ts         # TanStack: dashboard (merged projects + reports)
+│   ├── useMonthlyData.ts      # TanStack: 6-month parallel reports queries
+│   └── useRealtime.ts         # WebSocket /ws/sync → query invalidation
+├── utils/
+│   ├── dates.ts               # isoDate, mondayOfWeek, computePeriodDates, formatMoney
+│   └── validation.ts          # dayPercent, hasBlockingError, buildWarnings
+├── components/
+│   ├── ui/                    # 18 shadcn 组件 (Button, Card, Table, Select, etc.)
+│   ├── layout/                # AppLayout, Sidebar, Topbar, Brand, LoginScreen
+│   ├── dashboard/             # MetricCards, DashboardTable, PeriodFilter, OverviewBarChart, AnalyticsTab, SimpleBarList
+│   ├── review/                # ApprovalTable, ExpandedReviewRow, ReviewDrawer (unused)
+│   ├── report/                # ProjectList, PeriodSelector, LaborOverview (unused)
+│   ├── timesheet/             # TimesheetTable, WeekNavigator, SheetWarnings, SheetActions
+│   └── employees/             # EmployeeTable, EmployeeEditRow, OrganizationPanel, ReminderFloat
+└── pages/
+    ├── LoginPage.tsx
+    ├── DashboardPage.tsx       # 2 tabs: 总览(指标卡+汇总+项目表) / 分析(月度面积图)
+    ├── ReviewPage.tsx          # 审批中心
+    ├── ReportPage.tsx          # 项目列表 (CRUD)
+    ├── EmployeesPage.tsx       # 员工与组织
+    └── TimesheetPage.tsx       # 我的周表
 ```
 
-优点：
+### 8.2.4 认证流程 (V0.11)
 
-- 组件化前端，维护性好，一致性强
-- TanStack Query 自动管理请求缓存与乐观更新
-- WebSocket 实时同步，多端数据一致
-- Docker 部署 + 镜像版本标签，支持秒级回滚
-- shadcn/ui 提供一致的 UI 语言
+```
+1. POST /api/login {login, password}
+   │
+   ├─ FastAPI: login_name → profiles.auth_email (e.g. "惠若超" → "huirouchao@psa.local")
+   ├─ FastAPI: POST GoTrue /token?grant_type=password {email, password}
+   ├─ GoTrue: 验证 → 返回 access_token (JWT)
+   └─ FastAPI: 返回 {ok:true, token} + Set-Cookie attendance_sid=JWT
 
-限制：
+2. 后续请求
+   │
+   ├─ Authorization: Bearer <JWT> (前端 lib/api.ts 自动注入)
+   ├─ fastapi_app.py request_user():
+   │   ├─ 1) JWT Bearer header → decode → employees.auth_user_id lookup
+   │   ├─ 2) Cookie attendance_sid 是 JWT → decode → lookup
+   │   └─ 3) Cookie session → SQLite auth_sessions lookup (V0.10 兼容)
+   └─ 返回 user dict {id, name, role, auth_user_id}
 
-- 前端为 CSR SPA，首屏 ~600KB (后续可代码分割)
-- 审批状态机仍为 hardcode，未完全配置化
-- SQLite 不适合正式多人并发写
-- 缺少生产级日志、审计、备份和监控
-- `project_labor_costs` 周期快照未启用，成本为实时计算
+3. 角色: employee → /timesheet | manager/admin → /dashboard
+```
 
-## 8.3 正式系统推荐架构
+## 8.3 V0.11 已知问题
+
+| ID | 描述 | 影响 | 状态 |
+|----|------|------|------|
+| BUG-01 | psa-realtime 容器启动失败 (run.sh RLIMIT_NOFILE bug) | WebSocket 实时同步仍用 V0.10 /ws/sync | 已暂停 |
+| BUG-02 | psa-postgrest 需 SECRET_KEY_BASE env | 不影响业务 (未使用 PostgREST) | 低优先级 |
+| BUG-03 | 分析页月度回款额不可用 (无月度 received 数据源) | 图表仅显示人力开支，回款额恒 0 | 待后端接口 |
+| BUG-04 | 项目 labor_cost 按工时比例分摊(全局平均日薪率) | 各项目成本精度取决于员工薪酬数据完整度 | 可接受 |
+| BUG-05 | 旧版 /api/* 路由通过 legacy(app.py) 读写 SQLite | Postgres 与 SQLite 并存，未完成全部路由切换 | 迁移中 |
+| BUG-06 | 中文名 GoTrue signup 不支持 (已改用拼音邮箱) | 新增员工需手动映射 login_name → pinyin | 已规避 |
+| BUG-07 | goTrue 需 postgres 角色存在于 DB | 已创建 postgres role 使用强密码 | 已修复 |
+
+## 8.4 正式系统推荐架构
 
 正式系统推荐优先采用 Supabase 作为 Postgres、Auth、RLS 和 Realtime 底座，业务复杂度较高的审批状态机保留服务端函数或后端服务控制：
 
@@ -1479,3 +1547,173 @@ Workflow / Payroll / Export / Integration
 - 审计日志页面。
 - 正式权限模型和数据范围控制。
 - 审计日志页面。
+
+---
+
+## 附A：完整 API 接口文档
+
+### A.1 认证
+
+| 方法 | 路径 | 请求体 | 响应 |
+|------|------|--------|------|
+| POST | `/api/login` | `{login, password}` | `{ok:true, token:"<JWT>"}` + Set-Cookie `attendance_sid=<JWT>` |
+| POST | `/api/logout` | `{}` | `{ok:true}` |
+| POST | `/api/password/change` | `{login, oldPassword, newPassword}` | `{ok:true}` |
+| GET | `/api/me` | - | `{user:{id,name,role}}` |
+| GET | `/api/bootstrap` | - | `{currentUser, users[], projects[], currentWeek}` |
+
+### A.2 周表
+
+| 方法 | 路径 | 参数 | 响应关键字段 |
+|------|------|------|-------------|
+| GET | `/api/timesheet` | `?weekStart=YYYY-MM-DD` | `{id, user_id, week_start_date, status, remark, days[], entries[{project_id, work_date, hours, description}], overtime[{work_date, overtime_hours, reason, status}]}` |
+| POST | `/api/timesheet/save` | `{weekStart, remark, entries[{projectId, workDate, hours, description}], overtime[{workDate, hours, reason}]}` | `{ok:true, timesheet:{...}}` |
+| POST | `/api/timesheet/action` | `{timesheetId, action, comment?}` | action: submit/approve/reject/reopen |
+| GET | `/api/timesheet-detail` | `?timesheetId=N` | `{id, user_name, department, week_start_date, status, remark, days[], entries[], overtime[]}` |
+
+状态: `draft -> submitted -> approved/rejected -> draft(reopen)`
+
+### A.3 审批
+
+| 方法 | 路径 | 参数 | 响应 |
+|------|------|------|------|
+| GET | `/api/approvals/tasks` | `?weekStart=YYYY-MM-DD` | `{timesheets[{timesheet_id, name, department, status, total_hours, submitted_at}], reviewed[{...}], overtime[{id, user_name, work_date, overtime_hours, reason, status}], overtimeReviewed[...]}` |
+| POST | `/api/overtime/action` | `{id, status, comment}` | `{ok:true}` |
+
+审批链: submit -> Stage1: projects.project_owner_id -> Stage2: org.manager_user_id (同人跳过)
+
+### A.4 员工与组织
+
+| 方法 | 路径 | 请求 | 响应 |
+|------|------|------|------|
+| GET | `/api/employees` | - | `[{id, name, role, employee_no, org_id, org_name, position_name, contract_type, monthly_salary, daily_wage, hire_date, manager_user_id, status}]` |
+| POST | `/api/employees/save` | `{id?, employeeNo, name, role, orgId, positionName, contractType, monthlySalary, dailyWage, hireDate, contractMonths, managerUserId, status}` | `{ok:true, employees:[...]}` |
+| POST | `/api/employees/delete` | `{id}` | `{ok:true, employees:[...]}` |
+| GET | `/api/organizations` | - | `[{id, org_code, org_name, parent_id, org_type, manager_user_id, status}]` |
+| POST | `/api/organizations/save` | `{id?, orgName, orgType, parentId, managerUserId}` | `{ok:true}` |
+| POST | `/api/organizations/delete` | `{id}` | `{ok:true}` |
+
+### A.5 项目与报表
+
+| 方法 | 路径 | 参数 | 响应关键字段 |
+|------|------|------|-------------|
+| GET | `/api/projects` | - | `[{id, code, name, contract_amount, received_amount, receivable_amount, project_owner_id, project_owner_name, total_labor_hours, total_labor_cost, status}]` |
+| POST | `/api/projects/save` | `{id?, code, name, contractAmount, receivedAmount, projectOwnerId, ownerOrgId}` | `{ok:true}` |
+| POST | `/api/projects/delete` | `{id}` | `{ok:true}` |
+| GET | `/api/reports/weekly` | `?startDate=&endDate=` | `{projects:[{code, name, total_hours, people_count}], employees:[{name, total_hours}], startDate, endDate}` |
+| GET | `/api/project-dashboard` | `?weekStart=` | `{projects:[{id, code, name, contract_amount, received_amount, labor_days, labor_cost, gross_profit, gross_margin}]}` |
+| GET | `/api/project-detail` | `?projectId=&startDate=&endDate=` | `[{name, department, total_hours, work_days}]` |
+
+### A.6 权限矩阵
+
+| 角色 | login | timesheet | approvals | employees | projects | reports |
+|------|-------|-----------|-----------|-----------|----------|---------|
+| 未登录 | YES | NO | NO | NO | NO | NO |
+| employee | YES | 仅本人 | NO | NO | 只读 | NO |
+| manager | YES | 仅本人 | 分配任务 | NO | 读写 | YES |
+| admin | YES | 全部 | 全部 | 全部 | 读写 | YES |
+
+---
+
+## 附B：数据库 Schema
+
+### B.1 SQLite (app.py 使用, path: data/attendance_demo.sqlite3)
+
+| 表 | 主要字段 |
+|----|---------|
+| users | id, name, role, department, is_active |
+| organizations | id, org_code, org_name, parent_id, org_type, manager_user_id |
+| employee_profiles | user_id, employee_no, org_id, position_name, contract_type, monthly_salary, daily_wage, hire_date, manager_user_id, status |
+| projects | id, code, name, contract_amount, received_amount, owner_org_id, project_owner_id, status |
+| timesheets | id, user_id, week_start_date, status, remark, submitted_at, approved_by |
+| timesheet_entries | id, timesheet_id, project_id, work_date, hours, description |
+| overtime_entries | id, timesheet_id, work_date, overtime_hours, reason, status |
+| workflow_tasks | id, workflow_key, target_type, target_id, status, assignee_role, assignee_user_id |
+| approval_logs | id, target_type, target_id, actor_id, action, comment, from_status, to_status |
+| auth_accounts | user_id, login, password_hash |
+| auth_sessions | token, user_id, expires_at |
+
+### B.2 PostgreSQL (db.py 使用, host: 192.168.2.100:5433/psa)
+
+| 表 | 主要字段 |
+|----|---------|
+| profiles | id, auth_user_id(UUID), login_name, auth_email, display_name, is_active |
+| employees | id, employee_no, auth_user_id, name, is_active |
+| employee_profiles_v2 | employee_id, org_id, position_name, employment_status, manager_user_id, hire_date, row_locked |
+| employee_contracts | employee_id, contract_type, employment_type, contract_start, contract_end, is_current |
+| employee_salary_profiles | employee_id, salary_mode, monthly_salary, daily_wage, standard_monthly_workdays, is_current |
+| user_roles | employee_id, role |
+| audit_logs | actor_id, entity_type, entity_id, action, before_json, after_json, reason |
+| migration_id_map | table_name, old_id, new_id, new_uuid |
+| hr_employee_current_view | JOIN employees+profiles+v2+orgs+contracts+salary |
+
+GoTrue auth schema: auth.users, auth.sessions, auth.refresh_tokens, auth.identities (16 tables)
+
+### B.3 登录映射
+
+| login_name | auth_email | 密码 |
+|------------|-----------|------|
+| admin | admin@psa.local | (随机) |
+| 鞠松松 | jss@psa.local | 123456 |
+| 惠若超 | huirouchao@psa.local | 123456 |
+| 王长志 | wangchangzhi@psa.local | 123456 |
+| 陈京京 | chenjingjing@psa.local | 123456 |
+| 赵嘉琪 | zhaojiaqi@psa.local | 123456 |
+| 储小海 | chuxiaohai@psa.local | 123456 |
+| 韩文治 | hanwenzhi@psa.local | 123456 |
+| 温利峰 | wenlifeng@psa.local | 123456 |
+
+---
+
+## 附C：部署与运维
+
+### C.1 端口
+
+| 端口 | 服务 | 容器 |
+|------|------|------|
+| 8767 | Web + API | attendance-module |
+| 5433 | PostgreSQL | psa-postgres |
+| 8777 | GoTrue Auth | psa-gotrue |
+| 8778 | Realtime (暂停) | psa-realtime |
+| 8779 | PostgREST | psa-postgrest |
+
+### C.2 部署命令
+
+```bash
+# 本地构建前端
+cd frontend && npm run build
+
+# 同步到 NAS
+tar czf - dist/ | ssh inquiry-nas "cd .../frontend && tar xzf -"
+scp app.py fastapi_app.py db.py Dockerfile inquiry-nas:.../
+
+# 重建容器
+ssh inquiry-nas "cd .../attendance-module && docker compose up -d --build"
+```
+
+### C.3 回滚
+
+```bash
+sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env
+docker compose up -d
+```
+
+### C.4 备份
+
+```bash
+# SQLite
+cp data/attendance_demo.sqlite3 backups/
+
+# Postgres
+docker exec psa-postgres pg_dump -U psa_admin psa > backups/psa_$(date +%Y%m%d).sql
+```
+
+### C.5 V0.11 已知问题
+
+| ID | 描述 | 状态 |
+|----|------|------|
+| BUG-01 | psa-realtime 启动失败 (run.sh RLIMIT_NOFILE) | 暂停 |
+| BUG-02 | 分析页月度回款额不可用 | 待后端接口 |
+| BUG-03 | 旧路由仍读写 SQLite, PG 迁移未完成 | 进行中 |
+| BUG-04 | 项目 labor_cost 按全局平均日薪率分摊 | 可接受 |
+| BUG-05 | 中文名 GoTrue signup 不支持 (已用拼音) | 已规避 |

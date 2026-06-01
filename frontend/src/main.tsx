@@ -20,7 +20,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <TooltipProvider delayDuration={300}>
+        <TooltipProvider>
           <App />
           <Toaster richColors position="bottom-right" />
         </TooltipProvider>

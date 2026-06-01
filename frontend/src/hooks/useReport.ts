@@ -51,6 +51,7 @@ export function useSaveProject() {
       name: string;
       contractAmount?: number;
       receivedAmount?: number;
+      projectOwnerId?: number;
     }) =>
       api("/api/projects/save", {
         method: "POST",

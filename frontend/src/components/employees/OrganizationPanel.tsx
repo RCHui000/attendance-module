@@ -174,7 +174,7 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
                 <Select
                   value={editData.managerUserId}
                   onValueChange={(v) =>
-                    setEditData((d) => ({ ...d, managerUserId: v }))
+                    setEditData((d) => ({ ...d, managerUserId: v || "" }))
                   }
                 >
                   <SelectTrigger className="h-8 text-sm">

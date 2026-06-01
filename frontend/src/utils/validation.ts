@@ -92,21 +92,6 @@ export function buildWarnings(
     });
   }
 
-  // Check for missing descriptions
-  const missingDescs = rows.filter(
-    (r) =>
-      r.projectId &&
-      days.some(
-        (d) => (r.percents[d] || 0) > 0 && !r.descriptions[d]?.trim(),
-      ),
-  );
-  if (missingDescs.length > 0) {
-    warnings.push({
-      text: `项目 "${missingDescs[0].projectId}" 有工日缺少备注说明`,
-      type: "warning",
-    });
-  }
-
   if (warnings.length === 0) {
     warnings.push({ text: "本周所有工作日均完成填写且校验通过", type: "info" });
   }

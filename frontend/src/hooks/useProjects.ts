@@ -35,7 +35,12 @@ export function useDashboard(startDate: string, endDate: string) {
       // Build employee wage lookup: employee name → daily rate
       const wageByName = new Map<string, number>();
       for (const emp of employees || []) {
-        wageByName.set(emp.name, dailyRate(emp));
+        wageByName.set(emp.name, dailyRate({
+          contract_type: emp.contract_type,
+          monthly_salary: Number(emp.monthly_salary || 0),
+          daily_wage: Number(emp.daily_wage || 0),
+          standard_monthly_workdays: emp.standard_monthly_workdays,
+        }));
       }
 
       // Build a map of project code → report labor data
@@ -63,6 +68,11 @@ export function useDashboard(startDate: string, endDate: string) {
       }
 
       // Merge project base (contract) + report (labor) data
+      // Distribute total labor cost proportionally to project hours
+      const costRate = totalLaborHoursAll > 0
+        ? totalLaborCostAll / totalLaborHoursAll
+        : 0;
+
       const projects: DashboardProject[] = (projectBase || [])
         .filter((p) => p.status !== "deleted")
         .map((p) => {
@@ -74,6 +84,11 @@ export function useDashboard(startDate: string, endDate: string) {
           const receivedAmount = p.received_amount || 0;
           const receivableAmount =
             p.receivable_amount ?? contractAmount - receivedAmount;
+          const projLaborCost = Math.round(labor.totalHours * costRate);
+          const projGrossProfit = contractAmount - projLaborCost;
+          const projGrossMargin = contractAmount > 0
+            ? ((projGrossProfit / contractAmount) * 100)
+            : 0;
 
           return {
             id: p.id,
@@ -83,9 +98,9 @@ export function useDashboard(startDate: string, endDate: string) {
             received_amount: receivedAmount,
             receivable_amount: receivableAmount,
             labor_days: labor.totalHours,
-            labor_cost: 0,
-            gross_profit: 0,
-            gross_margin: 0,
+            labor_cost: projLaborCost,
+            gross_profit: projGrossProfit,
+            gross_margin: projGrossMargin,
             people_count: labor.peopleCount,
           };
         });

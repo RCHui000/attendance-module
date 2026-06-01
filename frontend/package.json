@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e:prod": "playwright test --project=chromium",
+    "test:e2e:prod:edge": "playwright test --project=edge",
+    "test:e2e:prod:headed": "playwright test --project=edge --headed"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -20,6 +23,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.16.0",
+    "recharts": "^3.8.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3",
@@ -27,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^24.12.3",

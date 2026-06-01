@@ -1,7 +1,4 @@
-/** V0.11: Supabase client for auth + realtime */
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "http://192.168.2.100:8777";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+/** Supabase token storage utilities. Network access lives in api.ts. */
 
 /** Get the current session from cookie or local storage */
 export function getStoredToken(): string | null {

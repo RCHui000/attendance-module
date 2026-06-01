@@ -32,6 +32,7 @@ services:
       GOTRUE_DB_DATABASE_URL: "postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa?sslmode=disable"
       GOTRUE_SITE_URL: "http://192.168.2.100:8767"
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_AUD: authenticated
       GOTRUE_JWT_EXP: 86400
       GOTRUE_DISABLE_SIGNUP: "true"
       GOTRUE_MAILER_AUTOCONFIRM: "true"
@@ -40,6 +41,9 @@ services:
       GOTRUE_EXTERNAL_GITHUB_ENABLED: "false"
       API_EXTERNAL_URL: "http://192.168.2.100:8777"
       GOTRUE_EXTERNAL_URL: "http://192.168.2.100:8777"
+      GOTRUE_CORS_ALLOWED_ORIGINS: "http://192.168.2.100:8767,http://localhost:5173"
+      GOTRUE_CORS_ALLOWED_HEADERS: "apikey,authorization,content-type,x-client-info"
+      GOTRUE_CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
     ports:
       - "8777:9999"
     depends_on:
@@ -48,7 +52,7 @@ services:
 
   # Supabase Realtime
   realtime:
-    image: supabase/realtime:v2.33.70
+    image: supabase/realtime:v2.30.34
     container_name: psa-realtime
     restart: unless-stopped
     environment:
@@ -61,6 +65,7 @@ services:
       DB_SSL: "false"
       SECURE_CHANNELS: "true"
       JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       REPLICATION_MODE: RLS
       REPLICATION_POLL_INTERVAL: 100
     ports:

@@ -211,7 +211,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
       {/* Department / Org */}
       <td className="p-1.5">
-        <Select value={data.orgId} onValueChange={handleOrgChange}>
+        <Select value={data.orgId} onValueChange={(v) => handleOrgChange(v || "")}>
           <SelectTrigger className="h-8 text-sm w-[108px]">
             <SelectValue placeholder="部门" />
           </SelectTrigger>
@@ -238,7 +238,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
       {/* Contract Type */}
       <td className="p-1.5">
-        <Select value={data.contractType} onValueChange={handleContractTypeChange}>
+        <Select value={data.contractType} onValueChange={(v) => handleContractTypeChange((v || "labor") as "labor" | "service")}>
           <SelectTrigger className="h-8 text-sm w-[90px]">
             <SelectValue />
           </SelectTrigger>
@@ -288,7 +288,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
       {/* Manager */}
       <td className="p-1.5">
-        <Select value={data.managerUserId} onValueChange={(v) => onChange({ managerUserId: v })}>
+        <Select value={data.managerUserId || ""} onValueChange={(v) => onChange({ managerUserId: v || "" })}>
           <SelectTrigger className="h-8 text-sm w-[108px]">
             <SelectValue placeholder="直属领导" />
           </SelectTrigger>

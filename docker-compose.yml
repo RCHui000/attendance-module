@@ -5,11 +5,7 @@ services:
     container_name: attendance-module
     restart: unless-stopped
     environment:
-      TZ: Asia/Shanghai
-      ATTENDANCE_HOST: 0.0.0.0
-      ATTENDANCE_PORT: 8767
-      ATTENDANCE_DB_PATH: /data/attendance_demo.sqlite3
+      SUPABASE_AUTH_URL: http://192.168.2.100:8777
+      SUPABASE_REST_URL: http://192.168.2.100:8779
     ports:
-      - "8767:8767"
-    volumes:
-      - ./data:/data
+      - "8767:80"

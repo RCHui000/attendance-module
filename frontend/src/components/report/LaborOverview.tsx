@@ -86,7 +86,7 @@ export function LaborOverview({ report }: LaborOverviewProps) {
                 <TableRow
                   key={project.id}
                   className="hover:bg-row-hover cursor-pointer transition-colors"
-                  onClick={() => setDetailProjectId(project.id)}
+                  onClick={() => setDetailProjectId(project.id ?? null)}
                 >
                   <TableCell className="text-sm font-medium">
                     {project.code || `P${project.id}`}
@@ -117,7 +117,7 @@ export function LaborOverview({ report }: LaborOverviewProps) {
                         size="sm"
                         variant="ghost"
                         className="h-7"
-                        onClick={() => setDetailProjectId(project.id)}
+                        onClick={() => setDetailProjectId(project.id ?? null)}
                       >
                         <Eye className="size-3" />
                       </Button>

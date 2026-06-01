@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +43,14 @@ const EMPTY_EDIT_DATA: EmployeeEditData = {
 };
 
 export default function EmployeesPage() {
-  const { user: currentUser } = useAuthStore();
+  const { user: currentUser, isAdmin } = useAuthStore();
+  const navigate = useNavigate();
+
+  // Redirect non-admin users away
+  useEffect(() => {
+    if (!isAdmin) navigate("/timesheet", { replace: true });
+  }, [isAdmin, navigate]);
+
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editData, setEditData] = useState<EmployeeEditData | null>(null);

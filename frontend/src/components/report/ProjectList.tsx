@@ -98,7 +98,7 @@ export function ProjectList() {
         name: editData.name.trim(),
         contractAmount: parseFloat(editData.contractAmount) || 0,
         receivedAmount: parseFloat(editData.receivedAmount) || 0,
-        projectOwnerId: editData.projectOwnerId ? Number(editData.projectOwnerId) : null,
+        projectOwnerId: editData.projectOwnerId ? Number(editData.projectOwnerId) : undefined,
       },
       {
         onSuccess: () => {
@@ -241,7 +241,7 @@ export function ProjectList() {
                     <Select
                       value={editData.projectOwnerId}
                       onValueChange={(v) =>
-                        setEditData((d) => ({ ...d, projectOwnerId: v }))
+                        setEditData((d) => ({ ...d, projectOwnerId: v || "" }))
                       }
                     >
                       <SelectTrigger className="h-8 text-sm">
@@ -338,7 +338,7 @@ export function ProjectList() {
                       <Select
                         value={editData.projectOwnerId}
                         onValueChange={(v) =>
-                          setEditData((d) => ({ ...d, projectOwnerId: v }))
+                          setEditData((d) => ({ ...d, projectOwnerId: v || "" }))
                         }
                       >
                         <SelectTrigger className="h-8 text-sm">

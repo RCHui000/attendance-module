@@ -24,13 +24,15 @@ function LoadingScreen() {
 }
 
 function AuthenticatedApp() {
-  // WebSocket real-time sync across devices
+  const { canReview } = useAuthStore();
   useRealtime();
+
+  const defaultRoute = canReview ? "/dashboard" : "/timesheet";
 
   return (
     <AppLayout>
       <Routes>
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route index element={<Navigate to={defaultRoute} replace />} />
         <Route path="timesheet" element={<TimesheetPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="review" element={<ReviewPage />} />

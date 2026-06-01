@@ -1,0 +1,21 @@
+{
+  "version": "V0.12",
+  "runtime": "supabase-browser",
+  "frontend": "React + Vite static bundle",
+  "database": {
+    "provider": "Supabase Postgres",
+    "auth": "Supabase GoTrue",
+    "rest": "PostgREST"
+  },
+  "removed": [
+    "Python business API runtime",
+    "local file database runtime",
+    "server WebSocket sync runtime"
+  ],
+  "required_migrations": [
+    "001_v0.11_schema.sql",
+    "002_v0.11_rls.sql",
+    "003_v0.11_policies_fk_fixes.sql",
+    "004_full_supabase_runtime.sql"
+  ]
+}

@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
 import { SUPERUSER_NAMES, SUPERUSER_IDS } from "@/lib/constants";
-import { mondayOfWeek } from "@/utils/dates";
 import { useAppStore } from "@/stores/appStore";
 import { setStoredToken, clearStoredToken } from "@/lib/supabase";
 import type { CurrentUser, BootstrapData } from "@/types/auth";
@@ -53,7 +52,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    try { await api("/api/logout", { method: "POST" }); } catch {}
+    try {
+      await api("/api/logout", { method: "POST" });
+    } catch {
+      // Local logout should proceed even if the server session is already gone.
+    }
     clearStoredToken();
     window.location.reload();
   },

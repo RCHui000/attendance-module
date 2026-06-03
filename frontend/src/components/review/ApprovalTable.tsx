@@ -26,9 +26,7 @@ import type {
   ApprovalTasks,
   ApprovalTaskItem,
   ReviewedTaskItem,
-  ApprovalOvertimeItem,
 } from "@/types/approval";
-import type { TimesheetDetail } from "@/types/approval";
 import { ExpandedReviewRow } from "./ExpandedReviewRow";
 import { Check, X, Undo2, ChevronDown, ChevronRight } from "lucide-react";
 
@@ -107,13 +105,6 @@ export function ApprovalTable({
     setRejectOTTarget(null);
   };
 
-  const statusVariant = (status: string) => {
-    if (status === "approved") return "success";
-    if (status === "rejected") return "destructive";
-    if (status === "submitted") return "default";
-    return "secondary";
-  };
-
   return (
     <>
       <div>
@@ -182,7 +173,6 @@ export function ApprovalTable({
                         grouped.get(week)!.push(item);
                       }
                       const rows: React.ReactNode[] = [];
-                      let groupIdx = 0;
                       for (const [week, items] of grouped) {
                         // Week divider
                         const weekEnd = (() => {
@@ -226,7 +216,6 @@ export function ApprovalTable({
                             );
                           }
                         }
-                        groupIdx++;
                       }
                       return rows;
                     })()}
@@ -461,7 +450,14 @@ function ApprovalRow({
         {item.total_hours?.toFixed(1)}
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {item.submitted_at || "—"}
+        {item.submitted_at
+          ? new Date(item.submitted_at).toLocaleDateString("zh-CN", {
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "—"}
       </TableCell>
       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex gap-1 justify-end">

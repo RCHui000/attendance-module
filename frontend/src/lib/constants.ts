@@ -1,5 +1,9 @@
 export const dayNames = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
+export const APP_NAME = "PSA项目成本管理系统";
+export const APP_VERSION = "V0.12.1";
+export const APP_TAGLINE = "项目成本、人力投入、组织薪酬";
+
 export const holidayInfo: Record<string, { type: "rest" | "work"; name: string }> = {
   "2026-01-01": { type: "rest", name: "元旦" },
   "2026-01-02": { type: "rest", name: "元旦" },

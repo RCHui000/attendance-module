@@ -1,0 +1,34 @@
+{
+  "version": "V0.12.1",
+  "runtime": "supabase-browser",
+  "frontend": "React + Vite static bundle",
+  "database": {
+    "provider": "Supabase Postgres",
+    "auth": "Supabase GoTrue",
+    "rest": "PostgREST"
+  },
+  "deployment_target": "aliyun-online-test",
+  "base_version": "V0.12",
+  "required_migrations": [
+    "001_v0.11_schema.sql",
+    "002_v0.11_rls.sql",
+    "003_v0.11_policies_fk_fixes.sql",
+    "004_full_supabase_runtime.sql",
+    "005_fix_auth_user_claims.sql",
+    "006_grant_service_schema_permissions.sql",
+    "007_fix_postgrest_rls_runtime.sql",
+    "008_remove_recursive_employee_policies.sql",
+    "009_report_dedup_constraints.sql",
+    "010_timesheet_workflow_rpc.sql",
+    "011_overtime_rpc.sql",
+    "012_admin_employee_create_rls.sql"
+  ],
+  "release_notes": [
+    "Add V0.12.1 version display for cloud online testing.",
+    "Fix employee and department administration flows, including role assignment and department manager selection.",
+    "Fix new employee GoTrue account creation for Chinese display names.",
+    "Fix timesheet submit to persist unsaved form contents before submitting.",
+    "Fix timesheet row remarks and weekly remarks persistence during save and submit.",
+    "Add admin RLS policies required for browser-admin employee creation."
+  ]
+}

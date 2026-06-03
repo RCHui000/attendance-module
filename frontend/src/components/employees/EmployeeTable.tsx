@@ -67,6 +67,7 @@ export function EmployeeTable({
               </TableHead>
               <TableHead className="text-xs font-bold">编号</TableHead>
               <TableHead className="text-xs font-bold">姓名</TableHead>
+              <TableHead className="text-xs font-bold">权限</TableHead>
               <TableHead className="text-xs font-bold">部门</TableHead>
               <TableHead className="text-xs font-bold">岗位</TableHead>
               <TableHead className="text-xs font-bold">合同</TableHead>
@@ -94,7 +95,7 @@ export function EmployeeTable({
 
             {employees.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} className="text-center text-muted-foreground text-sm py-8">
+                <TableCell colSpan={12} className="text-center text-muted-foreground text-sm py-8">
                   暂无员工
                 </TableCell>
               </TableRow>
@@ -152,6 +153,9 @@ export function EmployeeTable({
                   </TableCell>
                   <TableCell className="text-sm font-medium">
                     {emp.name}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {roleText[emp.role] || emp.role || "员工"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {deptDisplay}

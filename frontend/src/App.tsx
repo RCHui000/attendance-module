@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { APP_NAME } from "@/lib/constants";
 import { useAuthStore } from "@/stores/authStore";
 import { useRealtime } from "@/hooks/useRealtime";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -15,9 +16,9 @@ function LoadingScreen() {
     <div className="fixed inset-0 flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="flex size-10 items-center justify-center rounded-lg bg-[#0f1115] text-white text-lg font-bold">
-          勤
+          PSA
         </div>
-        <p className="text-sm text-muted-foreground">加载中…</p>
+        <p className="text-sm text-muted-foreground">{APP_NAME} 加载中…</p>
       </div>
     </div>
   );

@@ -1,14 +1,21 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { APP_NAME, APP_VERSION } from "@/lib/constants";
 import { useAuthStore } from "@/stores/authStore";
-import { Brand } from "./Brand";
+import {
+  LayoutDashboard,
+  ClipboardCheck,
+  Calendar,
+  FolderKanban,
+  Users,
+} from "lucide-react";
 
 const NAV_ITEMS = [
-  { view: "dashboard", label: "数据看板", requireReview: true, requireAdmin: false },
-  { view: "review", label: "审批中心", requireReview: true, requireAdmin: false },
-  { view: "timesheet", label: "我的周表", requireReview: false, requireAdmin: false },
-  { view: "report", label: "项目列表", requireReview: true, requireAdmin: false },
-  { view: "employees", label: "员工与组织", requireReview: false, requireAdmin: true },
+  { view: "dashboard", label: "数据看板", icon: LayoutDashboard, requireReview: true, requireAdmin: false },
+  { view: "review", label: "审批中心", icon: ClipboardCheck, requireReview: true, requireAdmin: false },
+  { view: "timesheet", label: "我的周表", icon: Calendar, requireReview: false, requireAdmin: false },
+  { view: "report", label: "项目列表", icon: FolderKanban, requireReview: true, requireAdmin: false },
+  { view: "employees", label: "员工与组织", icon: Users, requireReview: false, requireAdmin: true },
 ] as const;
 
 export function Sidebar() {
@@ -30,36 +37,40 @@ export function Sidebar() {
       <div className="mb-6 pb-6 border-b border-white/10 max-[900px]:pb-3">
         <div className="flex items-center gap-2.5">
           <div className="flex size-9 items-center justify-center rounded-lg bg-white/10 text-white text-base font-bold select-none">
-            勤
+            PSA
           </div>
           <div>
             <strong className="block text-sm text-white leading-tight">
-              项目自动核算系统
+              {APP_NAME}
             </strong>
-            <span className="text-xs text-sidebar-muted">
-              {user?.role ? roleLabel(user.role) : "内部管理"}
-            </span>
+            <div className="mt-0.5 flex items-center gap-2 text-xs text-sidebar-muted">
+              <span>版本{APP_VERSION}</span>
+              <span>{user?.role ? roleLabel(user.role) : "内部管理"}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="grid gap-1.5 max-[900px]:grid-cols-3">
-        {visibleItems.map((item) => (
+        {visibleItems.map((item) => {
+          const Icon = item.icon;
+          return (
           <button
             key={item.view}
             type="button"
             className={cn(
-              "w-full text-left px-3 py-2 rounded-md text-sm transition-colors duration-160",
+              "w-full flex items-center gap-1.5 px-3 py-2 rounded-md text-sm transition-colors duration-160",
               "text-sidebar-text hover:text-white hover:bg-white/10",
               currentView === item.view &&
                 "bg-white text-sidebar-bg font-medium hover:bg-white hover:text-sidebar-bg",
             )}
             onClick={() => navigate(`/${item.view}`)}
           >
+            <Icon className="size-4 shrink-0" />
             {item.label}
           </button>
-        ))}
+        )})}
       </nav>
 
       {/* Separator */}

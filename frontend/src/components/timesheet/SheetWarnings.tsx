@@ -3,12 +3,9 @@ import type { Warning } from "@/utils/validation";
 
 interface SheetWarningsProps {
   warnings: Warning[];
-  dayTotals: Record<string, number>;
 }
 
-export function SheetWarnings({ warnings, dayTotals }: SheetWarningsProps) {
-  const hasBlocking = warnings.some((w) => w.type === "error");
-
+export function SheetWarnings({ warnings }: SheetWarningsProps) {
   return (
     <div className="panel rounded-lg border border-border p-3.5">
       <div className="flex items-center justify-between mb-2">

@@ -85,7 +85,6 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   data,
   orgs,
   employees,
-  isNew,
   onChange,
   onSave,
   onCancel,
@@ -124,8 +123,6 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
   const handleHireDateChange = useCallback(
     (value: string) => {
-      // Recalculate contract months based on hire date and current contract end
-      const endDate = calculateContractEnd(value, parseInt(data.contractMonths) || 12);
       onChange({ hireDate: value, contractMonths: data.contractMonths });
     },
     [data.contractMonths, onChange],
@@ -133,11 +130,9 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
   const handleContractMonthsChange = useCallback(
     (value: string) => {
-      const months = parseInt(value) || 0;
-      const endDate = calculateContractEnd(data.hireDate, months);
       onChange({ contractMonths: value });
     },
-    [data.hireDate, onChange],
+    [onChange],
   );
 
   const salaryField =
@@ -207,6 +202,20 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           onChange={(e) => onChange({ name: e.target.value })}
           placeholder="必填"
         />
+      </td>
+
+      {/* Role */}
+      <td className="p-1.5">
+        <Select value={data.role || "employee"} onValueChange={(v) => onChange({ role: v || "employee" })}>
+          <SelectTrigger className="h-8 text-sm w-[88px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="employee">员工</SelectItem>
+            <SelectItem value="manager">主管</SelectItem>
+            <SelectItem value="admin">管理员</SelectItem>
+          </SelectContent>
+        </Select>
       </td>
 
       {/* Department / Org */}
@@ -288,12 +297,15 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
       {/* Manager */}
       <td className="p-1.5">
-        <Select value={data.managerUserId || ""} onValueChange={(v) => onChange({ managerUserId: v || "" })}>
+        <Select
+          value={data.managerUserId || "none"}
+          onValueChange={(v) => onChange({ managerUserId: !v || v === "none" ? "" : v })}
+        >
           <SelectTrigger className="h-8 text-sm w-[108px]">
             <SelectValue placeholder="直属领导" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">未设置</SelectItem>
+            <SelectItem value="none">未设置</SelectItem>
             {managerOptions.map((e) => (
               <SelectItem key={e.id} value={String(e.id)}>
                 {e.name} · {e.org_name || e.department || "—"}
@@ -318,12 +330,3 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
     </tr>
   );
 });
-
-/** Recalculate contract end date from hire date + months */
-function calculateContractEnd(hireDate: string, months: number): string {
-  if (!hireDate || !months) return "";
-  const start = new Date(hireDate);
-  const end = new Date(start);
-  end.setMonth(end.getMonth() + months);
-  return end.toISOString().slice(0, 10);
-}

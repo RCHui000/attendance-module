@@ -79,6 +79,8 @@ const LOGIN_EMAIL_MAP: Record<string, string> = {
   "储小海": "chuxiaohai@psa.local",
   "韩文治": "hanwenzhi@psa.local",
   "温利峰": "wenlifeng@psa.local",
+  "张天良": "hr001@psa.local",
+  "HR001": "hr001@psa.local",
 };
 
 function loginEmail(login: string): string {
@@ -155,13 +157,14 @@ async function isAdmin(): Promise<boolean> {
 async function listEmployees(): Promise<AnyRow[]> {
   const [rows, rolesRows] = await Promise.all([
     rest<AnyRow[]>(
-      "/hr_employee_current_view?select=*&order=employee_id.asc",
+      "/hr_employee_current_view?select=*&is_active=eq.true&order=employee_id.asc",
     ),
     rest<AnyRow[]>("/user_roles?select=employee_id,role"),
   ]);
   const roleMap = new Map<number, string>();
   for (const r of rolesRows) roleMap.set(Number(r.employee_id), r.role);
-  return rows.map((row) => {
+  return rows
+    .map((row) => {
     const eid = Number(row.employee_id);
     return {
     id: eid,
@@ -181,10 +184,12 @@ async function listEmployees(): Promise<AnyRow[]> {
     manager_user_id: row.manager_user_id,
     manager_name: null,
     employment_type: row.employment_type || "labor",
-    status: row.employment_status || "active",
+    is_active: row.is_active,
+    status: String(row.employment_status || "active").toLowerCase(),
     standard_monthly_workdays: Number(row.standard_monthly_workdays || 21.75),
     };
-  });
+  })
+    .filter((row) => row.is_active !== false && row.status !== "terminated");
 }
 
 async function organizations(): Promise<AnyRow[]> {
@@ -376,7 +381,7 @@ async function timesheetAction(body: AnyRow): Promise<AnyRow> {
   });
 }
 
-async function approvalTasks(weekStart: string): Promise<AnyRow> {
+async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated");
   const admin = await isAdmin();
@@ -410,7 +415,7 @@ async function approvalTasks(weekStart: string): Promise<AnyRow> {
     ? await rest<AnyRow[]>(`/employees?select=id,name&id=in.(${otUserIds.join(",")})`)
     : [];
   const otUserMap = new Map(otUsers.map((u: AnyRow) => [Number(u.id), u]));
-  const overtimeRows = overtimeRowsRaw.map((o: AnyRow) => {
+  const overtimeRows: AnyRow[] = overtimeRowsRaw.map((o: AnyRow) => {
     const ts = otSheetMap.get(Number(o.timesheet_id));
     const u = ts ? otUserMap.get(Number(ts.user_id)) : null;
     return { ...o, timesheets: ts ? { ...ts, employees: u ? { name: u.name } : null, week_start_date: ts.week_start_date } : null };
@@ -559,6 +564,13 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
   if (body.id) {
     await rest(`/projects?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify(row) });
   } else {
+    // Check for duplicate project code before inserting
+    const existing = await rest<AnyRow[]>(
+      `/projects?select=id&code=eq.${encodeURIComponent(row.code)}&status=neq.deleted&limit=1`,
+    );
+    if (existing.length > 0) {
+      throw new Error(`项目代码「${row.code}」已存在，请更换代码后重试`);
+    }
     await rest("/projects", { method: "POST", body: JSON.stringify([{ id: await nextId("projects"), ...row }]) });
   }
   return { ok: true, projects: await projects() };
@@ -624,6 +636,8 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
   await rest("/employee_contracts", { method: "POST", body: JSON.stringify([{ employee_id: id, contract_type: contractType, employment_type: body.employmentType || body.employment_type || "labor", is_current: true }]) });
   await rest(`/employee_salary_profiles?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
   await rest("/employee_salary_profiles", { method: "POST", body: JSON.stringify([{ employee_id: id, salary_mode: contractType === "service" ? "daily_wage" : "monthly_salary", monthly_salary: contractType === "service" ? 0 : Number(body.monthlySalary || body.monthly_salary || 0), daily_wage: contractType === "service" ? Number(body.dailyWage || body.daily_wage || 0) : 0, is_current: true }]) });
+  await rest(`/user_roles?employee_id=eq.${id}`, { method: "DELETE" });
+  await rest("/user_roles", { method: "POST", body: JSON.stringify([{ employee_id: id, role: body.role || "employee" }]) });
   return { ok: true, employees: await listEmployees() };
 }
 

@@ -38,9 +38,13 @@ function formatLabel(value: number): string {
 }
 
 /** Custom label renderer — hides zero values, formats with units */
-function renderLabel(props: { x?: number; y?: number; value?: number; [key: string]: unknown }) {
-  const { x = 0, y = 0, value = 0 } = props;
-  if (!value || value === 0) return null;
+// Recharts passes a broad internal props shape here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderLabel(props: any) {
+  const x = Number(props.x || 0);
+  const y = Number(props.y || 0);
+  const value = Number(props.value || 0);
+  if (!value) return <g />;
   return (
     <text x={x} y={y - 10} textAnchor="middle" fill="hsl(0 72% 51%)" fontSize={13} fontWeight={600}>
       {formatLabel(value)}
@@ -152,7 +156,7 @@ export function AnalyticsTab({ projects, totalLaborHours, totalLaborCost }: Anal
           <h3 className="text-sm font-semibold">堆叠面积图-项目收支</h3>
         </div>
 
-        <Select value={selectedValue} onValueChange={setSelectedValue}>
+        <Select value={selectedValue} onValueChange={(value) => setSelectedValue(value || TOTAL_VALUE)}>
           <SelectTrigger className="h-8 text-sm w-[200px]">
             <SelectValue>
               {selectedValue === TOTAL_VALUE

@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useTimesheetDetail } from "@/hooks/useApprovals";
 import { statusText } from "@/lib/constants";
-import { X } from "lucide-react";
 
 interface ReviewDrawerProps {
   timesheetId: number | null;

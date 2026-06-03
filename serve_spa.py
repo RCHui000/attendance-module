@@ -1,4 +1,4 @@
-import hashlib, hmac, json, os, time, base64
+import hashlib, hmac, json, os, re, time, base64
 import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -12,6 +12,8 @@ SUPABASE_REST_URL = os.environ.get("SUPABASE_REST_URL", "http://192.168.2.100:87
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
 GOTRUE_URL = os.environ.get("GOTRUE_URL", "http://192.168.2.100:8777").rstrip("/")
 DEFAULT_INITIAL_PASSWORD = os.environ["DEFAULT_INITIAL_PASSWORD"]  # must be set in env, no default
+SUPERUSER_NAMES = {"admin", "鞠松松"}
+SUPERUSER_IDS = {18}
 HOP_BY_HOP_HEADERS = {
     "connection", "keep-alive", "proxy-authenticate",
     "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade",
@@ -22,6 +24,7 @@ def make_service_role_token():
     header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).rstrip(b"=").decode()
     payload = base64.urlsafe_b64encode(json.dumps({
         "role": "service_role", "iss": "supabase",
+        "aud": "authenticated",
         "iat": int(time.time()), "exp": int(time.time()) + 30,
     }).encode()).rstrip(b"=").decode()
     sig = base64.urlsafe_b64encode(
@@ -85,18 +88,19 @@ class SpaHandler(SimpleHTTPRequestHandler):
             user_id = self._jwt_sub(auth_header[7:])
             if not user_id:
                 self._json_error(401, "Invalid token"); return
-            if not self._has_role(user_id, "admin"):
+            if not self._has_role(user_id, "admin", auth_header[7:]):
                 self._json_error(403, "Admin only"); return
 
             # ── 2. Validate inputs ──
             name = (body.get("name") or "").strip()
-            login_name = (body.get("loginName") or body.get("login_name") or name).strip()
-            email = f"{login_name.replace(chr(32),'').lower()}@psa.local" if login_name else ""
             if not name:
                 self._json_error(400, "Employee name is required"); return
-            if not login_name:
-                login_name = name
-                email = f"user{int(time.time())}@psa.local"
+            if not (body.get("loginName") or body.get("login_name")) and not (body.get("employeeNo") or body.get("employee_no")):
+                next_eid = self._next_employee_id(auth_header[7:])
+                body["_employee_id"] = next_eid
+                body["employeeNo"] = f"QS{str(next_eid).zfill(6)}"
+            login_name = self._login_name_for_new_employee(body, name)
+            email = self._auth_email_for_login(login_name)
             password = DEFAULT_INITIAL_PASSWORD
 
             # ── 3. Check uniqueness ──
@@ -107,7 +111,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             token = make_service_role_token()
             req_body = json.dumps({
                 "email": email, "password": password,
+                "role": "authenticated",
                 "email_confirm": True,
+                "app_metadata": {"role": "authenticated"},
                 "user_metadata": {"login_name": login_name},
             }).encode()
             req = urllib.request.Request(
@@ -120,7 +126,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             # ── 5. Write business tables ──
             try:
                 body["auth_user_id"] = auth_uid
-                employee_id = self._write_employee(body, login_name, email)
+                employee_id = self._write_employee(body, login_name, email, auth_header[7:])
             except Exception as be:
                 # Rollback: delete GoTrue user
                 self._delete_auth_user(auth_uid)
@@ -141,6 +147,33 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
     # ── helpers ──
 
+    def _login_name_for_new_employee(self, body: dict, name: str) -> str:
+        candidates = [
+            body.get("loginName") or body.get("login_name") or "",
+            body.get("employeeNo") or body.get("employee_no") or "",
+            name,
+        ]
+        for candidate in candidates:
+            compact = re.sub(r"\s+", "", str(candidate or ""))
+            if "@" in compact and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", compact):
+                return compact.lower()
+            if re.fullmatch(r"[A-Za-z0-9._+-]+", compact):
+                return compact
+        return f"user{int(time.time() * 1000)}"
+
+    def _auth_email_for_login(self, login_name: str) -> str:
+        login = (login_name or "").strip()
+        if "@" in login and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", login):
+            return login.lower()
+        local = re.sub(r"[^A-Za-z0-9._+-]+", "", login).strip(".").lower()
+        if not local:
+            local = f"user{int(time.time() * 1000)}"
+        return f"{local}@psa.local"
+
+    def _next_employee_id(self, bearer_token: str) -> int:
+        existing = self._rest_get("/employees?select=id&order=id.desc&limit=1", bearer_token)
+        return int(existing[0]["id"]) + 1 if existing else 1
+
     def _jwt_sub(self, token_str: str) -> str | None:
         try:
             parts = token_str.split(".")
@@ -151,45 +184,63 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except Exception:
             return None
 
-    def _has_role(self, auth_uid: str, role: str) -> bool:
-        rows = self._rest_get(f"/user_roles?select=role&employee_id=eq.{self._q(str(self._employee_id_from_auth(auth_uid)))}&role=eq.{self._q(role)}")
+    def _has_role(self, auth_uid: str, role: str, bearer_token: str | None = None) -> bool:
+        employee = self._employee_from_auth(auth_uid, bearer_token)
+        employee_id = int(employee.get("id") or 0) if employee else 0
+        if role == "admin" and (
+            employee_id in SUPERUSER_IDS or employee.get("name") in SUPERUSER_NAMES
+        ):
+            return True
+        rows = self._rest_get(
+            f"/user_roles?select=role&employee_id=eq.{self._q(str(employee_id))}&role=eq.{self._q(role)}",
+            bearer_token,
+        )
         return len(rows) > 0
+
+    def _employee_from_auth(self, auth_uid: str, bearer_token: str | None = None) -> dict:
+        rows = self._rest_get(
+            f"/employees?select=id,name&auth_user_id=eq.{self._q(auth_uid)}&limit=1",
+            bearer_token,
+        )
+        return rows[0] if rows else {}
 
     def _employee_id_from_auth(self, auth_uid: str) -> int:
         rows = self._rest_get(f"/employees?select=id&auth_user_id=eq.{self._q(auth_uid)}&limit=1")
         return int(rows[0]["id"]) if rows else 0
 
-    def _rest_get(self, path: str) -> list:
-        req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}")
+    def _rest_get(self, path: str, bearer_token: str | None = None) -> list:
+        req = urllib.request.Request(
+            f"{SUPABASE_REST_URL}{path}",
+            headers={"Authorization": f"Bearer {bearer_token or make_service_role_token()}"},
+        )
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
                 return json.loads(r.read())
         except urllib.error.HTTPError:
             return []
 
-    def _write_employee(self, body: dict, login_name: str, email: str) -> int:
+    def _write_employee(self, body: dict, login_name: str, email: str, bearer_token: str) -> int:
         name = body["name"]
         contract_type = body.get("contractType") or body.get("contract_type") or "labor"
         # Get next ID
-        existing = self._rest_get("/employees?select=id&order=id.desc&limit=1")
-        eid = int(existing[0]["id"]) + 1 if existing else 1
+        eid = int(body.get("_employee_id") or 0) or self._next_employee_id(bearer_token)
 
         # employees
-        self._rest_post("/employees", [{"id": eid, "employee_no": body.get("employeeNo") or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}])
+        self._rest_post("/employees", [{"id": eid, "employee_no": body.get("employeeNo") or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}], bearer_token)
         # profiles
-        self._rest_post("/profiles", [{"login_name": login_name, "auth_email": email, "auth_user_id": body["auth_user_id"], "display_name": name, "is_active": True, "must_change_password": True}])
+        self._rest_post("/profiles", [{"login_name": login_name, "auth_email": email, "auth_user_id": body["auth_user_id"], "display_name": name, "is_active": True, "must_change_password": True}], bearer_token)
         # profiles_v2
-        self._rest_post("/employee_profiles_v2", [{"employee_id": eid, "org_id": body.get("orgId") or body.get("org_id") or None, "position_name": body.get("positionName") or body.get("position_name") or "", "employment_status": body.get("status") or "active", "manager_user_id": body.get("managerUserId") or body.get("manager_user_id") or None, "hire_date": body.get("hireDate") or body.get("hire_date") or None}])
+        self._rest_post("/employee_profiles_v2", [{"employee_id": eid, "org_id": body.get("orgId") or body.get("org_id") or None, "position_name": body.get("positionName") or body.get("position_name") or "", "employment_status": body.get("status") or "active", "manager_user_id": body.get("managerUserId") or body.get("manager_user_id") or None, "hire_date": body.get("hireDate") or body.get("hire_date") or None}], bearer_token)
         # contracts
-        self._rest_post("/employee_contracts", [{"employee_id": eid, "contract_type": contract_type, "employment_type": body.get("employmentType") or body.get("employment_type") or "labor", "is_current": True}])
+        self._rest_post("/employee_contracts", [{"employee_id": eid, "contract_type": contract_type, "employment_type": body.get("employmentType") or body.get("employment_type") or "labor", "is_current": True}], bearer_token)
         # salary
-        self._rest_post("/employee_salary_profiles", [{"employee_id": eid, "salary_mode": "daily_wage" if contract_type == "service" else "monthly_salary", "monthly_salary": 0 if contract_type == "service" else int(body.get("monthlySalary") or body.get("monthly_salary") or 0), "daily_wage": int(body.get("dailyWage") or body.get("daily_wage") or 0) if contract_type == "service" else 0, "is_current": True}])
+        self._rest_post("/employee_salary_profiles", [{"employee_id": eid, "salary_mode": "daily_wage" if contract_type == "service" else "monthly_salary", "monthly_salary": 0 if contract_type == "service" else int(body.get("monthlySalary") or body.get("monthly_salary") or 0), "daily_wage": int(body.get("dailyWage") or body.get("daily_wage") or 0) if contract_type == "service" else 0, "is_current": True}], bearer_token)
         # roles
-        self._rest_post("/user_roles", [{"employee_id": eid, "role": body.get("role") or "employee"}])
+        self._rest_post("/user_roles", [{"employee_id": eid, "role": body.get("role") or "employee"}], bearer_token)
         return eid
 
-    def _rest_post(self, path: str, data: list) -> None:
-        req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}", data=json.dumps(data).encode(), headers={"Content-Type": "application/json", "Prefer": "return=minimal"}, method="POST")
+    def _rest_post(self, path: str, data: list, bearer_token: str | None = None) -> None:
+        req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}", data=json.dumps(data).encode(), headers={"Content-Type": "application/json", "Prefer": "return=minimal", "Authorization": f"Bearer {bearer_token or make_service_role_token()}"}, method="POST")
         with urllib.request.urlopen(req, timeout=10) as r:
             pass  # fire-and-forget, errors raise HTTPError
 
@@ -285,7 +336,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
     def _rest_patch(self, path: str, data: dict) -> None:
         req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}", data=json.dumps(data).encode(),
-            headers={"Content-Type": "application/json", "Prefer": "return=minimal"}, method="PATCH")
+            headers={"Content-Type": "application/json", "Prefer": "return=minimal", "Authorization": f"Bearer {make_service_role_token()}"}, method="PATCH")
         urllib.request.urlopen(req, timeout=10)
 
     def _json_error(self, code: int, msg: str) -> None:

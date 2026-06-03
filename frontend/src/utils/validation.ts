@@ -46,7 +46,6 @@ export function buildWarnings(
   days: string[],
 ): Warning[] {
   const warnings: Warning[] = [];
-  let hasUnfilled = false;
   let hasOvertime = false;
   let hasRejectedOvertime = false;
 
@@ -59,9 +58,6 @@ export function buildWarnings(
         text: `${day} 合计 ${pct}%，未达到 100%`,
         type: "warning",
       });
-      hasUnfilled = true;
-    } else if (pct === 0) {
-      hasUnfilled = true;
     }
 
     const ot = overtime[day];

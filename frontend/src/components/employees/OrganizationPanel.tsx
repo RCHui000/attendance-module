@@ -57,6 +57,16 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
     o.org_name.includes(search),
   );
 
+  const managerOptions = useMemo(
+    () =>
+      employees.filter((e) => {
+        if (String(e.status || "").toLowerCase() === "terminated") return false;
+        if (e.role !== "manager" && e.role !== "admin") return false;
+        return true;
+      }),
+    [employees],
+  );
+
   // Get manager name
   const getManagerName = (managerId: number | null) => {
     if (!managerId) return "—";
@@ -66,6 +76,7 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
 
   const startEdit = (org?: Organization) => {
     if (org) {
+      setIsNew(false);
       setEditingId(org.id);
       setEditData({
         orgName: org.org_name,
@@ -83,6 +94,64 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
     setEditingId(null);
     setIsNew(false);
   };
+
+  const renderEditForm = () => (
+    <div className="space-y-2">
+      <Input
+        className="h-8 text-sm"
+        value={editData.orgName}
+        onChange={(e) =>
+          setEditData((d) => ({ ...d, orgName: e.target.value }))
+        }
+        placeholder="部门名称"
+      />
+      <Select
+        value={editData.orgType}
+        onValueChange={(v) =>
+          setEditData((d) => ({ ...d, orgType: v as "company" | "department" }))
+        }
+      >
+        <SelectTrigger className="h-8 text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="department">部门</SelectItem>
+          <SelectItem value="company">公司</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={editData.managerUserId || "none"}
+        onValueChange={(v) =>
+          setEditData((d) => ({ ...d, managerUserId: !v || v === "none" ? "" : v }))
+        }
+      >
+        <SelectTrigger className="h-8 text-sm">
+          <SelectValue placeholder="选择负责人" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">无</SelectItem>
+          {managerOptions.map((e) => (
+            <SelectItem key={e.id} value={String(e.id)}>
+              {e.name} · {e.org_name || e.department || "未分配部门"}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="flex gap-1 justify-end">
+        <Button
+          size="sm"
+          className="h-7"
+          onClick={handleSave}
+          disabled={saveOrg.isPending}
+        >
+          保存
+        </Button>
+        <Button size="sm" variant="outline" className="h-7" onClick={cancelEdit}>
+          取消
+        </Button>
+      </div>
+    </div>
+  );
 
   const handleSave = () => {
     if (!editData.orgName.trim()) {
@@ -135,6 +204,12 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
         onChange={(e) => setSearch(e.target.value)}
       />
 
+      {isNew && (
+        <div className="mb-3 rounded-md border border-dashed border-border bg-muted/25 px-3 py-2">
+          {renderEditForm()}
+        </div>
+      )}
+
       {isLoading && (
         <div className="py-6 text-center text-sm text-muted-foreground">
           加载中…
@@ -148,58 +223,7 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
             className="rounded-md border border-border px-3 py-2 hover:bg-row-hover transition-colors"
           >
             {editingId === org.id ? (
-              <div className="space-y-2">
-                <Input
-                  className="h-8 text-sm"
-                  value={editData.orgName}
-                  onChange={(e) =>
-                    setEditData((d) => ({ ...d, orgName: e.target.value }))
-                  }
-                  placeholder="部门名称"
-                />
-                <Select
-                  value={editData.orgType}
-                  onValueChange={(v) =>
-                    setEditData((d) => ({ ...d, orgType: v as "company" | "department" }))
-                  }
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="department">部门</SelectItem>
-                    <SelectItem value="company">公司</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={editData.managerUserId}
-                  onValueChange={(v) =>
-                    setEditData((d) => ({ ...d, managerUserId: v || "" }))
-                  }
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="选择负责人" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">无</SelectItem>
-                    {employees
-                      .filter((e) => e.role === "manager" || e.role === "admin")
-                      .map((e) => (
-                        <SelectItem key={e.id} value={String(e.id)}>
-                          {e.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-1 justify-end">
-                  <Button size="sm" className="h-7" onClick={handleSave}>
-                    保存
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-7" onClick={cancelEdit}>
-                    取消
-                  </Button>
-                </div>
-              </div>
+              renderEditForm()
             ) : (
               <div className="flex items-center justify-between">
                 <div>

@@ -32,7 +32,7 @@ import {
   useSaveProject,
   useDeleteProject,
 } from "@/hooks/useReport";
-import { useOrganizations, useEmployees } from "@/hooks/useEmployees";
+import { useEmployees } from "@/hooks/useEmployees";
 import { formatMoney } from "@/utils/dates";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import type { ProjectBase } from "@/types/project";
@@ -40,7 +40,6 @@ import { toast } from "sonner";
 
 export function ProjectList() {
   const { data: projects = [], isLoading, isError } = useProjectBase();
-  const { data: orgs = [] } = useOrganizations();
   const { data: employees = [] } = useEmployees();
   const saveProject = useSaveProject();
   const deleteProject = useDeleteProject();

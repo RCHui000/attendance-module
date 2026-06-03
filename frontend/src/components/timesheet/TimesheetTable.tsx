@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
-import { addDaysToIso } from "@/utils/dates";
 import type { TimesheetRow, OvertimeStore, TimesheetStatus } from "@/types/timesheet";
 import type { ProjectBrief } from "@/types/auth";
 import { Plus, X } from "lucide-react";
@@ -126,7 +125,6 @@ export const TimesheetTable = memo(function TimesheetTable({
   overtime,
   weekDays,
   projects,
-  status,
   isLocked,
   dayTotals,
   onUpdatePercent,
@@ -243,12 +241,13 @@ export const TimesheetTable = memo(function TimesheetTable({
                     <Textarea
                       className="h-8 text-sm resize-none"
                       value={
+                        row.descriptions.__row ||
                         Object.values(row.descriptions).find(
                           (d) => d?.trim(),
                         ) || ""
                       }
                       onChange={(e) =>
-                        onUpdateDescription(ri, weekDays[0], e.target.value)
+                        onUpdateDescription(ri, "__row", e.target.value)
                       }
                       disabled={isLocked}
                       placeholder="备注"

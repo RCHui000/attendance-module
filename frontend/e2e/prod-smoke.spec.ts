@@ -129,7 +129,7 @@ test.describe("production smoke acceptance", () => {
         await login(page, candidate.login_name, EMPLOYEE_PASSWORD, 6_000);
         failures.length = 0;
         break;
-      } catch (error) {
+      } catch {
         failures.push(candidate.login_name);
       }
     }

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { WeekNavigator } from "@/components/timesheet/WeekNavigator";
 import { TimesheetTable } from "@/components/timesheet/TimesheetTable";
@@ -90,14 +89,20 @@ export default function TimesheetPage() {
 
   const buildPayload = (): SaveTimesheetPayload => {
     const entries = store.rows.flatMap((row) =>
-      weekDays
-        .filter((d) => (row.percents[d] || 0) > 0)
-        .map((d) => ({
-          projectId: row.projectId,
-          workDate: d,
-          hours: (row.percents[d] || 0) / 100,
-          description: row.descriptions[d] || "",
-        })),
+      {
+        const rowDescription =
+          row.descriptions.__row ||
+          Object.values(row.descriptions).find((d) => d?.trim()) ||
+          "";
+        return weekDays
+          .filter((d) => (row.percents[d] || 0) > 0)
+          .map((d) => ({
+            projectId: row.projectId,
+            workDate: d,
+            hours: (row.percents[d] || 0) / 100,
+            description: rowDescription,
+          }));
+      },
     );
 
     const overtime = weekDays
@@ -130,40 +135,26 @@ export default function TimesheetPage() {
   }, [store.rows, store.overtime, store.remark, currentWeek]);
 
   const handleSubmit = useCallback(async () => {
-    if (!timesheet?.id) {
-      // Save first
-      try {
+    try {
+      let id = timesheet?.id;
+      if (store.isDirty || !id) {
         const result = await saveMutation.mutateAsync(buildPayload());
-        const id = (result as { timesheet?: { id: number } })?.timesheet?.id || timesheet?.id;
-        if (id) {
-          await submitMutation.mutateAsync({
-            timesheetId: id,
-            action: "submit",
-          });
-          store.markClean();
-          toast.success("已提交审核");
-          refetch();
-        }
-      } catch (e) {
-        toast.error(
-          e instanceof Error ? e.message : "提交失败",
-        );
+        id = (result as { timesheet?: { id: number } })?.timesheet?.id || id;
       }
-    } else {
-      try {
-        await submitMutation.mutateAsync({
-          timesheetId: timesheet.id,
-          action: "submit",
-        });
-        toast.success("已提交审核");
-        refetch();
-      } catch (e) {
-        toast.error(
-          e instanceof Error ? e.message : "提交失败",
-        );
-      }
+      if (!id) throw new Error("Timesheet id is required");
+      await submitMutation.mutateAsync({
+        timesheetId: id,
+        action: "submit",
+      });
+      store.markClean();
+      toast.success("已提交审核");
+      refetch();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "提交失败",
+      );
     }
-  }, [timesheet?.id, store.rows, store.overtime, store.remark, currentWeek]);
+  }, [timesheet?.id, store.rows, store.overtime, store.remark, store.isDirty, currentWeek]);
 
   if (isLoading) {
     return (
@@ -242,7 +233,7 @@ export default function TimesheetPage() {
             placeholder="填写本周重点工作、请假、外勤或特殊情况…"
           />
         </div>
-        <SheetWarnings warnings={warnings} dayTotals={dayTotals} />
+        <SheetWarnings warnings={warnings} />
       </div>
 
       {/* Actions */}
@@ -251,7 +242,7 @@ export default function TimesheetPage() {
         hasBlockingError={blocking}
         isDirty={store.isDirty}
         isSaving={saveMutation.isPending}
-        isSubmitting={submitMutation.isPending}
+        isSubmitting={submitMutation.isPending || saveMutation.isPending}
         onSave={handleSave}
         onSubmit={handleSubmit}
       />

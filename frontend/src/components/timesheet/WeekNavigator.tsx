@@ -9,8 +9,6 @@ interface WeekNavigatorProps {
 }
 
 export function WeekNavigator({ currentWeek, onWeekChange }: WeekNavigatorProps) {
-  const weekEnd = addDaysToIso(currentWeek, 6);
-
   const goPrev = () => onWeekChange(addDaysToIso(currentWeek, -7));
   const goNext = () => onWeekChange(addDaysToIso(currentWeek, 7));
 

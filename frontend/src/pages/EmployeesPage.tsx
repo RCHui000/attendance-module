@@ -17,6 +17,8 @@ import {
   useDeleteEmployee,
 } from "@/hooks/useEmployees";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { APP_VERSION } from "@/lib/constants";
 import { RefreshCw, Plus, Trash2 } from "lucide-react";
 import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { OrganizationPanel } from "@/components/employees/OrganizationPanel";
@@ -197,6 +199,21 @@ export default function EmployeesPage() {
 
   return (
     <div>
+      <div className="mb-4 flex items-start justify-between gap-3 max-[640px]:flex-col">
+        <div>
+          <strong className="block text-sm text-foreground">系统管理</strong>
+          <p className="mt-1 text-xs text-muted-foreground">
+            维护员工账号、组织关系与系统基础配置
+          </p>
+        </div>
+        <Badge
+          variant="outline"
+          className="h-7 rounded-pill border-border bg-white px-3 text-xs font-bold text-muted-foreground"
+        >
+          版本 {APP_VERSION}
+        </Badge>
+      </div>
+
       <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
         <div>
           <div className="flex items-center justify-between mb-3">

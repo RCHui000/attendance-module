@@ -27,7 +27,9 @@ export default function TimesheetPage() {
   const { user } = useAuthStore();
   const store = useTimesheetStore();
 
-  const { data: timesheet, isLoading, refetch } = useTimesheet(currentWeek);
+  const { data: timesheet, isLoading, refetch } = useTimesheet(currentWeek, {
+    pauseRealtime: store.isDirty,
+  });
 
   // Fetch projects for the dropdown
   const { data: projectList } = useQuery<ProjectBrief[]>({

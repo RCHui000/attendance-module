@@ -3,9 +3,11 @@
 services:
   # Core database
   postgres:
-    image: postgres:16-alpine
+    build: ./postgres-wal2json
+    image: psa-postgres:16-alpine-wal2json
     container_name: psa-postgres
     restart: unless-stopped
+    command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_DB: psa
       POSTGRES_USER: psa_admin
@@ -56,6 +58,7 @@ services:
     container_name: psa-realtime
     restart: unless-stopped
     environment:
+      APP_NAME: psa-realtime
       PORT: 4000
       DB_HOST: postgres
       DB_PORT: 5432
@@ -65,11 +68,28 @@ services:
       DB_SSL: "false"
       SECURE_CHANNELS: "true"
       JWT_SECRET: ${JWT_SECRET}
+      API_JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      DB_ENC_KEY: ${DB_ENC_KEY}
+      RLIMIT_NOFILE: "10000"
+      SEED_SELF_HOST: "false"
       REPLICATION_MODE: RLS
       REPLICATION_POLL_INTERVAL: 100
+      PUBLICATIONS: "[\"supabase_realtime\"]"
+      SLOT_NAME: "psa_realtime_slot"
+      TEMPORARY_SLOT: "false"
+      REALTIME_IP_VERSION: "ipv4"
+      DB_IP_VERSION: "ipv4"
+      SUBSCRIPTION_SYNC_INTERVAL: 1000
+      MAX_CHANGES: 100
+      MAX_RECORD_BYTES: 1048576
+      EXPOSE_METRICS: "false"
     ports:
       - "8778:4000"
+    ulimits:
+      nofile:
+        soft: 10000
+        hard: 10000
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,11 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { publishLocalSync } from "@/hooks/useRealtime";
 import type { Employee, Organization } from "@/types/employee";
 
 export function useEmployees() {
   return useQuery({
     queryKey: ["employees"],
     queryFn: () => api<Employee[]>("/api/employees"),
+    refetchInterval: 30_000,
   });
 }
 
@@ -13,6 +15,7 @@ export function useOrganizations() {
   return useQuery({
     queryKey: ["organizations"],
     queryFn: () => api<Organization[]>("/api/organizations"),
+    refetchInterval: 30_000,
   });
 }
 
@@ -27,6 +30,8 @@ export function useSaveEmployee() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["employees", "organizations", "approvals", "dashboard"]);
     },
   });
 }
@@ -41,6 +46,8 @@ export function useDeleteEmployee() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["employees", "organizations", "approvals", "dashboard"]);
     },
   });
 }
@@ -55,6 +62,9 @@ export function useSaveOrganization() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["organizations", "employees", "dashboard"]);
     },
   });
 }
@@ -69,6 +79,9 @@ export function useDeleteOrganization() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["organizations", "employees", "dashboard"]);
     },
   });
 }

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { publishLocalSync } from "@/hooks/useRealtime";
 import type {
   ReportData,
   ProjectBase,
@@ -17,6 +18,7 @@ export function useWeeklyReport(params: {
         `/api/reports/weekly?startDate=${params.startDate}&endDate=${params.endDate}`,
       ),
     enabled: !!(params.startDate && params.endDate),
+    refetchInterval: 15_000,
   });
 }
 
@@ -24,6 +26,7 @@ export function useProjectBase() {
   return useQuery({
     queryKey: ["project-base"],
     queryFn: () => api<ProjectBase[]>("/api/projects"),
+    refetchInterval: 30_000,
   });
 }
 
@@ -62,6 +65,7 @@ export function useSaveProject() {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["projects", "reports", "dashboard"]);
     },
   });
 }
@@ -77,6 +81,9 @@ export function useDeleteProject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-base"] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["projects", "reports", "dashboard"]);
     },
   });
 }

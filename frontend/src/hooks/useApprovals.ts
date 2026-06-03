@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { publishLocalSync } from "@/hooks/useRealtime";
 import type {
   ApprovalTasks,
   TimesheetDetail,
@@ -11,6 +12,7 @@ export function useApprovalTasks(weekStart: string) {
     queryFn: () =>
       api<ApprovalTasks>(`/api/approvals/tasks?weekStart=${weekStart}`),
     enabled: !!weekStart,
+    refetchInterval: 10_000,
   });
 }
 
@@ -41,6 +43,8 @@ export function useReviewAction() {
       queryClient.invalidateQueries({ queryKey: ["approvals"] });
       queryClient.invalidateQueries({ queryKey: ["timesheet-detail"] });
       queryClient.invalidateQueries({ queryKey: ["reports"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["timesheet", "approvals", "reports", "dashboard"]);
     },
   });
 }
@@ -59,6 +63,9 @@ export function useOvertimeAction() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["timesheet", "approvals", "reports", "dashboard"]);
     },
   });
 }

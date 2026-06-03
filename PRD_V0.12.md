@@ -3,12 +3,12 @@
 ## 1. 目标
 
 建设内部工时统计系统，统一管理员工周表、项目工日、组织架构、审批、加班和项目统计。
-**V0.12 为 Supabase 全栈生产级版本**，运行态完整基于 Supabase 技术栈，
+**V0.12 为 Supabase 全栈生产级版本，V0.12.2 已启用局域网 Realtime**，运行态完整基于 Supabase 技术栈，
 审批状态机通过 Postgres RPC 函数实现。
 
 - 认证：Supabase GoTrue (HS256 JWT)
-- 数据：Supabase Postgres 16
-- 数据访问：PostgREST (REST) + RPC (状态机)
+- 数据：Supabase Postgres 16 + wal2json logical decoding
+- 数据访问：PostgREST (REST) + RPC (状态机) + Supabase Realtime
 - 前端：React 19 + Vite 8 + shadcn/ui 静态 SPA
 - 部署：Python 静态文件服务容器 + `supabase-psa` 服务栈
 
@@ -148,7 +148,7 @@ components/
 Browser (:8767) → SPA 静态服务 (Docker: attendance-module, :80)
                     ├── GoTrue (:8777) → psa-postgres (:5433)
                     ├── PostgREST (:8779) → psa-postgres
-                    └── Realtime (:8778, 暂停)
+                    └── Realtime (:8778) → psa-postgres logical replication
 ```
 
 ### 7.2 端口
@@ -158,6 +158,7 @@ Browser (:8767) → SPA 静态服务 (Docker: attendance-module, :80)
 | 8767 | Web SPA | attendance-module |
 | 5433 | PostgreSQL 16 | psa-postgres |
 | 8777 | GoTrue Auth | psa-gotrue |
+| 8778 | Supabase Realtime | psa-realtime |
 | 8779 | PostgREST | psa-postgrest |
 
 ### 7.3 迁移
@@ -172,6 +173,11 @@ Browser (:8767) → SPA 静态服务 (Docker: attendance-module, :80)
 | 006-009 | grant/RLS 修复 | PostgREST 权限修复 |
 | 010 | `timesheet_workflow_rpc.sql` | **审批 RPC** |
 | 011 | `overtime_rpc.sql` | **OT RPC** |
+| 012 | `admin_employee_create_rls.sql` | 管理员新增员工 RLS |
+| 013 | `realtime_publication.sql` | Realtime publication + replica identity |
+| 014 | `realtime_schema_migrations_compat.sql` | Realtime/Ecto schema_migrations 兼容 |
+| 015 | `realtime_lan_tenants.sql` | LAN/IP/localhost Realtime tenants |
+| 016 | `realtime_internal_schema.sql` | Realtime 内部 schema |
 
 ### 7.4 部署命令
 
@@ -204,11 +210,11 @@ sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env && docker compose up -d
 | FK | 补 timesheets.user_id→employees FK；workflow_tasks FK 因孤儿数据未完成 |
 | GoTrue | 配置 CORS；禁用 signup；中文名→拼音 email 映射 |
 | 前端 | Topbar 移除无效修改密码按钮；登录页改密支持 login 参数 |
-| Realtime | 暂停（RLIMIT_NOFILE bug），用 BroadcastChannel 同源广播 |
+| Realtime | **V0.12.2 已启用**：Supabase Realtime + wal2json + logical publication；BroadcastChannel 与短轮询作为 fallback |
 
 ## 9. 已知边界
 
-- Realtime 不可用，实时同步通过 BroadcastChannel
+- Realtime 已在本机/NAS 局域网部署启用；容器冷启动后首个订阅会触发 CDC 初始化，前端保留短轮询 fallback
 - timesheets→employees / workflow_tasks→timesheets FK 尚未完成（历史孤儿数据）
 - 月度回款额数据源缺失（需后端接口）
 - 新建 GoTrue 账号通过 `/api/create-employee-with-login`（server-side service_role）

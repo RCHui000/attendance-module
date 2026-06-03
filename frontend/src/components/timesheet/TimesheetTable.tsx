@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
 import type { TimesheetRow, OvertimeStore, TimesheetStatus } from "@/types/timesheet";
 import type { ProjectBrief } from "@/types/auth";
-import { Plus, X } from "lucide-react";
+import { CheckCircle2, Circle, Clock3, Plus, X, XCircle } from "lucide-react";
 
 interface TimesheetTableProps {
   rows: TimesheetRow[];
@@ -88,6 +88,54 @@ function HolidayBadge({ day }: { day: string }) {
   );
 }
 
+function RowApprovalStatus({
+  status,
+}: {
+  status?: TimesheetRow["approvalStatus"];
+}) {
+  const config = {
+    approved: {
+      label: "已批准",
+      icon: CheckCircle2,
+      className: "text-status-approved-text bg-status-approved-bg",
+    },
+    summary_pending: {
+      label: "待汇总",
+      icon: CheckCircle2,
+      className: "text-status-approved-text bg-status-approved-bg",
+    },
+    pending: {
+      label: "审批中",
+      icon: Clock3,
+      className: "text-primary bg-primary/10",
+    },
+    rejected: {
+      label: "已退回",
+      icon: XCircle,
+      className: "text-destructive bg-destructive/10",
+    },
+    draft: {
+      label: "草稿",
+      icon: Circle,
+      className: "text-muted-foreground bg-muted",
+    },
+  }[status || "draft"];
+  const Icon = config.icon;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 w-[72px] shrink-0 items-center justify-center gap-1 rounded-md text-[11px] font-medium",
+        config.className,
+      )}
+      title={config.label}
+    >
+      <Icon className="size-3" />
+      {config.label}
+    </span>
+  );
+}
+
 function DayHeader({ day, index }: { day: string; index: number }) {
   const date = new Date(day);
   const dayOfWeek = date.getDay();
@@ -140,7 +188,7 @@ export const TimesheetTable = memo(function TimesheetTable({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-table-header border-b border-border">
-              <th className="sticky left-0 bg-table-header z-10 w-[160px] min-w-[140px] p-1.5 text-left text-xs font-bold text-muted-foreground">
+              <th className="sticky left-0 bg-table-header z-10 w-[260px] min-w-[240px] p-1.5 text-left text-xs font-bold text-muted-foreground">
                 项目
                 {!isLocked && (
                   <Button
@@ -171,16 +219,21 @@ export const TimesheetTable = memo(function TimesheetTable({
                 (s, d) => s + (row.percents[d] || 0) / 100,
                 0,
               );
+              const rowLocked =
+                isLocked ||
+                row.approvalStatus === "approved" ||
+                row.approvalStatus === "summary_pending";
               return (
                 <tr key={ri} className="border-b border-border/50 hover:bg-row-hover">
                   <td className="sticky left-0 bg-white p-1.5 z-[5]">
                     <div className="flex items-center gap-1">
+                      <RowApprovalStatus status={row.approvalStatus} />
                       <Select
                         value={row.projectId ? String(row.projectId) : ""}
                         onValueChange={(v) =>
                           onUpdateProject(ri, Number(v))
                         }
-                        disabled={isLocked}
+                        disabled={rowLocked}
                       >
                         <SelectTrigger className="h-8 text-sm flex-1 min-w-0">
                           <SelectValue placeholder="选择项目">
@@ -202,7 +255,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                           ))}
                         </SelectContent>
                       </Select>
-                      {!isLocked && (
+                      {!rowLocked && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -220,7 +273,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                       <PercentCell
                         value={row.percents[day] || 0}
                         onChange={(v) => onUpdatePercent(ri, day, v)}
-                        locked={isLocked}
+                        locked={rowLocked}
                         invalid={dayTotals[day] > 100}
                       />
                     </td>
@@ -249,7 +302,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                       onChange={(e) =>
                         onUpdateDescription(ri, "__row", e.target.value)
                       }
-                      disabled={isLocked}
+                      disabled={rowLocked}
                       placeholder="备注"
                     />
                   </td>

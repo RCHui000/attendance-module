@@ -15,6 +15,7 @@ export interface Timesheet {
   days: string[];
   entries: TimesheetEntry[];
   overtime: OvertimeEntry[];
+  project_statuses?: TimesheetProjectStatus[];
 }
 
 export interface TimesheetEntry {
@@ -42,6 +43,17 @@ export interface TimesheetRow {
   projectId: number;
   percents: Record<string, number>; // "YYYY-MM-DD" -> percent 0-100
   descriptions: Record<string, string>;
+  approvalStatus?: "draft" | "pending" | "approved" | "rejected" | "summary_pending";
+  approvalRole?: string;
+  approvedAt?: string;
+}
+
+export interface TimesheetProjectStatus {
+  project_id: number;
+  status: "draft" | "pending" | "approved" | "rejected" | "summary_pending";
+  assignee_role?: string;
+  result_action?: string;
+  completed_at?: string;
 }
 
 export interface OvertimeStore {

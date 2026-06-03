@@ -5,11 +5,15 @@ import { statusText } from "@/lib/constants";
 
 interface ExpandedReviewRowProps {
   timesheetId: number;
+  projectId?: number | null;
   colSpan: number;
 }
 
-export function ExpandedReviewRow({ timesheetId, colSpan }: ExpandedReviewRowProps) {
+export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedReviewRowProps) {
   const { data, isLoading, isError } = useTimesheetDetail(timesheetId);
+  const visibleEntries = projectId
+    ? (data?.entries || []).filter((entry) => Number(entry.project_id) === Number(projectId))
+    : data?.entries || [];
 
   return (
     <tr className="hover:bg-transparent">
@@ -23,11 +27,11 @@ export function ExpandedReviewRow({ timesheetId, colSpan }: ExpandedReviewRowPro
             <span className="text-sm text-destructive">明细加载失败</span>
           )}
 
-          {!isLoading && !isError && (!data || !data.entries?.length) && (
+          {!isLoading && !isError && (!data || !visibleEntries.length) && (
             <span className="text-sm text-muted-foreground">暂无明细数据</span>
           )}
 
-          {!isLoading && !isError && data && data.entries?.length > 0 && (
+          {!isLoading && !isError && data && visibleEntries.length > 0 && (
             <>
               {/* Header strip */}
               <div className="flex items-center gap-2 mb-2">
@@ -82,7 +86,7 @@ export function ExpandedReviewRow({ timesheetId, colSpan }: ExpandedReviewRowPro
                       number,
                       { name: string; days: Record<string, number> }
                     >();
-                    data.entries?.forEach((e) => {
+                    visibleEntries.forEach((e) => {
                       if (!projectMap.has(e.project_id)) {
                         projectMap.set(e.project_id, {
                           name: e.project_name || `项目 #${e.project_id}`,
@@ -129,7 +133,7 @@ export function ExpandedReviewRow({ timesheetId, colSpan }: ExpandedReviewRowPro
                       每日合计
                     </td>
                     {(data.days || []).map((day, i) => {
-                      const sum = (data.entries || [])
+                      const sum = visibleEntries
                         .filter((e) => e.work_date === day)
                         .reduce((a, e) => a + e.hours, 0);
                       return (
@@ -139,12 +143,12 @@ export function ExpandedReviewRow({ timesheetId, colSpan }: ExpandedReviewRowPro
                             sum > 1 ? "text-destructive" : ""
                           }`}
                         >
-                          {sum.toFixed(1)}
+                      {sum.toFixed(1)}
                         </td>
                       );
                     })}
                     <td className="py-1.5 text-right tabular-nums font-bold">
-                      {(data.entries || [])
+                      {visibleEntries
                         .reduce((a, e) => a + e.hours, 0)
                         .toFixed(1)}
                     </td>

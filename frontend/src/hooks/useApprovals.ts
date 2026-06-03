@@ -32,6 +32,7 @@ export function useReviewAction() {
   return useMutation({
     mutationFn: (params: {
       timesheetId: number;
+      taskId?: number;
       action: "approve" | "reject" | "reopen";
       comment?: string;
     }) =>

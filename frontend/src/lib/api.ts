@@ -20,7 +20,7 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 // PostgREST embeds related rows dynamically, so this compatibility layer keeps row shapes open.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = Record<string, any>;
-const REPORTABLE_TIMESHEET_STATUSES = new Set(["submitted", "approved", "locked"]);
+const REPORTABLE_TIMESHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
 
 function authHeaders(json = true): Record<string, string> {
   const token = getStoredToken();
@@ -79,6 +79,72 @@ function weekDays(weekStart: string): string[] {
     day.setDate(start.getDate() + i);
     return day.toISOString().slice(0, 10);
   });
+}
+
+function projectStatusFromTasks(sheet: AnyRow, tasks: AnyRow[]): AnyRow[] {
+  const projectIds = new Set<number>();
+  for (const task of tasks) {
+    if (task.scope_type === "project" && task.scope_id) {
+      projectIds.add(Number(task.scope_id));
+    }
+  }
+  return Array.from(projectIds).map((projectId) => {
+    const pending = tasks.find(
+      (task) =>
+        task.scope_type === "project" &&
+        Number(task.scope_id) === projectId &&
+        task.status === "pending",
+    );
+    const approved = tasks.find(
+      (task) =>
+        task.scope_type === "project" &&
+        Number(task.scope_id) === projectId &&
+        task.status === "completed" &&
+        task.result_action === "approve",
+    );
+    const rejected = tasks.find(
+      (task) =>
+        task.scope_type === "project" &&
+        Number(task.scope_id) === projectId &&
+        task.status === "completed" &&
+        task.result_action === "reject",
+    );
+    const summaryPending = tasks.some(
+      (task) => task.scope_type === "department_summary" && task.status === "pending",
+    );
+    const source = pending || approved || rejected;
+    return {
+      project_id: projectId,
+      status: pending
+        ? "pending"
+        : approved
+          ? summaryPending
+            ? "summary_pending"
+            : "approved"
+          : rejected
+            ? "rejected"
+            : sheet.status === "submitted"
+              ? "pending"
+              : "draft",
+      assignee_role: source?.assignee_role || "",
+      result_action: source?.result_action || "",
+      completed_at: source?.completed_at || "",
+    };
+  });
+}
+
+function approvedProjectIds(tasks: AnyRow[]): Set<number> {
+  return new Set(
+    tasks
+      .filter(
+        (task) =>
+          task.scope_type === "project" &&
+          task.status === "completed" &&
+          task.result_action === "approve" &&
+          task.scope_id,
+      )
+      .map((task) => Number(task.scope_id)),
+  );
 }
 
 function isReportableTimesheet(sheet?: AnyRow | null): sheet is AnyRow {
@@ -213,12 +279,16 @@ async function getTimesheet(weekStart: string): Promise<AnyRow> {
       body: JSON.stringify([{ id, user_id: user.id, week_start_date: weekStart }]),
     }))[0];
   }
-  const [entries, overtime] = await Promise.all([
+  const [entries, overtime, tasks] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
     rest<AnyRow[]>(`/overtime_entries?select=*&timesheet_id=eq.${sheet.id}&order=work_date.asc`),
+    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`),
   ]);
+  const taskProjectStatuses = projectStatusFromTasks(sheet, tasks);
+  const taskProjectIds = new Set(taskProjectStatuses.map((item) => Number(item.project_id)));
+  const entryProjectIds = [...new Set(entries.map((entry) => Number(entry.project_id)).filter(Boolean))];
   return {
     ...sheet,
     days: weekDays(weekStart),
@@ -232,6 +302,12 @@ async function getTimesheet(weekStart: string): Promise<AnyRow> {
       ...entry,
       overtime_hours: Number(entry.overtime_hours || 0),
     })),
+    project_statuses: [
+      ...taskProjectStatuses,
+      ...entryProjectIds
+        .filter((projectId) => !taskProjectIds.has(projectId))
+        .map((projectId) => ({ project_id: projectId, status: sheet.status === "submitted" ? "pending" : "draft" })),
+    ],
   };
 }
 
@@ -241,13 +317,14 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     `/timesheets?select=*&id=eq.${timesheetId}&limit=1`,
   ))[0];
   if (!sheet) throw new Error("Timesheet not found");
-  const [entries, overtime, userRows, profRows] = await Promise.all([
+  const [entries, overtime, userRows, profRows, tasks] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
     rest<AnyRow[]>(`/overtime_entries?select=*&timesheet_id=eq.${sheet.id}&order=work_date.asc`),
     rest<AnyRow[]>(`/employees?select=name&id=eq.${sheet.user_id}&limit=1`),
     rest<AnyRow[]>(`/employee_profiles_v2?select=organizations(org_name)&employee_id=eq.${sheet.user_id}&limit=1`),
+    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`),
   ]);
   const userName = userRows[0]?.name || "";
   const profile = profRows[0];
@@ -273,6 +350,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       reason: entry.reason || "",
       status: entry.status || "",
     })),
+    project_statuses: projectStatusFromTasks(sheet, tasks),
   };
 }
 
@@ -281,16 +359,31 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
   if (!["draft", "rejected"].includes(sheet.status)) {
     throw new Error("Submitted or approved timesheets cannot be edited");
   }
+  const existingEntries = await rest<AnyRow[]>(
+    `/timesheet_entries?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
+  );
+  const existingTasks = await rest<AnyRow[]>(
+    `/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`,
+  );
+  const lockedProjectIds = approvedProjectIds(existingTasks);
   await rest(`/timesheets?id=eq.${sheet.id}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ remark: body.remark || "", updated_at: new Date().toISOString() }),
   });
-  await rest(`/timesheet_entries?timesheet_id=eq.${sheet.id}`, { method: "DELETE" });
+  if (lockedProjectIds.size > 0) {
+    await rest(
+      `/timesheet_entries?timesheet_id=eq.${sheet.id}&project_id=not.in.(${Array.from(lockedProjectIds).join(",")})`,
+      { method: "DELETE" },
+    );
+  } else {
+    await rest(`/timesheet_entries?timesheet_id=eq.${sheet.id}`, { method: "DELETE" });
+  }
   const mergedEntries = new Map<string, AnyRow>();
   for (const entry of body.entries || []) {
     const hours = Number(entry.hours || 0);
     if (hours <= 0) continue;
+    if (lockedProjectIds.has(Number(entry.projectId))) continue;
     const key = `${entry.projectId}:${entry.workDate}`;
     const current = mergedEntries.get(key);
     if (current) {
@@ -311,6 +404,12 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
     }));
   if (entries.length) {
     await rest("/timesheet_entries", { method: "POST", body: JSON.stringify(entries) });
+  }
+  const preservedProjects = new Set(existingEntries.map((entry) => Number(entry.project_id)));
+  for (const projectId of lockedProjectIds) {
+    if (!preservedProjects.has(projectId)) {
+      throw new Error(`Approved project row ${projectId} cannot be removed`);
+    }
   }
   await rest(`/overtime_entries?timesheet_id=eq.${sheet.id}`, { method: "DELETE" });
   const overtime = (body.overtime || [])
@@ -337,6 +436,7 @@ async function timesheetAction(body: AnyRow): Promise<AnyRow> {
       p_timesheet_id: Number(body.timesheetId),
       p_action: body.action,
       p_comment: body.comment || "",
+      p_task_id: body.taskId ? Number(body.taskId) : null,
     }),
   });
 }
@@ -352,7 +452,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`),
     rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${admin ? "" : `&completed_by=eq.${user.id}`}`),
     rest<AnyRow[]>("/employees?select=id,name,employee_profiles_v2(organizations(org_name))"),
-    rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,hours"),
+    rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
   ]);
 
   // Fetch ALL timesheets referenced by tasks (not filtered by week)
@@ -382,33 +482,57 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   });
   const employeeMap = new Map(employees.map((e) => [Number(e.id), e]));
   const hours = new Map<number, number>();
+  const projectHours = new Map<string, number>();
   for (const entry of entries) hours.set(Number(entry.timesheet_id), (hours.get(Number(entry.timesheet_id)) || 0) + Number(entry.hours || 0));
+  for (const entry of entries) {
+    const key = `${Number(entry.timesheet_id)}:${Number(entry.project_id)}`;
+    projectHours.set(key, (projectHours.get(key) || 0) + Number(entry.hours || 0));
+  }
   const sheetMap = new Map(sheets.map((s) => [Number(s.id), s]));
+  const projectIds = [
+    ...new Set(
+      [...tasks, ...reviewedTasks]
+        .filter((task) => task.scope_type === "project" && task.scope_id)
+        .map((task) => Number(task.scope_id)),
+    ),
+  ];
+  const projectRows = projectIds.length
+    ? await rest<AnyRow[]>(`/projects?select=id,code,name&id=in.(${projectIds.join(",")})`)
+    : [];
+  const projectMap = new Map(projectRows.map((project) => [Number(project.id), project]));
   const toItem = (sheet: AnyRow, source: AnyRow) => {
     const emp = employeeMap.get(Number(sheet.user_id));
     const profile = Array.isArray(emp?.employee_profiles_v2) ? emp.employee_profiles_v2[0] : emp?.employee_profiles_v2;
+    const projectId = source.scope_type === "project" ? Number(source.scope_id) : null;
+    const project = projectId ? projectMap.get(projectId) : null;
     return {
+      task_id: source.id ? Number(source.id) : undefined,
       timesheet_id: Number(sheet.id),
       user_id: Number(sheet.user_id),
       week_start_date: sheet.week_start_date,
       status: source.result_action === "reject" ? "rejected" : sheet.status,
+      assignee_role: source.assignee_role || "",
+      scope_type: source.scope_type || "timesheet",
+      scope_id: source.scope_id ? Number(source.scope_id) : null,
+      project_id: projectId,
+      project_code: project?.code || "",
+      project_name: project?.name || "",
       name: emp?.name || "",
       department: profile?.organizations?.org_name || "",
-      total_hours: hours.get(Number(sheet.id)) || 0,
+      total_hours: projectId ? projectHours.get(`${Number(sheet.id)}:${projectId}`) || 0 : hours.get(Number(sheet.id)) || 0,
       submitted_at: sheet.submitted_at,
       review_comment: source.comment || sheet.review_comment || "",
     };
   };
   const pending = tasks
-    .map((task) => sheetMap.get(Number(task.target_id)))
-    .filter((sheet): sheet is AnyRow => !!sheet && sheet.status === "submitted")
-    .filter((sheet, index, sheets) => sheets.findIndex((s) => Number(s.id) === Number(sheet.id)) === index)
-    .map((sheet) => toItem(sheet, {}));
+    .map((task) => ({ task, sheet: sheetMap.get(Number(task.target_id)) }))
+    .filter((item): item is { task: AnyRow; sheet: AnyRow } => !!item.sheet && item.sheet.status === "submitted")
+    .sort((a, b) => (a.task.created_at || "").localeCompare(b.task.created_at || ""))
+    .map(({ task, sheet }) => toItem(sheet, task));
   const reviewed = reviewedTasks
     .map((task) => ({ task, sheet: sheetMap.get(Number(task.target_id)) }))
     .filter((item): item is { task: AnyRow; sheet: AnyRow } => !!item.sheet)
     .sort((a, b) => (b.task.completed_at || "").localeCompare(a.task.completed_at || ""))
-    .filter((item, index, items) => items.findIndex((other) => Number(other.sheet.id) === Number(item.sheet.id)) === index)
     .map(({ task, sheet }) => toItem(sheet, task));
   const overtime = overtimeRows
     .filter((o) => o.status === "pending" && Number(o.overtime_hours || 0) > 0)

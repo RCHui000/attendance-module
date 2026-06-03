@@ -11,6 +11,7 @@ interface TimesheetState {
   initFromServer: (serverData: {
     entries: { project_id: number; work_date: string; hours: number; description?: string }[];
     overtime: { work_date: string; overtime_hours: number; reason?: string; status?: string; reject_comment?: string }[];
+    projectStatuses?: { project_id: number; status: "draft" | "pending" | "approved" | "rejected" | "summary_pending"; assignee_role?: string; completed_at?: string }[];
     remark: string;
     weekDays: string[];
   }) => void;
@@ -32,15 +33,20 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
   remark: "",
   isDirty: false,
 
-  initFromServer: ({ entries, overtime, remark, weekDays }) => {
+  initFromServer: ({ entries, overtime, projectStatuses, remark, weekDays }) => {
+    const statusMap = new Map((projectStatuses || []).map((item) => [Number(item.project_id), item]));
     // Group entries by project
     const projectMap = new Map<number, TimesheetRow>();
     for (const e of entries) {
       if (!projectMap.has(e.project_id)) {
+        const projectStatus = statusMap.get(Number(e.project_id));
         projectMap.set(e.project_id, {
           projectId: e.project_id,
           percents: {},
           descriptions: {},
+          approvalStatus: projectStatus?.status || "draft",
+          approvalRole: projectStatus?.assignee_role,
+          approvedAt: projectStatus?.completed_at,
         });
       }
       const row = projectMap.get(e.project_id)!;

@@ -45,6 +45,7 @@ export function ApprovalTable({
   const [rejectTarget, setRejectTarget] = useState<{
     type: "timesheet";
     id: number;
+    taskId?: number;
   } | null>(null);
   const [rejectOTTarget, setRejectOTTarget] = useState<{
     type: "overtime";
@@ -56,12 +57,16 @@ export function ApprovalTable({
   const overtimeAction = useOvertimeAction();
 
   // ---- Timesheet actions ----
-  const handleApprove = (id: number) => {
-    reviewAction.mutate({ timesheetId: id, action: "approve" });
+  const handleApprove = (item: ApprovalTaskItem) => {
+    reviewAction.mutate({
+      timesheetId: item.timesheet_id,
+      taskId: item.task_id,
+      action: "approve",
+    });
   };
 
-  const handleReject = (id: number) => {
-    setRejectTarget({ type: "timesheet", id });
+  const handleReject = (item: ApprovalTaskItem) => {
+    setRejectTarget({ type: "timesheet", id: item.timesheet_id, taskId: item.task_id });
     setRejectComment("");
   };
 
@@ -77,6 +82,7 @@ export function ApprovalTable({
     if (rejectTarget && rejectTarget.type === "timesheet") {
       reviewAction.mutate({
         timesheetId: rejectTarget.id,
+        taskId: rejectTarget.taskId,
         action: "reject",
         comment: rejectComment || "退回",
       });
@@ -196,7 +202,7 @@ export function ApprovalTable({
                           const isExpanded = expandedId === item.timesheet_id;
                           rows.push(
                             <ApprovalRow
-                              key={item.timesheet_id}
+                              key={item.task_id || item.timesheet_id}
                               item={item}
                               isExpanded={isExpanded}
                               onToggle={() =>
@@ -211,6 +217,7 @@ export function ApprovalTable({
                               <ExpandedReviewRow
                                 key={`detail-${item.timesheet_id}`}
                                 timesheetId={item.timesheet_id}
+                                projectId={item.project_id || null}
                                 colSpan={7}
                               />,
                             );
@@ -420,9 +427,13 @@ function ApprovalRow({
   item: ApprovalTaskItem;
   isExpanded: boolean;
   onToggle: () => void;
-  onApprove: (id: number) => void;
-  onReject: (id: number) => void;
+  onApprove: (item: ApprovalTaskItem) => void;
+  onReject: (item: ApprovalTaskItem) => void;
 }) {
+  const scopeLabel =
+    item.scope_type === "project"
+      ? `${item.project_code || ""} ${item.project_name || "项目审批"}`.trim()
+      : "部门汇总确认";
   return (
     <TableRow
       className="hover:bg-row-hover cursor-pointer"
@@ -442,8 +453,8 @@ function ApprovalRow({
         {item.department || "—"}
       </TableCell>
       <TableCell>
-        <Badge variant="secondary" className="text-xs">
-          {statusText[item.status] || item.status}
+        <Badge variant={item.scope_type === "department_summary" ? "default" : "secondary"} className="text-xs">
+          {scopeLabel}
         </Badge>
       </TableCell>
       <TableCell className="text-sm text-right tabular-nums">
@@ -467,7 +478,7 @@ function ApprovalRow({
             className="h-7 text-success"
             onClick={(e) => {
               e.stopPropagation();
-              onApprove(item.timesheet_id);
+              onApprove(item);
             }}
           >
             <Check className="size-3" />
@@ -478,7 +489,7 @@ function ApprovalRow({
             className="h-7 text-destructive"
             onClick={(e) => {
               e.stopPropagation();
-              onReject(item.timesheet_id);
+              onReject(item);
             }}
           >
             <X className="size-3" />

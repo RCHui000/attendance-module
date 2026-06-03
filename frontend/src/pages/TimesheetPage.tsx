@@ -49,6 +49,7 @@ export default function TimesheetPage() {
       store.initFromServer({
         entries: timesheet.entries || [],
         overtime: timesheet.overtime || [],
+        projectStatuses: timesheet.project_statuses || [],
         remark: timesheet.remark || "",
         weekDays: timesheet.days || weekDays,
       });

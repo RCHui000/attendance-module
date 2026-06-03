@@ -30,7 +30,8 @@
     "016_realtime_internal_schema.sql",
     "017_service_login_resolution_grants.sql",
     "018_migrate_timesheet_manager_role.sql",
-    "019_timesheet_project_workflow.sql"
+    "019_timesheet_project_workflow.sql",
+    "020_timesheet_summary_collapse.sql"
   ],
   "release_notes": [
     "Route weekly timesheet approvals by project scope before department summary approval.",
@@ -39,6 +40,8 @@
     "Rejecting any project or summary task rejects the timesheet and cancels remaining pending tasks.",
     "Show per-project approval status badges on the employee timesheet and lock approved project rows during rejected resubmission.",
     "Protect approved project rows during save so approved cost entries are not overwritten by later rejected-row edits.",
-    "Change reportable labor status filtering to approved/locked/summarized, excluding submitted work from cost rollups."
+    "Change reportable labor status filtering to approved/locked/summarized, excluding submitted work from cost rollups.",
+    "Collapse same-person project approvals into one department summary task so the department head reviews the assembled weekly sheet.",
+    "Fix approval row expansion keys so project tasks and summary tasks expand independently without duplicated detail rows."
   ]
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Table,
   TableBody,
@@ -41,7 +41,7 @@ export function ApprovalTable({
   approvalTab,
   onTabChange,
 }: ApprovalTableProps) {
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<{
     type: "timesheet";
     id: number;
@@ -55,6 +55,9 @@ export function ApprovalTable({
 
   const reviewAction = useReviewAction();
   const overtimeAction = useOvertimeAction();
+
+  const getTaskKey = (item: ApprovalTaskItem | ReviewedTaskItem) =>
+    `${item.task_id || item.timesheet_id}:${item.scope_type || "timesheet"}:${item.scope_id || "all"}`;
 
   // ---- Timesheet actions ----
   const handleApprove = (item: ApprovalTaskItem) => {
@@ -199,14 +202,15 @@ export function ApprovalTable({
                           </TableRow>,
                         );
                         for (const item of items) {
-                          const isExpanded = expandedId === item.timesheet_id;
+                          const itemKey = getTaskKey(item);
+                          const isExpanded = expandedKey === itemKey;
                           rows.push(
                             <ApprovalRow
-                              key={item.task_id || item.timesheet_id}
+                              key={itemKey}
                               item={item}
                               isExpanded={isExpanded}
                               onToggle={() =>
-                                setExpandedId(isExpanded ? null : item.timesheet_id)
+                                setExpandedKey(isExpanded ? null : itemKey)
                               }
                               onApprove={handleApprove}
                               onReject={handleReject}
@@ -215,7 +219,7 @@ export function ApprovalTable({
                           if (isExpanded) {
                             rows.push(
                               <ExpandedReviewRow
-                                key={`detail-${item.timesheet_id}`}
+                                key={`detail-${itemKey}`}
                                 timesheetId={item.timesheet_id}
                                 projectId={item.project_id || null}
                                 colSpan={7}
@@ -256,26 +260,27 @@ export function ApprovalTable({
                       </TableRow>
                     )}
                     {data.reviewed.map((item) => {
-                      const isExpanded = expandedId === item.timesheet_id;
+                      const itemKey = getTaskKey(item);
+                      const isExpanded = expandedKey === itemKey;
                       return (
-                        <>
+                        <Fragment key={itemKey}>
                           <ReviewedRow
-                            key={item.timesheet_id}
                             item={item}
                             isExpanded={isExpanded}
                             onToggle={() =>
-                              setExpandedId(isExpanded ? null : item.timesheet_id)
+                              setExpandedKey(isExpanded ? null : itemKey)
                             }
                             onReopen={handleReopen}
                           />
                           {isExpanded && (
                             <ExpandedReviewRow
-                              key={`detail-${item.timesheet_id}`}
+                              key={`detail-${itemKey}`}
                               timesheetId={item.timesheet_id}
+                              projectId={item.project_id || null}
                               colSpan={7}
                             />
                           )}
-                        </>
+                        </Fragment>
                       );
                     })}
                   </TableBody>

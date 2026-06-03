@@ -14,6 +14,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
   const visibleEntries = projectId
     ? (data?.entries || []).filter((entry) => Number(entry.project_id) === Number(projectId))
     : data?.entries || [];
+  const showFullSheet = !projectId;
 
   return (
     <tr className="hover:bg-transparent">
@@ -155,6 +156,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                   </tr>
 
                   {/* Overtime row */}
+                  {showFullSheet && (
                   <tr>
                     <td className="py-1.5 text-sm font-bold text-warning">
                       加班 OT
@@ -181,6 +183,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                         .toFixed(1)}
                     </td>
                   </tr>
+                  )}
                 </tbody>
               </table>
 

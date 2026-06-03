@@ -1,7 +1,7 @@
 export const dayNames = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
 export const APP_NAME = "PSA项目成本管理系统";
-export const APP_VERSION = "V0.12.1";
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || "V0.12.3";
 export const APP_TAGLINE = "项目成本、人力投入、组织薪酬";
 
 export const holidayInfo: Record<string, { type: "rest" | "work"; name: string }> = {

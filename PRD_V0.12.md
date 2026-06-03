@@ -3,7 +3,7 @@
 ## 1. 目标
 
 建设内部工时统计系统，统一管理员工周表、项目工日、组织架构、审批、加班和项目统计。
-**V0.12 为 Supabase 全栈生产级版本，V0.12.2 已启用局域网 Realtime**，运行态完整基于 Supabase 技术栈，
+**V0.12 为 Supabase 全栈生产级版本，V0.12.3 已完成局域网 Realtime 与登录解析修复**，运行态完整基于 Supabase 技术栈，
 审批状态机通过 Postgres RPC 函数实现。
 
 - 认证：Supabase GoTrue (HS256 JWT)
@@ -94,7 +94,7 @@
 
 | 前端路径 | 实际请求 | 方式 |
 |---------|---------|------|
-| `POST /api/login` | GoTrue `/token?grant_type=password` | 中文→拼音 email 映射 |
+| `POST /api/login` | server-side resolver → GoTrue `/token?grant_type=password` | 从 profiles/employees 解析姓名、登录名、员工编号或邮箱 |
 | `GET /api/bootstrap` | PostgREST 并行查询 | currentUser + projects |
 | `GET /api/timesheet` | PostgREST 平铺查询 | timesheets + entries + overtime |
 | `POST /api/timesheet/save` | PostgREST PATCH + DELETE + POST | 先删后插 |
@@ -178,6 +178,7 @@ Browser (:8767) → SPA 静态服务 (Docker: attendance-module, :80)
 | 014 | `realtime_schema_migrations_compat.sql` | Realtime/Ecto schema_migrations 兼容 |
 | 015 | `realtime_lan_tenants.sql` | LAN/IP/localhost Realtime tenants |
 | 016 | `realtime_internal_schema.sql` | Realtime 内部 schema |
+| 017 | `service_login_resolution_grants.sql` | service_role 登录解析只读授权 |
 
 ### 7.4 部署命令
 
@@ -202,7 +203,9 @@ sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env && docker compose up -d
 | 员工列表 | hr_employee_current_view 加 DISTINCT ON 去重；每人仅保留最新一条 is_current contract/salary |
 | 员工角色 | listEmployees() 从 user_roles 表读实际 role（不再是硬编码 "employee"） |
 | 新增员工 | `POST /api/create-employee-with-login` 单接口原子操作：校验admin→GoTrue建用户→写6表→绑UUID，失败回滚 |
-| 密码安全 | DEFAULT_INITIAL_PASSWORD 从环境变量读取，不硬编码，不提交 Git，不返回给前端 |
+| 登录解析 | **V0.12.3**：登录入口改为后端解析，支持姓名、登录名、员工编号、邮箱登录，不再依赖前端硬编码姓名映射 |
+| 初始密码 | **V0.12.3**：新增员工成功后返回并提示真实登录名和初始密码；现有与未来账号默认密码统一由 NAS `.env` 的 `DEFAULT_INITIAL_PASSWORD` 控制 |
+| 密码安全 | DEFAULT_INITIAL_PASSWORD 从环境变量读取，不硬编码、不提交 Git；新增员工创建成功时仅向管理员前端提示一次 |
 | 改密 | 支持登录页(login参数)和已登录(JWT)两种模式；改密后置 must_change_password=false |
 | 数据看板 | 分析页图表加数值标签（13px, 常驻, 0 值隐藏）；默认"总计—所有项目"+"年"；项目名显示名称 |
 | 序列修复 | workflow_tasks_id_seq 等从 1 重置到 MAX(id)（修复 duplicate key 错误） |

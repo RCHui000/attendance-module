@@ -41,6 +41,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if self._proxy_supabase(): return
         super().do_HEAD()
     def do_POST(self) -> None:
+        if self.path == "/api/login":
+            self._handle_login()
+            return
         if self.path == "/api/create-employee-with-login":
             self._handle_create_employee()
             return
@@ -138,6 +141,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({
                 "ok": True, "employee_id": employee_id,
                 "login_name": login_name,
+                "initial_password": password,
             }).encode())
 
         except urllib.error.HTTPError as e:
@@ -256,6 +260,45 @@ class SpaHandler(SimpleHTTPRequestHandler):
     def _q(s: str) -> str:
         return urllib.request.quote(str(s), safe="")
 
+    def _handle_login(self) -> None:
+        """POST /api/login {login, password}
+        Resolve login/profile/employee aliases server-side, then authenticate with GoTrue.
+        """
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            body = json.loads(self.rfile.read(length)) if length else {}
+            login = (body.get("login") or "").strip()
+            password = body.get("password") or ""
+            if not login or not password:
+                self._json_error(400, "login and password required"); return
+
+            email = self._login_to_email(login)
+            req_body = json.dumps({
+                "email": email,
+                "password": password,
+                "gotrue_meta_security": {},
+            }).encode()
+            req = urllib.request.Request(
+                f"{GOTRUE_URL}/token?grant_type=password",
+                data=req_body,
+                headers={"Content-Type": "application/json"},
+            )
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read())
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "ok": True,
+                "token": data.get("access_token"),
+            }).encode())
+
+        except urllib.error.HTTPError as e:
+            self._json_error(e.code, "Invalid login credentials" if e.code == 400 else e.read().decode()[:200])
+        except Exception as e:
+            self._json_error(500, str(e))
+
     def _handle_change_password(self) -> None:
         """POST /api/change-password {oldPassword, newPassword}
         Verify old → change via GoTrue → clear must_change_password."""
@@ -313,17 +356,30 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self._json_error(500, str(e))
 
     def _login_to_email(self, login: str) -> str:
-        """Map login name to GoTrue email (same mapping as loginEmail in api.ts)."""
-        mapping = {
-            "admin": "admin@psa.local", "鞠松松": "jss@psa.local",
-            "惠若超": "huirouchao@psa.local", "王长志": "wangchangzhi@psa.local",
-            "陈京京": "chenjingjing@psa.local", "赵嘉琪": "zhaojiaqi@psa.local",
-            "储小海": "chuxiaohai@psa.local", "韩文治": "hanwenzhi@psa.local",
-            "温利峰": "wenlifeng@psa.local",
-        }
-        if login in mapping:
-            return mapping[login]
-        return f"{login}@psa.local"
+        """Resolve login aliases from DB instead of relying on frontend hardcoding."""
+        value = (login or "").strip()
+        if "@" in value and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+            return value.lower()
+
+        for field in ("login_name", "display_name"):
+            rows = self._rest_get(
+                f"/profiles?select=auth_email&{field}=eq.{self._q(value)}&is_active=eq.true&limit=1",
+            )
+            if rows and rows[0].get("auth_email"):
+                return rows[0]["auth_email"]
+
+        employee_rows = self._rest_get(
+            f"/employees?select=auth_user_id&or=(name.eq.{self._q(value)},employee_no.eq.{self._q(value)})&is_active=eq.true&limit=1",
+        )
+        if employee_rows and employee_rows[0].get("auth_user_id"):
+            profile_rows = self._rest_get(
+                f"/profiles?select=auth_email&auth_user_id=eq.{self._q(employee_rows[0]['auth_user_id'])}&limit=1",
+            )
+            if profile_rows and profile_rows[0].get("auth_email"):
+                return profile_rows[0]["auth_email"]
+
+        local = re.sub(r"[^A-Za-z0-9._+-]+", "", value).strip(".").lower()
+        return f"{local or value}@psa.local"
 
     def _jwt_email(self, token_str: str) -> str | None:
         try:

@@ -48,49 +48,9 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-async function auth<T>(path: string, body?: unknown, method = "POST"): Promise<T> {
-  const response = await fetch(`${AUTH_URL}${path}`, {
-    method,
-    headers: authHeaders(body != null),
-    body: body == null ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(data?.msg || data?.message || text || "Auth request failed");
-  }
-  return data as T;
-}
-
 function payload(options: RequestInit): AnyRow {
   if (!options.body) return {};
   return typeof options.body === "string" ? JSON.parse(options.body) : options.body as AnyRow;
-}
-
-// V0.11 login_name → GoTrue auth_email mapping
-// GoTrue rejects non-ASCII emails, so Chinese names use pinyin
-const LOGIN_EMAIL_MAP: Record<string, string> = {
-  "admin": "admin@psa.local",
-  "鞠松松": "jss@psa.local",
-  "惠若超": "huirouchao@psa.local",
-  "王长志": "wangchangzhi@psa.local",
-  "陈京京": "chenjingjing@psa.local",
-  "赵嘉琪": "zhaojiaqi@psa.local",
-  "储小海": "chuxiaohai@psa.local",
-  "韩文治": "hanwenzhi@psa.local",
-  "温利峰": "wenlifeng@psa.local",
-  "张天良": "hr001@psa.local",
-  "HR001": "hr001@psa.local",
-};
-
-function loginEmail(login: string): string {
-  const value = String(login || "").trim();
-  // Already an email
-  if (value.includes("@")) return value;
-  // Look up known mapping
-  if (LOGIN_EMAIL_MAP[value]) return LOGIN_EMAIL_MAP[value];
-  // Fallback: ascii names (e.g. "admin")
-  return `${value}@psa.local`;
 }
 
 function decodeJwt(): AnyRow | null {
@@ -624,7 +584,12 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
       throw new Error(data.message || "Failed to create employee");
     }
     // Return initial password to caller (UI can show it once)
-    return { ok: true, employees: await listEmployees(), initialPassword: data.initial_password };
+    return {
+      ok: true,
+      employees: await listEmployees(),
+      loginName: data.login_name,
+      initialPassword: data.initial_password,
+    };
   }
 
   // Edit existing employee: direct PostgREST writes
@@ -645,10 +610,17 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   const url = new URL(path, window.location.origin);
   const body = payload(options);
   if (url.pathname === "/api/login") {
-    const email = loginEmail(body.login);
-    const data = await auth<{ access_token: string }>("/token?grant_type=password", { email, password: body.password, gotrue_meta_security: {} });
-    setStoredToken(data.access_token);
-    return { ok: true, token: data.access_token } as T;
+    const resp = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login: body.login, password: body.password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.message || "Invalid login credentials");
+    }
+    setStoredToken(data.token);
+    return { ok: true, token: data.token } as T;
   }
   if (url.pathname === "/api/logout") {
     clearStoredToken();

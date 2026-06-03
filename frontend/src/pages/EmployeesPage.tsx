@@ -156,8 +156,22 @@ export default function EmployeesPage() {
     };
 
     try {
-      await saveEmployee.mutateAsync(payload);
-      toast.success("员工信息已保存");
+      const result = await saveEmployee.mutateAsync(payload) as {
+        loginName?: string;
+        login_name?: string;
+        initialPassword?: string;
+        initial_password?: string;
+      } | undefined;
+      const loginName = result?.loginName || result?.login_name;
+      const initialPassword = result?.initialPassword || result?.initial_password;
+      if (!editData.id && loginName && initialPassword) {
+        toast.success("员工已创建", {
+          description: `登录名：${loginName}，初始密码：${initialPassword}`,
+          duration: 12000,
+        });
+      } else {
+        toast.success("员工信息已保存");
+      }
       setEditingId(null);
       setEditData(null);
       setSelectedId(null);

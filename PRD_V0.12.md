@@ -213,6 +213,7 @@ sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env && docker compose up -d
 | FK | 补 timesheets.user_id→employees FK；workflow_tasks FK 因孤儿数据未完成 |
 | GoTrue | 配置 CORS；禁用 signup；中文名→拼音 email 映射 |
 | 前端 | Topbar 移除无效修改密码按钮；登录页改密支持 login 参数 |
+| 周表路由重算 | **V0.12.6**：管理员调整项目负责人后，系统自动重算仍处于 submitted 且未终审周表的项目审批路由；保留审批历史，并将已不再有效的旧负责人审批标记为 superseded |
 | Realtime | **V0.12.2 已启用**：Supabase Realtime + wal2json + logical publication；BroadcastChannel 与短轮询作为 fallback |
 
 ## 9. 已知边界

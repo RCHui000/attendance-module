@@ -636,6 +636,10 @@ async function projectDetail(projectId: string, startDate: string, endDate: stri
 }
 
 async function saveProject(body: AnyRow): Promise<AnyRow> {
+  const projectId = body.id ? Number(body.id) : null;
+  const existingProject = projectId
+    ? await rest<AnyRow[]>(`/projects?select=id,project_owner_id&id=eq.${projectId}&limit=1`)
+    : [];
   const row = {
     code: body.code,
     name: body.name,
@@ -645,8 +649,19 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     project_owner_id: body.projectOwnerId || body.project_owner_id || null,
     status: "active",
   };
-  if (body.id) {
-    await rest(`/projects?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify(row) });
+  if (projectId) {
+    await rest(`/projects?id=eq.${projectId}`, { method: "PATCH", body: JSON.stringify(row) });
+    const previousOwnerId = existingProject[0]?.project_owner_id ? Number(existingProject[0].project_owner_id) : null;
+    const nextOwnerId = row.project_owner_id ? Number(row.project_owner_id) : null;
+    if (previousOwnerId !== nextOwnerId) {
+      await rest("/rpc/psa_refresh_project_timesheet_routes", {
+        method: "POST",
+        body: JSON.stringify({
+          p_project_id: projectId,
+          p_reason: "Route refreshed after project owner change",
+        }),
+      });
+    }
   } else {
     // Check for duplicate project code before inserting
     const existing = await rest<AnyRow[]>(

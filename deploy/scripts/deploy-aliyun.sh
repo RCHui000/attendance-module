@@ -30,6 +30,11 @@ echo "== Build and start containers =="
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" build
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d
 
+echo "== Apply GoTrue compatibility views =="
+docker exec -i "${POSTGRES_CONTAINER_NAME:-approval-postgres}" \
+  psql -U postgres -d "${POSTGRES_DB:-psa}" \
+  < deploy/sql/gotrue-public-compat.sql
+
 echo "== Container status =="
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" ps
 

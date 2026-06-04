@@ -14,6 +14,7 @@ if [ -f "${ENV_FILE}" ]; then
 fi
 
 POSTGRES_USER="${POSTGRES_USER:-psa_admin}"
+POSTGRES_USER="${POSTGRES_USER//$'\r'/}"
 mkdir -p "${BACKUP_DIR}"
 chmod 700 "${BACKUP_DIR}"
 

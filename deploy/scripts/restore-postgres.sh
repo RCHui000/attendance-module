@@ -19,6 +19,7 @@ if [ -f "${ENV_FILE}" ]; then
 fi
 
 POSTGRES_USER="${POSTGRES_USER:-psa_admin}"
+POSTGRES_USER="${POSTGRES_USER//$'\r'/}"
 
 if [ ! -f "${BACKUP_FILE}" ]; then
   echo "Backup file not found: ${BACKUP_FILE}" >&2

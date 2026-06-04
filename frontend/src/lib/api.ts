@@ -167,17 +167,28 @@ async function currentUser(): Promise<AnyRow | null> {
   const sub = decodeJwt()?.sub;
   if (!sub) return null;
   const rows = await rest<AnyRow[]>(
-    `/employees?select=id,name,is_active,employee_profiles_v2(org_id,organizations(org_name)),user_roles(role)&auth_user_id=eq.${encodeURIComponent(sub)}&limit=1`,
+    `/employees?select=id,name,is_active&auth_user_id=eq.${encodeURIComponent(sub)}&limit=1`,
   );
   const row = rows[0];
   if (!row) return null;
-  const profile = Array.isArray(row.employee_profiles_v2) ? row.employee_profiles_v2[0] : row.employee_profiles_v2;
-  const roleRow = Array.isArray(row.user_roles) ? row.user_roles[0] : row.user_roles;
+  const roles = await rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`);
+  let department = "";
+  try {
+    const profiles = await rest<AnyRow[]>(`/employee_profiles_v2?select=org_id&employee_id=eq.${row.id}&limit=1`);
+    const profile = profiles[0];
+    const orgRows = profile?.org_id
+      ? await rest<AnyRow[]>(`/organizations?select=org_name&id=eq.${profile.org_id}&limit=1`)
+      : [];
+    department = orgRows[0]?.org_name || "";
+  } catch {
+    department = "";
+  }
+  const roleRow = roles[0];
   return {
     id: Number(row.id),
     name: row.name,
     role: roleRow?.role || "employee",
-    department: profile?.organizations?.org_name || "",
+    department,
     is_active: row.is_active ? 1 : 0,
   };
 }
@@ -238,21 +249,23 @@ async function organizations(): Promise<AnyRow[]> {
 }
 
 async function projects(): Promise<AnyRow[]> {
-  const [rows, orgs, employees, labor] = await Promise.all([
+  const [rows, orgs, employees, labor, sheets] = await Promise.all([
     rest<AnyRow[]>("/projects?select=*&status=neq.deleted&order=code.asc"),
     rest<AnyRow[]>("/organizations?select=id,org_name"),
     rest<AnyRow[]>("/employees?select=id,name"),
-    rest<AnyRow[]>("/timesheet_entries?select=id,project_id,hours,timesheets(status)"),
+    rest<AnyRow[]>("/timesheet_entries?select=id,project_id,timesheet_id,hours"),
+    rest<AnyRow[]>("/timesheets?select=id,status"),
   ]);
   const orgNames = new Map(orgs.map((o) => [Number(o.id), o.org_name]));
   const employeeNames = new Map(employees.map((e) => [Number(e.id), e.name]));
+  const sheetMap = new Map(sheets.map((sheet) => [Number(sheet.id), sheet]));
   const hours = new Map<number, number>();
   const seenEntryIds = new Set<number>();
   for (const item of labor) {
     const entryId = Number(item.id);
     if (entryId && seenEntryIds.has(entryId)) continue;
     if (entryId) seenEntryIds.add(entryId);
-    if (!isReportableTimesheet(item.timesheets)) continue;
+    if (!isReportableTimesheet(sheetMap.get(Number(item.timesheet_id)))) continue;
     const projectId = Number(item.project_id);
     hours.set(projectId, (hours.get(projectId) || 0) + Number(item.hours || 0));
   }

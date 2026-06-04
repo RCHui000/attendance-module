@@ -49,6 +49,68 @@
 - `reopen` → 清空审批状态回到 draft
 - 前端通过 PostgREST `/rpc/psa_*` 调用，不直接 PATCH 业务表
 
+### 4.1 项目块审批状态模型（规划口径）
+
+周表按项目拆分后，审批状态应以“项目块”为最小业务单元，`workflow_tasks` 只表示“当前谁需要处理”，不应承担全部业务状态。后续建议新增 `timesheet_project_reviews` 表，用于记录每张周表中每个项目块的当前状态、有效审批人、退回原因和历史版本。
+
+项目块建议状态：
+
+| 状态 | 含义 | 是否锁定 |
+|------|------|----------|
+| `pending` | 等待当前项目负责人审批 | 是 |
+| `approved` | 项目负责人已通过，审批结果有效 | 是 |
+| `needs_revision` | 被退回给员工修改 | 否，仅该项目块可编辑 |
+| `needs_reapproval` | 因人工要求重审，需按当前负责人重新审批 | 是 |
+| `cancelled` | 本轮待办被流程刷新取消 | 是 |
+
+整张周表状态保持精简：
+
+| 状态 | 含义 |
+|------|------|
+| `draft` | 员工草稿，可编辑 |
+| `submitted` | 已提交，至少存在待审批项目块或部门汇总待办 |
+| `revision_required` | 存在被退回项目块，员工需修改后重新提交 |
+| `approved` | 项目负责人全通过且部门负责人汇总确认通过 |
+
+### 4.2 退回、撤回与重审规则（规划口径）
+
+1. 项目负责人未通过前退回：
+   项目负责人可以退回自己负责的项目块。被退回项目块进入 `needs_revision`，整张周表进入 `revision_required`。员工只允许修改被退回的项目块；其他已通过项目块保持锁定并继续有效。
+
+2. 项目负责人已通过、部门负责人未最终通过前撤回：
+   项目负责人发现问题时，应执行“撤回项目审批”。该项目块由 `approved` 改为 `needs_revision`，部门汇总待办取消，整张周表进入 `revision_required`。员工修改后重新提交时，只重新路由被撤回项目块，其他已通过项目块不重审。
+
+3. 部门负责人汇总阶段退回：
+   部门负责人退回时必须选择一个或多个问题项目块并填写原因。被选中的项目块进入 `needs_revision`，未被选中且已通过的项目块保持 `approved`。员工修改后重新提交，只重新路由问题项目块；所有问题项目块再次通过后，重新生成部门汇总待办。
+
+4. 审批全部通过后发现问题：
+   已 `approved` 的周表原则上是正式记录。若确需修正，应由管理员执行“重开修订”，生成新一轮修订状态和审计日志；原审批记录保留，不物理删除。重开后可选择具体项目块进入 `needs_revision` 或 `needs_reapproval`。
+
+5. 项目负责人变更：
+   项目负责人变更是正常业务事件，不自动否定变更前已经完成且有效的审批。系统只刷新未完成的待办；已 `approved` 的项目块保持有效。只有管理员或部门负责人明确点击“要求重审”时，指定项目块才进入 `needs_reapproval`，并按当前项目负责人重新路由。
+
+6. 审计要求：
+   所有退回、撤回、重审、重开动作必须写入 `approval_logs`，记录操作者、原因、原状态、目标状态、影响的项目块和时间。历史审批结果保留为审计链，不作为当前待办重复出现。
+
+### 4.3 Adaptive Approval Graph（V0.12.8 运行态基础）
+
+V0.12.8 将审批架构升级为 Adaptive Approval Graph 的旁路运行态。现阶段 `workflow_tasks` 仍是现有审批中心和 `psa_timesheet_action` 的执行队列，`approval_*` 图表作为可追溯、可检查、可渐进接管的审批结构层。
+
+核心口径：
+
+- `approval_instances`：一张业务单据的整个审批生命周期。同一 `target_type + target_id` 只对应一个 instance。
+- `approval_rounds`：某一次提交、退回后重提、重开修订形成的审批轮次。退回重提不新建 instance，只递增 round。
+- `approval_nodes`：某一轮中的审批节点，例如项目负责人审批节点、部门汇总节点。
+- `approval_edges`：节点依赖关系，例如全部项目节点通过后激活部门汇总。
+- `approval_events`：跨 instance 全生命周期的追加式事件日志。
+
+V0.12.8 的边界：
+
+- 不替换审批中心 UI。
+- 不替换 `workflow_tasks` 和现有 RPC。
+- 不实现项目经理撤回、部门负责人选择性退回、通过后重开修订 UI。
+- 通过触发器把旧审批状态同步为图结构；同步失败不得阻断旧审批动作。
+
 ## 5. 数据表
 
 ### public schema
@@ -65,8 +127,14 @@
 | projects | 项目基础 + 负责人 | ✅ |
 | timesheets | 周表 | ⚠️ user_id FK 缺失 |
 | timesheet_entries | 周表明细 | ✅ |
+| timesheet_project_reviews | 周表项目块审批状态（规划新增） | 规划 |
 | overtime_entries | 加班记录 | ✅ |
 | workflow_tasks | 审批任务队列 | ⚠️ FK 缺失,已手动补 |
+| approval_instances | Adaptive Approval Graph：单据审批生命周期实例 | ✅ |
+| approval_rounds | Adaptive Approval Graph：提交/重提/重开轮次 | ✅ |
+| approval_nodes | Adaptive Approval Graph：审批节点 | ✅ |
+| approval_edges | Adaptive Approval Graph：节点依赖边 | ✅ |
+| approval_events | Adaptive Approval Graph：生命周期事件日志 | ✅ |
 | approval_logs | 审批日志 | ✅ |
 | audit_logs | 审计日志 | ✅ |
 | hr_employee_current_view | 员工统一视图 (DISTINCT ON) | ✅ |
@@ -179,6 +247,12 @@ Browser (:8767) → SPA 静态服务 (Docker: attendance-module, :80)
 | 015 | `realtime_lan_tenants.sql` | LAN/IP/localhost Realtime tenants |
 | 016 | `realtime_internal_schema.sql` | Realtime 内部 schema |
 | 017 | `service_login_resolution_grants.sql` | service_role 登录解析只读授权 |
+| 018 | `migrate_timesheet_manager_role.sql` | 历史审批角色归一化 |
+| 019 | `timesheet_project_workflow.sql` | 周表按项目负责人并行审批 + 部门汇总 |
+| 020 | `timesheet_summary_collapse.sql` | 同一审批人项目审批与部门汇总合并 |
+| 021 | `timesheet_route_refresh.sql` | 项目负责人变更后刷新未完成路由 |
+| 022 | `keep_completed_project_approvals.sql` | 负责人变更时保留已完成项目审批有效性 |
+| 023 | `adaptive_approval_graph.sql` | Adaptive Approval Graph 表、同步函数、触发器和历史回填 |
 
 ### 7.4 部署命令
 
@@ -214,6 +288,8 @@ sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env && docker compose up -d
 | GoTrue | 配置 CORS；禁用 signup；中文名→拼音 email 映射 |
 | 前端 | Topbar 移除无效修改密码按钮；登录页改密支持 login 参数 |
 | 周表路由重算 | **V0.12.7**：管理员调整项目负责人后，系统自动重算仍处于 submitted 且未终审周表的项目审批路由；变动前已通过的项目审批保持有效，仅重派未完成的项目待办 |
+| 周表退回/重审规划 | 明确项目块级审批状态模型：项目经理撤回、部门负责人按项目块退回、已通过后重开修订、负责人变更后人工要求重审等组合场景 |
+| Adaptive Approval Graph | **V0.12.8**：新增 approval_instances / approval_rounds / approval_nodes / approval_edges / approval_events；现阶段作为 workflow_tasks 的旁路图模型和审计结构层 |
 | Realtime | **V0.12.2 已启用**：Supabase Realtime + wal2json + logical publication；BroadcastChannel 与短轮询作为 fallback |
 
 ## 9. 已知边界

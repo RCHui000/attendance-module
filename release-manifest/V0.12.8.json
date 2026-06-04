@@ -1,0 +1,46 @@
+{
+  "version": "V0.12.8",
+  "runtime": "reverse-proxy-lan-preproduction",
+  "frontend": "React + Vite static bundle",
+  "database": {
+    "provider": "Supabase Postgres compatible PostgreSQL 16",
+    "image": "psa-postgres:16-alpine-wal2json",
+    "auth": "Supabase GoTrue",
+    "rest": "PostgREST",
+    "realtime": "Supabase Realtime"
+  },
+  "deployment_target": "lan-reverse-proxy-cloud-preflight",
+  "base_version": "V0.12.7",
+  "required_migrations": [
+    "001_v0.11_schema.sql",
+    "002_v0.11_rls.sql",
+    "003_v0.11_policies_fk_fixes.sql",
+    "004_full_supabase_runtime.sql",
+    "005_fix_auth_user_claims.sql",
+    "006_grant_service_schema_permissions.sql",
+    "007_fix_postgrest_rls_runtime.sql",
+    "008_remove_recursive_employee_policies.sql",
+    "009_report_dedup_constraints.sql",
+    "010_timesheet_workflow_rpc.sql",
+    "011_overtime_rpc.sql",
+    "012_admin_employee_create_rls.sql",
+    "013_realtime_publication.sql",
+    "014_realtime_schema_migrations_compat.sql",
+    "015_realtime_lan_tenants.sql",
+    "016_realtime_internal_schema.sql",
+    "017_service_login_resolution_grants.sql",
+    "018_migrate_timesheet_manager_role.sql",
+    "019_timesheet_project_workflow.sql",
+    "020_timesheet_summary_collapse.sql",
+    "021_timesheet_route_refresh.sql",
+    "022_keep_completed_project_approvals.sql",
+    "023_adaptive_approval_graph.sql"
+  ],
+  "release_notes": [
+    "Add Adaptive Approval Graph tables for approval instances, rounds, nodes, edges, and events.",
+    "Keep workflow_tasks and the existing psa_timesheet_action RPC as the production execution path while graph tables act as a synchronized read model.",
+    "Add non-blocking synchronization triggers from timesheets and workflow_tasks into the graph model.",
+    "Backfill graph records for existing timesheets with workflow history.",
+    "Preserve V0.12.7 behavior: project owner changes do not invalidate completed project approvals."
+  ]
+}

@@ -40,6 +40,19 @@ export interface ReportEmployee {
   total_hours: number;
 }
 
+export interface LaborMatrixRow {
+  employee_id: number;
+  employee_name: string;
+  department: string;
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  total_hours: number;
+  work_days: number;
+  daily_rate: number;
+  labor_cost: number;
+}
+
 export interface ProjectBase {
   id: number;
   code: string;

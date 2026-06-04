@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { publishLocalSync } from "@/hooks/useRealtime";
 import type {
+  LaborMatrixRow,
   ReportData,
   ProjectBase,
   ProjectDetailEmployee,
@@ -42,6 +43,21 @@ export function useProjectDetail(
         `/api/project-detail?projectId=${projectId}&startDate=${startDate}&endDate=${endDate}`,
       ),
     enabled: !!(projectId && startDate && endDate),
+  });
+}
+
+export function useLaborMatrix(params: {
+  startDate: string;
+  endDate: string;
+}) {
+  return useQuery({
+    queryKey: ["reports", "labor-matrix", params.startDate, params.endDate],
+    queryFn: () =>
+      api<LaborMatrixRow[]>(
+        `/api/reports/labor-matrix?startDate=${params.startDate}&endDate=${params.endDate}`,
+      ),
+    enabled: !!(params.startDate && params.endDate),
+    refetchInterval: 30_000,
   });
 }
 

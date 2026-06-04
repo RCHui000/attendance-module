@@ -151,6 +151,13 @@ function isReportableTimesheet(sheet?: AnyRow | null): sheet is AnyRow {
   return !!sheet && REPORTABLE_TIMESHEET_STATUSES.has(String(sheet.status || ""));
 }
 
+function employeeDailyRate(emp?: AnyRow | null): number {
+  if (!emp) return 0;
+  if (emp.contract_type === "service") return Number(emp.daily_wage || 0);
+  const workdays = Number(emp.standard_monthly_workdays || 21.75);
+  return Number(emp.monthly_salary || 0) / (workdays || 21.75);
+}
+
 async function nextId(table: string): Promise<number> {
   const rows = await rest<AnyRow[]>(`/${table}?select=id&order=id.desc&limit=1`);
   return Number(rows[0]?.id || 0) + 1;
@@ -635,6 +642,70 @@ async function projectDetail(projectId: string, startDate: string, endDate: stri
   return Array.from(byUser.values()).map((row) => ({ name: row.name, department: row.department, total_hours: row.total, work_days: row.days.size }));
 }
 
+async function laborMatrix(startDate: string, endDate: string): Promise<AnyRow[]> {
+  const [entries, sheets, projectRows, employees] = await Promise.all([
+    rest<AnyRow[]>(`/timesheet_entries?select=id,project_id,timesheet_id,work_date,hours&work_date=gte.${startDate}&work_date=lte.${endDate}`),
+    rest<AnyRow[]>("/timesheets?select=id,user_id,status"),
+    rest<AnyRow[]>("/projects?select=id,code,name,status&status=neq.deleted"),
+    listEmployees(),
+  ]);
+  const sheetMap = new Map(sheets.map((sheet) => [Number(sheet.id), sheet]));
+  const projectMap = new Map(projectRows.map((project) => [Number(project.id), project]));
+  const employeeMap = new Map(employees.map((employee) => [Number(employee.id), employee]));
+  const seenEntryIds = new Set<number>();
+  const byEmployeeProject = new Map<
+    string,
+    {
+      employeeId: number;
+      projectId: number;
+      total: number;
+      days: Set<string>;
+    }
+  >();
+
+  for (const entry of entries) {
+    const entryId = Number(entry.id);
+    if (entryId && seenEntryIds.has(entryId)) continue;
+    if (entryId) seenEntryIds.add(entryId);
+    const sheet = sheetMap.get(Number(entry.timesheet_id));
+    if (!isReportableTimesheet(sheet)) continue;
+    const employeeId = Number(sheet.user_id);
+    const projectId = Number(entry.project_id);
+    const key = `${employeeId}:${projectId}`;
+    if (!byEmployeeProject.has(key)) {
+      byEmployeeProject.set(key, {
+        employeeId,
+        projectId,
+        total: 0,
+        days: new Set<string>(),
+      });
+    }
+    const row = byEmployeeProject.get(key)!;
+    row.total += Number(entry.hours || 0);
+    if (entry.work_date) row.days.add(entry.work_date);
+  }
+
+  return Array.from(byEmployeeProject.values())
+    .map((row) => {
+      const employee = employeeMap.get(row.employeeId);
+      const project = projectMap.get(row.projectId);
+      const dailyRate = employeeDailyRate(employee);
+      return {
+        employee_id: row.employeeId,
+        employee_name: employee?.name || "",
+        department: employee?.org_name || employee?.department || "未分配部门",
+        project_id: row.projectId,
+        project_code: project?.code || "",
+        project_name: project?.name || "",
+        total_hours: row.total,
+        work_days: row.days.size,
+        daily_rate: dailyRate,
+        labor_cost: Math.round(row.total * dailyRate),
+      };
+    })
+    .filter((row) => row.employee_name && row.project_name);
+}
+
 async function saveProject(body: AnyRow): Promise<AnyRow> {
   const projectId = body.id ? Number(body.id) : null;
   const existingProject = projectId
@@ -800,6 +871,11 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
     const startDate = url.searchParams.get("startDate") || url.searchParams.get("weekStart") || todayMonday();
     const endDate = url.searchParams.get("endDate") || weekDays(startDate)[6];
     return weeklyReport(startDate, endDate) as T;
+  }
+  if (url.pathname === "/api/reports/labor-matrix") {
+    const startDate = url.searchParams.get("startDate") || url.searchParams.get("weekStart") || todayMonday();
+    const endDate = url.searchParams.get("endDate") || weekDays(startDate)[6];
+    return laborMatrix(startDate, endDate) as T;
   }
   if (url.pathname === "/api/project-detail") {
     return projectDetail(url.searchParams.get("projectId") || "0", url.searchParams.get("startDate") || todayMonday(), url.searchParams.get("endDate") || todayMonday()) as T;

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useDashboard } from "@/hooks/useProjects";
 import { MetricCards } from "@/components/dashboard/MetricCards";
 import { DashboardTable } from "@/components/dashboard/DashboardTable";
-import { AnalyticsTab } from "@/components/dashboard/AnalyticsTab";
+import { BiPerspectiveTab } from "@/components/dashboard/BiPerspectiveTab";
 import {
   PeriodFilter,
   computePeriodDates,
@@ -198,10 +198,9 @@ export default function DashboardPage() {
           {/* ---- Analytics Tab ---- */}
           {activeTab === "analytics" && (
             <section aria-label="分析">
-              <AnalyticsTab
-                projects={data.projects}
-                totalLaborHours={data.totalLaborHours}
-                totalLaborCost={data.totalLaborCost}
+              <BiPerspectiveTab
+                startDate={dates.startDate}
+                endDate={dates.endDate}
               />
             </section>
           )}

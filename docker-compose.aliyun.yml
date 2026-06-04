@@ -1,0 +1,156 @@
+services:
+  postgres:
+    build: ./supabase-psa/postgres-wal2json
+    image: psa-postgres:16-alpine-wal2json
+    container_name: approval-postgres
+    restart: unless-stopped
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-psa}
+      POSTGRES_USER: ${POSTGRES_USER:-psa_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${POSTGRES_DATA_DIR:-/opt/approval-app/data/postgres}:/var/lib/postgresql/data
+    networks:
+      - approval-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-psa_admin} -d ${POSTGRES_DB:-psa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gotrue:
+    image: supabase/gotrue:v2.164.0
+    container_name: approval-gotrue
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-psa_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-psa}?sslmode=disable
+      GOTRUE_SITE_URL: ${GOTRUE_SITE_URL}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_EXP: ${GOTRUE_JWT_EXP:-86400}
+      GOTRUE_DISABLE_SIGNUP: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_ADMIN_EMAIL: ${GOTRUE_SMTP_ADMIN_EMAIL:-admin@your-domain.com}
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: "false"
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL}
+      GOTRUE_EXTERNAL_URL: ${API_EXTERNAL_URL}
+      GOTRUE_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      GOTRUE_CORS_ALLOWED_HEADERS: apikey,authorization,content-type,x-client-info
+      GOTRUE_CORS_ALLOWED_METHODS: GET,POST,PUT,DELETE,OPTIONS
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - approval-internal
+
+  realtime:
+    image: supabase/realtime:v2.30.34
+    container_name: approval-realtime
+    restart: unless-stopped
+    environment:
+      APP_NAME: approval-realtime
+      PORT: 4000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-psa_admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-psa}
+      DB_SSL: "false"
+      SECURE_CHANNELS: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      API_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      DB_ENC_KEY: ${DB_ENC_KEY}
+      RLIMIT_NOFILE: "10000"
+      SEED_SELF_HOST: "false"
+      REPLICATION_MODE: RLS
+      REPLICATION_POLL_INTERVAL: 100
+      PUBLICATIONS: "[\"supabase_realtime\"]"
+      SLOT_NAME: approval_realtime_slot
+      TEMPORARY_SLOT: "false"
+      REALTIME_IP_VERSION: ipv4
+      DB_IP_VERSION: ipv4
+      SUBSCRIPTION_SYNC_INTERVAL: 1000
+      MAX_CHANGES: 100
+      MAX_RECORD_BYTES: 1048576
+      EXPOSE_METRICS: "false"
+    ulimits:
+      nofile:
+        soft: 10000
+        hard: 10000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - approval-internal
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: approval-postgrest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-psa_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-psa}
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - approval-internal
+
+  app:
+    build: .
+    image: approval-app:${APP_IMAGE_TAG:-latest}
+    container_name: approval-app
+    restart: unless-stopped
+    environment:
+      SUPABASE_AUTH_URL: http://gotrue:9999
+      SUPABASE_REST_URL: http://postgrest:3000
+      GOTRUE_URL: http://gotrue:9999
+      JWT_SECRET: ${JWT_SECRET}
+      DEFAULT_INITIAL_PASSWORD: ${DEFAULT_INITIAL_PASSWORD}
+    depends_on:
+      gotrue:
+        condition: service_started
+      postgrest:
+        condition: service_started
+    networks:
+      - approval-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:80/', timeout=3).read(1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: approval-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/app.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${NGINX_BACKUP_DIR:-/opt/approval-app/nginx}/certbot/www:/var/www/certbot:ro
+      - ${NGINX_BACKUP_DIR:-/opt/approval-app/nginx}/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - approval-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep -q ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  approval-internal:
+    driver: bridge

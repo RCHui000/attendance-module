@@ -172,7 +172,7 @@ async function currentUser(): Promise<AnyRow | null> {
   const row = rows[0];
   if (!row) return null;
   const roles = await rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`);
-  let department = "";
+  let department: string;
   try {
     const profiles = await rest<AnyRow[]>(`/employee_profiles_v2?select=org_id&employee_id=eq.${row.id}&limit=1`);
     const profile = profiles[0];
@@ -468,10 +468,11 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
   // Fetch ALL pending tasks (not filtered by week — approval center shows everything)
   // Flat queries — avoid PostgREST embedded resources that need missing FKs
-  const [tasks, reviewedTasks, employees, entries] = await Promise.all([
+  const [tasks, reviewedTasks, employees, employeeProfiles, entries] = await Promise.all([
     rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`),
     rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${admin ? "" : `&completed_by=eq.${user.id}`}`),
-    rest<AnyRow[]>("/employees?select=id,name,employee_profiles_v2(organizations(org_name))"),
+    rest<AnyRow[]>("/employees?select=id,name"),
+    rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
   ]);
 
@@ -501,6 +502,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     return { ...o, timesheets: ts ? { ...ts, employees: u ? { name: u.name } : null, week_start_date: ts.week_start_date } : null };
   });
   const employeeMap = new Map(employees.map((e) => [Number(e.id), e]));
+  const employeeProfileMap = new Map(employeeProfiles.map((profile) => [Number(profile.employee_id), profile]));
   const hours = new Map<number, number>();
   const projectHours = new Map<string, number>();
   for (const entry of entries) hours.set(Number(entry.timesheet_id), (hours.get(Number(entry.timesheet_id)) || 0) + Number(entry.hours || 0));
@@ -522,7 +524,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const projectMap = new Map(projectRows.map((project) => [Number(project.id), project]));
   const toItem = (sheet: AnyRow, source: AnyRow) => {
     const emp = employeeMap.get(Number(sheet.user_id));
-    const profile = Array.isArray(emp?.employee_profiles_v2) ? emp.employee_profiles_v2[0] : emp?.employee_profiles_v2;
+    const profile = employeeProfileMap.get(Number(sheet.user_id));
     const projectId = source.scope_type === "project" ? Number(source.scope_id) : null;
     const project = projectId ? projectMap.get(projectId) : null;
     return {
@@ -584,7 +586,7 @@ async function weeklyReport(startDate: string, endDate: string): Promise<AnyRow>
     rest<AnyRow[]>(`/timesheet_entries?select=id,project_id,timesheet_id,work_date,hours&work_date=gte.${startDate}&work_date=lte.${endDate}`),
     rest<AnyRow[]>("/projects?select=id,code,name"),
     rest<AnyRow[]>("/timesheets?select=id,user_id,status"),
-    rest<AnyRow[]>("/employees?select=id,name,employee_profiles_v2(organizations(org_name))"),
+    rest<AnyRow[]>("/employees?select=id,name"),
   ]);
   const projectMap = new Map(projectsData.map((p) => [Number(p.id), p]));
   const sheetMap = new Map(sheets.map((s) => [Number(s.id), s]));

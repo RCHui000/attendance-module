@@ -16,9 +16,9 @@ type SyncModule =
 const REALTIME_URL =
   import.meta.env.VITE_SUPABASE_REALTIME_URL ||
   (() => {
-    const { protocol, hostname } = window.location;
+    const { protocol, host } = window.location;
     const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
-    return `${wsProtocol}//${hostname}:8778/socket`;
+    return `${wsProtocol}//${host}/realtime/socket`;
   })();
 
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";

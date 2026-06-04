@@ -1,0 +1,16 @@
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  gotrue:
+    ports:
+      - "127.0.0.1:8777:9999"
+
+  realtime:
+    ports:
+      - "127.0.0.1:8778:4000"
+
+  postgrest:
+    ports:
+      - "127.0.0.1:8779:3000"

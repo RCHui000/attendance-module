@@ -16,3 +16,11 @@ data/
 Thumbs.db
 .env
 supabase-psa/.env
+
+# Private keys / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519

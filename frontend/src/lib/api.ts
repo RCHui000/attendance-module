@@ -492,11 +492,14 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   if (!user) throw new Error("Not authenticated");
   const admin = await isAdmin();
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
+  const reviewedTaskFilter = admin
+    ? ""
+    : `&or=(completed_by.eq.${user.id},assignee_user_id.eq.${user.id})`;
   // Fetch ALL pending tasks (not filtered by week — approval center shows everything)
   // Flat queries — avoid PostgREST embedded resources that need missing FKs
   const [tasks, reviewedTasks, employees, employeeProfiles, entries] = await Promise.all([
     rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`),
-    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${admin ? "" : `&completed_by=eq.${user.id}`}`),
+    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${reviewedTaskFilter}`),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),

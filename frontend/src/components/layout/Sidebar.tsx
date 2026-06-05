@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { view: "review", label: "审批中心", icon: ClipboardCheck, requireReview: true, requireAdmin: false },
   { view: "timesheet", label: "我的周表", icon: Calendar, requireReview: false, requireAdmin: false },
   { view: "report", label: "项目列表", icon: FolderKanban, requireReview: true, requireAdmin: false },
-  { view: "employees", label: "员工与组织", icon: Users, requireReview: false, requireAdmin: true },
+  { view: "employees", label: "员工与组织", icon: Users, requireReview: true, requireAdmin: false },
 ] as const;
 
 export function Sidebar() {

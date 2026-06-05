@@ -23,6 +23,8 @@ interface EmployeeTableProps {
   editData: EmployeeEditData | null;
   onSelect: (id: number | null) => void;
   onEdit: (id: number) => void;
+  canEditEmployee?: (employee: Employee) => boolean;
+  canEditRole?: boolean;
   onEditChange: (data: Partial<EmployeeEditData>) => void;
   onSave: () => void;
   onCancelEdit: () => void;
@@ -44,6 +46,8 @@ export function EmployeeTable({
   editData,
   onSelect,
   onEdit,
+  canEditEmployee = () => true,
+  canEditRole = true,
   onEditChange,
   onSave,
   onCancelEdit,
@@ -87,6 +91,7 @@ export function EmployeeTable({
                 orgs={orgs}
                 employees={employees}
                 isNew
+                canEditRole={canEditRole}
                 onChange={onEditChange}
                 onSave={onSave}
                 onCancel={onCancelEdit}
@@ -111,6 +116,7 @@ export function EmployeeTable({
                     orgs={orgs}
                     employees={employees}
                     isNew={false}
+                    canEditRole={canEditRole}
                     onChange={onEditChange}
                     onSave={onSave}
                     onCancel={onCancelEdit}
@@ -121,6 +127,7 @@ export function EmployeeTable({
               // Use org_name as the department display
               const deptDisplay =
                 emp.org_name || emp.department || "未分配部门";
+              const editable = canEditEmployee(emp);
 
               return (
                 <TableRow
@@ -139,8 +146,10 @@ export function EmployeeTable({
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs"
+                      disabled={!editable}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!editable) return;
                         onEdit(emp.id);
                       }}
                     >

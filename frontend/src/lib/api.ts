@@ -846,6 +846,7 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
 
   // Edit existing employee: direct PostgREST writes
   const id = Number(body.id);
+  const admin = await isAdmin();
   const contractType = body.contractType || body.contract_type || "labor";
   await rest(`/employees?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ name, employee_no: body.employeeNo || body.employee_no || `QS${String(id).padStart(6, "0")}`, is_active: (body.status || "active") !== "terminated" }) });
   await rest(`/employee_profiles_v2?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ org_id: body.orgId || body.org_id || null, position_name: body.positionName || body.position_name || "", employment_status: body.status || "active", manager_user_id: body.managerUserId || body.manager_user_id || null, hire_date: body.hireDate || body.hire_date || null }) });
@@ -853,8 +854,10 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
   await rest("/employee_contracts", { method: "POST", body: JSON.stringify([{ employee_id: id, contract_type: contractType, employment_type: body.employmentType || body.employment_type || "labor", is_current: true }]) });
   await rest(`/employee_salary_profiles?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
   await rest("/employee_salary_profiles", { method: "POST", body: JSON.stringify([{ employee_id: id, salary_mode: contractType === "service" ? "daily_wage" : "monthly_salary", monthly_salary: contractType === "service" ? 0 : Number(body.monthlySalary || body.monthly_salary || 0), daily_wage: contractType === "service" ? Number(body.dailyWage || body.daily_wage || 0) : 0, is_current: true }]) });
-  await rest(`/user_roles?employee_id=eq.${id}`, { method: "DELETE" });
-  await rest("/user_roles", { method: "POST", body: JSON.stringify([{ employee_id: id, role: body.role || "employee" }]) });
+  if (admin) {
+    await rest(`/user_roles?employee_id=eq.${id}`, { method: "DELETE" });
+    await rest("/user_roles", { method: "POST", body: JSON.stringify([{ employee_id: id, role: body.role || "employee" }]) });
+  }
   return { ok: true, employees: await listEmployees() };
 }
 

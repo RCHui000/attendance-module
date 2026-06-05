@@ -34,6 +34,7 @@ interface EmployeeEditRowProps {
   orgs: Organization[];
   employees: Employee[];
   isNew: boolean;
+  canEditRole?: boolean;
   onChange: (update: Partial<EmployeeEditData>) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -85,6 +86,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   data,
   orgs,
   employees,
+  canEditRole = true,
   onChange,
   onSave,
   onCancel,
@@ -206,7 +208,11 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
       {/* Role */}
       <td className="p-1.5">
-        <Select value={data.role || "employee"} onValueChange={(v) => onChange({ role: v || "employee" })}>
+        <Select
+          value={data.role || "employee"}
+          onValueChange={(v) => onChange({ role: v || "employee" })}
+          disabled={!canEditRole}
+        >
           <SelectTrigger className="h-8 text-sm w-[88px]">
             <SelectValue />
           </SelectTrigger>

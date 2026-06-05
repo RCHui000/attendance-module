@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -45,13 +45,13 @@ const EMPTY_EDIT_DATA: EmployeeEditData = {
 };
 
 export default function EmployeesPage() {
-  const { user: currentUser, isAdmin } = useAuthStore();
+  const { user: currentUser, isAdmin, canReview } = useAuthStore();
   const navigate = useNavigate();
 
-  // Redirect non-admin users away
+  // Redirect users without management access away
   useEffect(() => {
-    if (!isAdmin) navigate("/timesheet", { replace: true });
-  }, [isAdmin, navigate]);
+    if (!isAdmin && !canReview) navigate("/timesheet", { replace: true });
+  }, [isAdmin, canReview, navigate]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -70,6 +70,35 @@ export default function EmployeesPage() {
   const { data: orgs = [] } = useOrganizations();
   const saveEmployee = useSaveEmployee();
   const deleteEmployee = useDeleteEmployee();
+
+  const managedOrgIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (!currentUser) return ids;
+    const byParent = new Map<number, number[]>();
+    orgs.forEach((org) => {
+      if (org.parent_id) {
+        const list = byParent.get(org.parent_id) || [];
+        list.push(org.id);
+        byParent.set(org.parent_id, list);
+      }
+    });
+    const queue = orgs
+      .filter((org) => org.manager_user_id === currentUser.id)
+      .map((org) => org.id);
+    while (queue.length > 0) {
+      const id = queue.shift();
+      if (!id || ids.has(id)) continue;
+      ids.add(id);
+      queue.push(...(byParent.get(id) || []));
+    }
+    return ids;
+  }, [currentUser, orgs]);
+
+  const canEditEmployee = useCallback(
+    (emp: Employee) =>
+      isAdmin || (!!emp.org_id && managedOrgIds.has(Number(emp.org_id))),
+    [isAdmin, managedOrgIds],
+  );
 
   const initEditData = useCallback(
     (emp: Employee): EmployeeEditData => ({
@@ -106,11 +135,12 @@ export default function EmployeesPage() {
     (id: number) => {
       const emp = employees.find((e) => e.id === id);
       if (!emp) return;
+      if (!canEditEmployee(emp)) return;
       setSelectedId(id);
       setEditingId(id);
       setEditData(initEditData(emp));
     },
-    [employees, initEditData],
+    [employees, initEditData, canEditEmployee],
   );
 
   const handleNew = useCallback(() => {
@@ -243,11 +273,12 @@ export default function EmployeesPage() {
                 size="sm"
                 disabled={deleteDisabled}
                 onClick={handleDelete}
+                className={isAdmin ? "" : "hidden"}
               >
                 <Trash2 className="size-3.5 mr-1" />
                 删除员工
               </Button>
-              <Button size="sm" onClick={handleNew}>
+              <Button size="sm" onClick={handleNew} className={isAdmin ? "" : "hidden"}>
                 <Plus className="size-3.5 mr-1" />
                 新增员工
               </Button>
@@ -273,6 +304,8 @@ export default function EmployeesPage() {
               editData={editData}
               onSelect={setSelectedId}
               onEdit={handleEdit}
+              canEditEmployee={canEditEmployee}
+              canEditRole={isAdmin}
               onEditChange={(update) =>
                 setEditData((prev) => (prev ? { ...prev, ...update } : prev))
               }
@@ -282,7 +315,7 @@ export default function EmployeesPage() {
           )}
         </div>
 
-        <OrganizationPanel employees={employees} />
+        <OrganizationPanel employees={employees} canManage={isAdmin} />
       </div>
 
       <AlertDialog

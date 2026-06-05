@@ -26,9 +26,10 @@ import { toast } from "sonner";
 
 interface OrganizationPanelProps {
   employees: Employee[];
+  canManage?: boolean;
 }
 
-export function OrganizationPanel({ employees }: OrganizationPanelProps) {
+export function OrganizationPanel({ employees, canManage = true }: OrganizationPanelProps) {
   const { data: orgs = [], isLoading } = useOrganizations();
   const saveOrg = useSaveOrganization();
   const deleteOrg = useDeleteOrganization();
@@ -75,6 +76,7 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
   };
 
   const startEdit = (org?: Organization) => {
+    if (!canManage) return;
     if (org) {
       setIsNew(false);
       setEditingId(org.id);
@@ -191,10 +193,12 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
     <Card className="p-3.5 shadow-app rounded-lg">
       <div className="flex items-center justify-between mb-3">
         <strong className="text-sm">部门列表</strong>
-        <Button variant="outline" size="sm" onClick={() => startEdit()}>
-          <Plus className="size-3.5 mr-1" />
-          新增部门
-        </Button>
+        {canManage && (
+          <Button variant="outline" size="sm" onClick={() => startEdit()}>
+            <Plus className="size-3.5 mr-1" />
+            新增部门
+          </Button>
+        )}
       </div>
 
       <Input
@@ -233,24 +237,26 @@ export function OrganizationPanel({ employees }: OrganizationPanelProps) {
                     {orgMemberCounts[org.id] || 0}人
                   </span>
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="size-7 p-0"
-                    onClick={() => startEdit(org)}
-                  >
-                    <Pencil className="size-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="size-7 p-0 text-destructive"
-                    onClick={() => setDeleteTarget(org.id)}
-                  >
-                    <Trash2 className="size-3" />
-                  </Button>
-                </div>
+                {canManage && (
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="size-7 p-0"
+                      onClick={() => startEdit(org)}
+                    >
+                      <Pencil className="size-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="size-7 p-0 text-destructive"
+                      onClick={() => setDeleteTarget(org.id)}
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>

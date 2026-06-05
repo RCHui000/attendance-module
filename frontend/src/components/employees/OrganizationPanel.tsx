@@ -27,9 +27,14 @@ import { toast } from "sonner";
 interface OrganizationPanelProps {
   employees: Employee[];
   canManage?: boolean;
+  visibleOrgIds?: Set<number>;
 }
 
-export function OrganizationPanel({ employees, canManage = true }: OrganizationPanelProps) {
+export function OrganizationPanel({
+  employees,
+  canManage = true,
+  visibleOrgIds,
+}: OrganizationPanelProps) {
   const { data: orgs = [], isLoading } = useOrganizations();
   const saveOrg = useSaveOrganization();
   const deleteOrg = useDeleteOrganization();
@@ -55,6 +60,7 @@ export function OrganizationPanel({ employees, canManage = true }: OrganizationP
   }, [employees]);
 
   const filtered = orgs.filter((o) =>
+    (!visibleOrgIds || visibleOrgIds.has(o.id)) &&
     o.org_name.includes(search),
   );
 

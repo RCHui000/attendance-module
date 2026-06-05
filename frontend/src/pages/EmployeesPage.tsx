@@ -100,6 +100,27 @@ export default function EmployeesPage() {
     [isAdmin, managedOrgIds],
   );
 
+  const visibleOrgIds = useMemo(() => {
+    if (isAdmin) return new Set(orgs.map((org) => org.id));
+    return managedOrgIds;
+  }, [isAdmin, orgs, managedOrgIds]);
+
+  const visibleEmployees = useMemo(
+    () => employees.filter((emp) => isAdmin || canEditEmployee(emp)),
+    [employees, isAdmin, canEditEmployee],
+  );
+
+  const visibleOrgs = useMemo(
+    () => orgs.filter((org) => isAdmin || visibleOrgIds.has(org.id)),
+    [orgs, isAdmin, visibleOrgIds],
+  );
+
+  useEffect(() => {
+    if (selectedId && !visibleEmployees.some((emp) => emp.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [selectedId, visibleEmployees]);
+
   const initEditData = useCallback(
     (emp: Employee): EmployeeEditData => ({
       id: emp.id,
@@ -133,25 +154,25 @@ export default function EmployeesPage() {
 
   const handleEdit = useCallback(
     (id: number) => {
-      const emp = employees.find((e) => e.id === id);
+      const emp = visibleEmployees.find((e) => e.id === id);
       if (!emp) return;
       if (!canEditEmployee(emp)) return;
       setSelectedId(id);
       setEditingId(id);
       setEditData(initEditData(emp));
     },
-    [employees, initEditData, canEditEmployee],
+    [visibleEmployees, initEditData, canEditEmployee],
   );
 
   const handleNew = useCallback(() => {
-    const orgId = orgs.find((o) => o.org_type !== "company")?.id;
+    const orgId = visibleOrgs.find((o) => o.org_type !== "company")?.id;
     setSelectedId(null);
     setEditingId(0);
     setEditData({
       ...EMPTY_EDIT_DATA,
       orgId: orgId ? String(orgId) : "",
     });
-  }, [orgs]);
+  }, [visibleOrgs]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
@@ -227,7 +248,7 @@ export default function EmployeesPage() {
       toast.error("请先在列表中选中要删除的人员");
       return;
     }
-    const emp = employees.find((e) => e.id === selectedId);
+    const emp = visibleEmployees.find((e) => e.id === selectedId);
     if (!emp) {
       toast.error("选中的人员不存在，请刷新后重试");
       return;
@@ -237,7 +258,7 @@ export default function EmployeesPage() {
       return;
     }
     setDeleteTarget({ id: emp.id, name: emp.name || String(emp.id) });
-  }, [selectedId, employees, currentUser]);
+  }, [selectedId, visibleEmployees, currentUser]);
 
   const deleteDisabled = !selectedId || editingId != null;
 
@@ -263,7 +284,7 @@ export default function EmployeesPage() {
           <div className="flex items-center justify-between mb-3">
             <strong className="text-sm">员工列表</strong>
             <div className="flex gap-1">
-              <ReminderFloat employees={employees} />
+              <ReminderFloat employees={visibleEmployees} />
               <Button variant="outline" size="sm" onClick={() => refetch()}>
                 <RefreshCw className="size-3.5 mr-1" />
                 刷新
@@ -297,8 +318,8 @@ export default function EmployeesPage() {
           )}
           {!isLoading && !isError && (
             <EmployeeTable
-              employees={employees}
-              orgs={orgs}
+              employees={visibleEmployees}
+              orgs={visibleOrgs}
               selectedId={selectedId}
               editingId={editingId}
               editData={editData}
@@ -315,7 +336,11 @@ export default function EmployeesPage() {
           )}
         </div>
 
-        <OrganizationPanel employees={employees} canManage={isAdmin} />
+        <OrganizationPanel
+          employees={visibleEmployees}
+          canManage={isAdmin}
+          visibleOrgIds={visibleOrgIds}
+        />
       </div>
 
       <AlertDialog

@@ -1,10 +1,65 @@
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Brand } from "./Brand";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+interface PasswordInputProps {
+  id: string;
+  name?: string;
+  placeholder?: string;
+  autoComplete: string;
+  value: string;
+  className?: string;
+  onChange: (value: string) => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  onInput?: () => void;
+}
+
+function PasswordInput({
+  id,
+  name,
+  placeholder,
+  autoComplete,
+  value,
+  className,
+  onChange,
+  onKeyDown,
+  onInput,
+}: PasswordInputProps) {
+  const [visible, setVisible] = useState(false);
+  const Icon = visible ? EyeOff : Eye;
+
+  return (
+    <div className={cn("relative", className)}>
+      <Input
+        id={id}
+        name={name}
+        type={visible ? "text" : "password"}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={onKeyDown}
+        onInput={onInput}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        aria-label={visible ? "隐藏密码" : "显示密码"}
+        title={visible ? "隐藏密码" : "显示密码"}
+        className="absolute right-2 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => setVisible((current) => !current)}
+      >
+        <Icon className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 export function LoginScreen() {
   const { login, changePassword } = useAuthStore();
@@ -14,7 +69,6 @@ export function LoginScreen() {
   const [loginError, setLoginError] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
 
-  // Password change state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [changeLoginName, setChangeLoginName] = useState("");
   const [oldPassword, setOldPassword] = useState("");
@@ -31,10 +85,8 @@ export function LoginScreen() {
     setLoginError("");
     try {
       await login(loginName.trim(), loginPassword);
-    } catch (e) {
-      setLoginError(
-        e instanceof Error ? e.message : "登录失败，请检查账号和密码",
-      );
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "登录失败，请检查账号和密码");
       setLoginBusy(false);
     }
   };
@@ -56,29 +108,25 @@ export function LoginScreen() {
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "密码修改失败",
-      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "密码修改失败");
     } finally {
       setChangeBusy(false);
     }
   };
 
-  const handleLoginKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleLogin();
+  const handleLoginKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") handleLogin();
     setLoginError("");
   };
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#eef2f7]">
       <div className="w-full max-w-[420px] rounded-lg border border-border bg-card p-6 shadow-app">
-        {/* Brand */}
         <div className="mb-5 flex justify-center">
           <Brand />
         </div>
 
-        {/* Login form */}
         <Label htmlFor="loginName" className="mb-1 block text-sm">
           账号
         </Label>
@@ -89,7 +137,7 @@ export function LoginScreen() {
           autoComplete="username"
           spellCheck={false}
           value={loginName}
-          onChange={(e) => setLoginName(e.target.value)}
+          onChange={(event) => setLoginName(event.target.value)}
           onKeyDown={handleLoginKeyDown}
           onInput={() => setLoginError("")}
           className="mb-3"
@@ -98,29 +146,22 @@ export function LoginScreen() {
         <Label htmlFor="loginPassword" className="mb-1 block text-sm">
           密码
         </Label>
-        <Input
+        <PasswordInput
           id="loginPassword"
           name="password"
-          type="password"
           placeholder="请输入密码"
           autoComplete="current-password"
           value={loginPassword}
-          onChange={(e) => setLoginPassword(e.target.value)}
+          onChange={setLoginPassword}
           onKeyDown={handleLoginKeyDown}
           onInput={() => setLoginError("")}
           className="mb-3"
         />
 
-        {loginError && (
-          <p className="text-sm text-destructive mb-3">{loginError}</p>
-        )}
+        {loginError && <p className="mb-3 text-sm text-destructive">{loginError}</p>}
 
-        <Button
-          className="w-full mb-2"
-          onClick={handleLogin}
-          disabled={loginBusy}
-        >
-          {loginBusy ? "登录中…" : "登录"}
+        <Button className="mb-2 w-full" onClick={handleLogin} disabled={loginBusy}>
+          {loginBusy ? "登录中..." : "登录"}
         </Button>
 
         <Button
@@ -136,7 +177,6 @@ export function LoginScreen() {
           修改登录密码
         </Button>
 
-        {/* Password change panel */}
         {showPasswordForm && (
           <div className="mt-3 space-y-3 border-t border-border pt-3 animate-fade-in">
             <Label htmlFor="changeLoginName" className="block text-sm">
@@ -147,48 +187,41 @@ export function LoginScreen() {
               autoComplete="username"
               spellCheck={false}
               value={changeLoginName}
-              onChange={(e) => setChangeLoginName(e.target.value)}
+              onChange={(event) => setChangeLoginName(event.target.value)}
             />
 
             <Label htmlFor="oldPassword" className="block text-sm">
               旧密码
             </Label>
-            <Input
+            <PasswordInput
               id="oldPassword"
-              type="password"
               autoComplete="current-password"
               value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
+              onChange={setOldPassword}
             />
 
             <Label htmlFor="newPassword" className="block text-sm">
               新密码
             </Label>
-            <Input
+            <PasswordInput
               id="newPassword"
-              type="password"
               autoComplete="new-password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={setNewPassword}
             />
 
             <Label htmlFor="confirmPassword" className="block text-sm">
               确认新密码
             </Label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={setConfirmPassword}
             />
 
-            <Button
-              className="w-full"
-              onClick={handleChangePassword}
-              disabled={changeBusy}
-            >
-              {changeBusy ? "保存中…" : "保存新密码"}
+            <Button className="w-full" onClick={handleChangePassword} disabled={changeBusy}>
+              {changeBusy ? "保存中..." : "保存新密码"}
             </Button>
           </div>
         )}

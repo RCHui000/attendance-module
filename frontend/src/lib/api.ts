@@ -147,6 +147,32 @@ function approvedProjectIds(tasks: AnyRow[]): Set<number> {
   );
 }
 
+function reviewedTaskKey(task: AnyRow): string {
+  const timesheetId = Number(task.target_id);
+  if (task.scope_type === "project" && task.scope_id) {
+    return `project:${timesheetId}:${Number(task.scope_id)}`;
+  }
+  return `timesheet:${timesheetId}`;
+}
+
+function latestReviewedTasks(tasks: AnyRow[]): AnyRow[] {
+  const latest = new Map<string, AnyRow>();
+  for (const task of tasks) {
+    const key = reviewedTaskKey(task);
+    const current = latest.get(key);
+    const currentTime = Date.parse(current?.completed_at || "") || 0;
+    const nextTime = Date.parse(task.completed_at || "") || 0;
+    if (
+      !current ||
+      nextTime > currentTime ||
+      (nextTime === currentTime && Number(task.id || 0) > Number(current.id || 0))
+    ) {
+      latest.set(key, task);
+    }
+  }
+  return Array.from(latest.values());
+}
+
 function isReportableTimesheet(sheet?: AnyRow | null): sheet is AnyRow {
   return !!sheet && REPORTABLE_TIMESHEET_STATUSES.has(String(sheet.status || ""));
 }
@@ -475,10 +501,11 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
   ]);
+  const latestReviewed = latestReviewedTasks(reviewedTasks);
 
   // Fetch ALL timesheets referenced by tasks (not filtered by week)
   const pendingSheetIds = [...new Set(tasks.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
-  const reviewedSheetIds = [...new Set(reviewedTasks.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
+  const reviewedSheetIds = [...new Set(latestReviewed.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
   const allSheetIds = [...new Set([...pendingSheetIds, ...reviewedSheetIds])];
   const sheets = allSheetIds.length > 0
     ? await rest<AnyRow[]>(`/timesheets?select=*&id=in.(${allSheetIds.join(",")})`)
@@ -513,7 +540,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const sheetMap = new Map(sheets.map((s) => [Number(s.id), s]));
   const projectIds = [
     ...new Set(
-      [...tasks, ...reviewedTasks]
+      [...tasks, ...latestReviewed]
         .filter((task) => task.scope_type === "project" && task.scope_id)
         .map((task) => Number(task.scope_id)),
     ),
@@ -551,7 +578,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     .filter((item): item is { task: AnyRow; sheet: AnyRow } => !!item.sheet && item.sheet.status === "submitted")
     .sort((a, b) => (a.task.created_at || "").localeCompare(b.task.created_at || ""))
     .map(({ task, sheet }) => toItem(sheet, task));
-  const reviewed = reviewedTasks
+  const reviewed = latestReviewed
     .map((task) => ({ task, sheet: sheetMap.get(Number(task.target_id)) }))
     .filter((item): item is { task: AnyRow; sheet: AnyRow } => !!item.sheet)
     .sort((a, b) => (b.task.completed_at || "").localeCompare(a.task.completed_at || ""))

@@ -871,7 +871,8 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   }
   if (url.pathname === "/api/me") return { user: await currentUser() } as T;
   if (url.pathname === "/api/bootstrap") {
-    const [user, projectRows] = await Promise.all([currentUser(), projects()]);
+    const user = await currentUser();
+    const projectRows = user ? await projects().catch(() => []) : [];
     return { currentUser: user, users: [], projects: projectRows, currentWeek: todayMonday(), dbRecommendation: "Supabase PostgREST" } as T;
   }
   if (url.pathname === "/api/organizations") return organizations() as T;

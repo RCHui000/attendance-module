@@ -1,322 +1,621 @@
-# 项目核算自动化系统 PRD V0.12
+# 项目核算自动化系统 PRD V0.12.8.1
 
-## 1. 目标
+更新日期：2026-06-08
 
-建设内部工时统计系统，统一管理员工周表、项目工日、组织架构、审批、加班和项目统计。
-**V0.12 为 Supabase 全栈生产级版本，V0.12.3 已完成局域网 Realtime 与登录解析修复**，运行态完整基于 Supabase 技术栈，
-审批状态机通过 Postgres RPC 函数实现。
+本文用于描述当前系统真实架构、业务规则、部署状态、已知边界和后续优化议题。目标读者包括产品决策者、开发 Agent、外部推理模型和未来接手维护人员。
 
-- 认证：Supabase GoTrue (HS256 JWT)
-- 数据：Supabase Postgres 16 + wal2json logical decoding
-- 数据访问：PostgREST (REST) + RPC (状态机) + Supabase Realtime
-- 前端：React 19 + Vite 8 + shadcn/ui 静态 SPA
-- 部署：Python 静态文件服务容器 + `supabase-psa` 服务栈
+> 重要说明：根目录 `PRD.md` 保留为历史版本。本文是当前主参考文档。
 
-## 2. 核心角色
+## 1. 产品目标
 
-- 员工：填写本人周表、保存草稿、提交审批、填写加班
-- 主管/项目负责人：查看分配任务，审批或退回周表与加班
-- 管理员：维护员工/组织/项目基础资料，查看全部审批与统计，拥有最高 RLS 权限
+建设内部项目成本管理、工时填报、审批流转和 BI 分析系统，统一管理员工周表、项目工日、组织架构、项目负责人、部门负责人、加班、合同回款、人力成本和审批记录。
 
-## 3. 周表规则
+当前版本核心目标：
 
-- 每名员工每周一张周表
-- 每天项目工日比例合计 ≤ 1 工日
-- 状态机：`draft → submitted → approved/rejected`，管理员可重开至 `draft`
-- 已提交/已通过状态不可编辑
-- 加班独立审批，周表通过 ≠ OT 自动通过
+- 员工按周提交项目工时和加班记录。
+- 项目负责人按项目块审批自己负责项目的工时。
+- 部门负责人对本部门人员的完整周表进行最终汇总审批。
+- 管理员维护员工、组织、项目、账号、审批和基础数据。
+- BI 从项目、部门、人员三个视角分析活跃项目数、投入工日、人力成本。
+- 系统可在 NAS 局域网和阿里云 ECS 上部署运行。
 
-## 4. 审批规则 (RPC 驱动)
+当前版本已经从旧业务后端迁移到 Supabase 风格运行态，不再使用 FastAPI、Flask、SQLite、本地文件数据库或旧 WebSocket 同步作为主要运行时。
 
-**审批链**：提交周表 → 按项目生成双级任务：
-1. Stage 1：项目负责人 (`projects.project_owner_id`)
-2. Stage 2：部门负责人 (`organizations.manager_user_id`)
-3. 同人自动合并为一道审批
+## 2. 当前版本状态
 
-**RPC 函数** (`migration 010`)：
-
-| 函数 | 功能 |
-|------|------|
-| `psa_timesheet_action(p_timesheet_id, p_action, p_comment)` | 状态机：submit/approve/reject/reopen |
-| `psa_overtime_action(p_overtime_id, p_action, p_comment)` | OT 审批：approve/reject |
-| `psa_resolve_timesheet_assignees(p_timesheet_id)` | 解析项目负责人+部门负责人 |
-
-**关键特性**：
-- 所有审批操作在 PG 单事务内完成（SECURITY DEFINER）
-- `submit` → 校验状态 + 每日合计 ≤100% → 创建 workflow_tasks
-- `approve` → 完成当前用户 task → 检查剩余 task → 全完则 approved，未完保持 submitted
-- `reject` → 完成当前 task + 取消其余 pending task → timesheet → rejected
-- `reopen` → 清空审批状态回到 draft
-- 前端通过 PostgREST `/rpc/psa_*` 调用，不直接 PATCH 业务表
-
-### 4.1 项目块审批状态模型（规划口径）
-
-周表按项目拆分后，审批状态应以“项目块”为最小业务单元，`workflow_tasks` 只表示“当前谁需要处理”，不应承担全部业务状态。后续建议新增 `timesheet_project_reviews` 表，用于记录每张周表中每个项目块的当前状态、有效审批人、退回原因和历史版本。
-
-项目块建议状态：
-
-| 状态 | 含义 | 是否锁定 |
-|------|------|----------|
-| `pending` | 等待当前项目负责人审批 | 是 |
-| `approved` | 项目负责人已通过，审批结果有效 | 是 |
-| `needs_revision` | 被退回给员工修改 | 否，仅该项目块可编辑 |
-| `needs_reapproval` | 因人工要求重审，需按当前负责人重新审批 | 是 |
-| `cancelled` | 本轮待办被流程刷新取消 | 是 |
-
-整张周表状态保持精简：
-
-| 状态 | 含义 |
-|------|------|
-| `draft` | 员工草稿，可编辑 |
-| `submitted` | 已提交，至少存在待审批项目块或部门汇总待办 |
-| `revision_required` | 存在被退回项目块，员工需修改后重新提交 |
-| `approved` | 项目负责人全通过且部门负责人汇总确认通过 |
-
-### 4.2 退回、撤回与重审规则（规划口径）
-
-1. 项目负责人未通过前退回：
-   项目负责人可以退回自己负责的项目块。被退回项目块进入 `needs_revision`，整张周表进入 `revision_required`。员工只允许修改被退回的项目块；其他已通过项目块保持锁定并继续有效。
-
-2. 项目负责人已通过、部门负责人未最终通过前撤回：
-   项目负责人发现问题时，应执行“撤回项目审批”。该项目块由 `approved` 改为 `needs_revision`，部门汇总待办取消，整张周表进入 `revision_required`。员工修改后重新提交时，只重新路由被撤回项目块，其他已通过项目块不重审。
-
-3. 部门负责人汇总阶段退回：
-   部门负责人退回时必须选择一个或多个问题项目块并填写原因。被选中的项目块进入 `needs_revision`，未被选中且已通过的项目块保持 `approved`。员工修改后重新提交，只重新路由问题项目块；所有问题项目块再次通过后，重新生成部门汇总待办。
-
-4. 审批全部通过后发现问题：
-   已 `approved` 的周表原则上是正式记录。若确需修正，应由管理员执行“重开修订”，生成新一轮修订状态和审计日志；原审批记录保留，不物理删除。重开后可选择具体项目块进入 `needs_revision` 或 `needs_reapproval`。
-
-5. 项目负责人变更：
-   项目负责人变更是正常业务事件，不自动否定变更前已经完成且有效的审批。系统只刷新未完成的待办；已 `approved` 的项目块保持有效。只有管理员或部门负责人明确点击“要求重审”时，指定项目块才进入 `needs_reapproval`，并按当前项目负责人重新路由。
-
-6. 审计要求：
-   所有退回、撤回、重审、重开动作必须写入 `approval_logs`，记录操作者、原因、原状态、目标状态、影响的项目块和时间。历史审批结果保留为审计链，不作为当前待办重复出现。
-
-### 4.3 Adaptive Approval Graph（V0.12.8 运行态基础）
-
-V0.12.8 将审批架构升级为 Adaptive Approval Graph 的旁路运行态。现阶段 `workflow_tasks` 仍是现有审批中心和 `psa_timesheet_action` 的执行队列，`approval_*` 图表作为可追溯、可检查、可渐进接管的审批结构层。
-
-核心口径：
-
-- `approval_instances`：一张业务单据的整个审批生命周期。同一 `target_type + target_id` 只对应一个 instance。
-- `approval_rounds`：某一次提交、退回后重提、重开修订形成的审批轮次。退回重提不新建 instance，只递增 round。
-- `approval_nodes`：某一轮中的审批节点，例如项目负责人审批节点、部门汇总节点。
-- `approval_edges`：节点依赖关系，例如全部项目节点通过后激活部门汇总。
-- `approval_events`：跨 instance 全生命周期的追加式事件日志。
-
-V0.12.8 的边界：
-
-- 不替换审批中心 UI。
-- 不替换 `workflow_tasks` 和现有 RPC。
-- 不实现项目经理撤回、部门负责人选择性退回、通过后重开修订 UI。
-- 通过触发器把旧审批状态同步为图结构；同步失败不得阻断旧审批动作。
-
-## 5. 数据表
-
-### public schema
-
-| 表 | 说明 | FK 状态 |
-|----|------|--------|
-| profiles | 登录名→auth UUID 映射 | ✅ |
-| employees | 员工主实体 | ✅ |
-| employee_profiles_v2 | 组织归属/岗位/状态 | ✅ |
-| employee_contracts | 合同档案 (is_current) | ✅ |
-| employee_salary_profiles | 薪酬档案 (is_current) | ✅ |
-| user_roles | 角色 | ✅ |
-| organizations | 组织架构 | ✅ |
-| projects | 项目基础 + 负责人 | ✅ |
-| timesheets | 周表 | ⚠️ user_id FK 缺失 |
-| timesheet_entries | 周表明细 | ✅ |
-| timesheet_project_reviews | 周表项目块审批状态（规划新增） | 规划 |
-| overtime_entries | 加班记录 | ✅ |
-| workflow_tasks | 审批任务队列 | ⚠️ FK 缺失,已手动补 |
-| approval_instances | Adaptive Approval Graph：单据审批生命周期实例 | ✅ |
-| approval_rounds | Adaptive Approval Graph：提交/重提/重开轮次 | ✅ |
-| approval_nodes | Adaptive Approval Graph：审批节点 | ✅ |
-| approval_edges | Adaptive Approval Graph：节点依赖边 | ✅ |
-| approval_events | Adaptive Approval Graph：生命周期事件日志 | ✅ |
-| approval_logs | 审批日志 | ✅ |
-| audit_logs | 审计日志 | ✅ |
-| hr_employee_current_view | 员工统一视图 (DISTINCT ON) | ✅ |
-
-### GoTrue auth schema
-
-16 张表：`auth.users`, `auth.sessions`, `auth.refresh_tokens`, `auth.identities` 等
-
-## 6. 前端架构
-
-### 6.1 技术栈
-
-| 层 | 技术 |
-|----|------|
-| 框架 | React 19 + TypeScript |
-| 构建 | Vite 8 |
-| CSS | Tailwind CSS v4 + shadcn/ui |
+| 项 | 当前状态 |
+| --- | --- |
+| 当前版本 | `V0.12.8.1` |
+| 基线版本 | `V0.12.8` |
+| 前端 | React 19 + TypeScript + Vite 8 |
+| UI | Tailwind CSS v4 + shadcn/ui 风格组件 + Lucide React |
 | 图表 | Recharts |
-| 状态 | Zustand (客户端) + TanStack Query (服务端) |
-| 路由 | React Router 6, SPA 6 页面 |
+| 状态管理 | Zustand + TanStack Query |
+| 认证 | Supabase GoTrue |
+| 数据库 | PostgreSQL 16 + public/auth schema |
+| 数据访问 | PostgREST + RPC |
+| 实时能力 | Supabase Realtime + BroadcastChannel fallback |
+| 静态服务 | `serve_spa.py` 托管 `frontend/dist` 并提供受控 API/代理 |
+| NAS 部署 | 局域网容器栈 |
+| 云端部署 | 阿里云 ECS 预部署，Nginx 反向代理，域名 DNS 已开始切换 |
 
-### 6.2 API 兼容层
+## 3. 系统总架构
 
-前端 `api("/api/xxx")` → `handleApi()` 分发为 GoTrue/PostgREST 请求。**无 FastAPI 后端**。
+```mermaid
+flowchart LR
+  U["用户浏览器"] --> N["Nginx / 反向代理"]
+  N --> APP["approval-app / attendance-module<br/>Python serve_spa.py"]
 
-| 前端路径 | 实际请求 | 方式 |
-|---------|---------|------|
-| `POST /api/login` | server-side resolver → GoTrue `/token?grant_type=password` | 从 profiles/employees 解析姓名、登录名、员工编号或邮箱 |
-| `GET /api/bootstrap` | PostgREST 并行查询 | currentUser + projects |
-| `GET /api/timesheet` | PostgREST 平铺查询 | timesheets + entries + overtime |
-| `POST /api/timesheet/save` | PostgREST PATCH + DELETE + POST | 先删后插 |
-| `POST /api/timesheet/action` | `/rpc/psa_timesheet_action` | **RPC** |
-| `GET /api/approvals/tasks` | PostgREST 多表平铺 | 全量不按周过滤，已审核按 completed_at 降序去重 |
-| `GET /api/timesheet-detail` | PostgREST 4 路平铺 + JS 关联 | 绕过 FK 缺失 |
-| `POST /api/overtime/action` | `/rpc/psa_overtime_action` | **RPC**, approved/rejected→approve/reject 映射 |
-| `GET /api/employees` | PostgREST `/hr_employee_current_view` | DISTINCT ON 去重 |
-| `GET /api/projects` | PostgREST 4 路并行 | projects + orgs + employees + entries |
-| `POST /api/employees/save` | PostgREST 串行 5 表写入 | employees + profiles_v2 + contracts + salary + roles |
+  APP --> SPA["React + Vite SPA<br/>Dashboard / Timesheet / Review / Projects / Employees"]
+  APP --> AUTH["GoTrue<br/>登录 / JWT / 用户认证"]
+  APP --> REST["PostgREST<br/>REST 数据接口 / RPC"]
+  APP --> RT["Realtime<br/>表变更订阅"]
 
-### 6.3 登录映射
+  SPA --> AUTH
+  SPA --> REST
+  SPA --> RT
 
-| 输入 | GoTrue 邮箱 | 默认密码 |
-|------|-----------|---------|
-| admin | admin@psa.local | (运维设置) |
-| 鞠松松 | jss@psa.local | 123456 |
-| 惠若超 | huirouchao@psa.local | 123456 |
-| 王长志 | wangchangzhi@psa.local | 123456 |
-| 陈京京 | chenjingjing@psa.local | 123456 |
-| 赵嘉琪 | zhaojiaqi@psa.local | 123456 |
-| 储小海 | chuxiaohai@psa.local | 123456 |
-| 韩文治 | hanwenzhi@psa.local | 123456 |
-| 温利峰 | wenlifeng@psa.local | 123456 |
+  AUTH --> PG["PostgreSQL<br/>auth + public schema"]
+  REST --> PG
+  RT --> PG
 
-### 6.4 组件树
-
-```
-pages/
-├── LoginPage.tsx
-├── DashboardPage.tsx    # 总览(指标卡+汇总+项目表) / 分析(月度面积图+标签)
-├── ReviewPage.tsx       # 审批中心(待审核/已审核,行内展开)
-├── ReportPage.tsx       # 项目列表(CRUD+负责人+累计工日/支出)
-├── TimesheetPage.tsx    # 我的周表(动态表单+校验+保存/提交)
-└── EmployeesPage.tsx    # 员工与组织(行内编辑+部门管理)
-
-components/
-├── dashboard/           # MetricCards, DashboardTable, PeriodFilter, AnalyticsTab, SimpleBarList
-├── review/              # ApprovalTable, ExpandedReviewRow
-├── timesheet/           # TimesheetTable, WeekNavigator, SheetWarnings, SheetActions
-├── employees/           # EmployeeTable, EmployeeEditRow, OrganizationPanel, ReminderFloat
-├── report/              # ProjectList
-└── layout/              # AppLayout, Sidebar, Topbar, Brand, LoginScreen
+  PG --> RLS["RLS 权限策略<br/>admin / manager / employee"]
+  PG --> RPC["业务 RPC<br/>审批状态机 / 路由刷新 / 权限函数"]
 ```
 
-## 7. 部署
+### 3.1 运行组件
 
-### 7.1 服务拓扑
+```mermaid
+flowchart TB
+  subgraph "公网或局域网入口"
+    WEB["Nginx / 端口映射<br/>80 / 443 / 8767"]
+  end
 
-```
-Browser (:8767) → SPA 静态服务 (Docker: attendance-module, :80)
-                    ├── GoTrue (:8777) → psa-postgres (:5433)
-                    ├── PostgREST (:8779) → psa-postgres
-                    └── Realtime (:8778) → psa-postgres logical replication
-```
+  subgraph "应用层"
+    APP["serve_spa.py"]
+    FE["frontend/dist"]
+  end
 
-### 7.2 端口
+  subgraph "Supabase 运行层"
+    GOTRUE["GoTrue"]
+    POSTGREST["PostgREST"]
+    REALTIME["Realtime"]
+    PG["PostgreSQL"]
+  end
 
-| 端口 | 服务 | 容器 |
-|------|------|------|
-| 8767 | Web SPA | attendance-module |
-| 5433 | PostgreSQL 16 | psa-postgres |
-| 8777 | GoTrue Auth | psa-gotrue |
-| 8778 | Supabase Realtime | psa-realtime |
-| 8779 | PostgREST | psa-postgrest |
-
-### 7.3 迁移
-
-| 序号 | 文件 | 说明 |
-|------|------|------|
-| 001 | `v0.11_schema.sql` | 全量表 + 视图 |
-| 002 | `v0.11_rls.sql` | RLS 策略 |
-| 003 | `policies_fk_fixes.sql` | 已认证用户读策略 |
-| 004 | `full_supabase_runtime.sql` | CodeX 运行时迁移 |
-| 005 | `fix_auth_user_claims.sql` | Auth claims 修复 |
-| 006-009 | grant/RLS 修复 | PostgREST 权限修复 |
-| 010 | `timesheet_workflow_rpc.sql` | **审批 RPC** |
-| 011 | `overtime_rpc.sql` | **OT RPC** |
-| 012 | `admin_employee_create_rls.sql` | 管理员新增员工 RLS |
-| 013 | `realtime_publication.sql` | Realtime publication + replica identity |
-| 014 | `realtime_schema_migrations_compat.sql` | Realtime/Ecto schema_migrations 兼容 |
-| 015 | `realtime_lan_tenants.sql` | LAN/IP/localhost Realtime tenants |
-| 016 | `realtime_internal_schema.sql` | Realtime 内部 schema |
-| 017 | `service_login_resolution_grants.sql` | service_role 登录解析只读授权 |
-| 018 | `migrate_timesheet_manager_role.sql` | 历史审批角色归一化 |
-| 019 | `timesheet_project_workflow.sql` | 周表按项目负责人并行审批 + 部门汇总 |
-| 020 | `timesheet_summary_collapse.sql` | 同一审批人项目审批与部门汇总合并 |
-| 021 | `timesheet_route_refresh.sql` | 项目负责人变更后刷新未完成路由 |
-| 022 | `keep_completed_project_approvals.sql` | 负责人变更时保留已完成项目审批有效性 |
-| 023 | `adaptive_approval_graph.sql` | Adaptive Approval Graph 表、同步函数、触发器和历史回填 |
-
-### 7.4 部署命令
-
-```bash
-cd frontend && npm run build
-tar czf - dist/ | ssh inquiry-nas "cd .../frontend && tar xzf -"
-ssh inquiry-nas "cd .../attendance-module && docker compose up -d --build"
+  WEB --> APP
+  APP --> FE
+  FE --> GOTRUE
+  FE --> POSTGREST
+  FE --> REALTIME
+  GOTRUE --> PG
+  POSTGREST --> PG
+  REALTIME --> PG
 ```
 
-### 7.5 回滚
+### 3.2 NAS 与阿里云部署
 
-```bash
-sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=v0.10/' .env && docker compose up -d
+```mermaid
+flowchart LR
+  G["GitHub main + V0.12.8.1 tag"] --> NAS["NAS 局域网部署"]
+  G --> ALI["阿里云 ECS 部署"]
+
+  subgraph "NAS"
+    NAPP["attendance-module"]
+    NPG["psa-postgres"]
+    NAUTH["psa-gotrue"]
+    NREST["psa-postgrest"]
+    NRT["psa-realtime"]
+  end
+
+  subgraph "阿里云 ECS"
+    ANG["approval-nginx"]
+    AAPP["approval-app"]
+    APG["approval-postgres"]
+    AAUTH["approval-gotrue"]
+    AREST["approval-postgrest"]
+    ART["approval-realtime"]
+  end
+
+  NAS --> NAPP
+  NAPP --> NPG
+  NAPP --> NAUTH
+  NAPP --> NREST
+  NAPP --> NRT
+
+  ALI --> ANG
+  ANG --> AAPP
+  AAPP --> APG
+  AAPP --> AAUTH
+  AAPP --> AREST
+  AAPP --> ART
 ```
 
-## 8. V0.12 变更总结 (自 V0.11)
+云端部署原则：
 
-| 类别 | 变更 |
-|------|------|
-| 审批 | PATCH 直写 → `psa_timesheet_action` / `psa_overtime_action` RPC (SECURITY DEFINER, 单事务) |
-| 审批列表 | 不再按周过滤，全量展示；已审核按 completed_at 降序去重（最新结果优先） |
-| 员工列表 | hr_employee_current_view 加 DISTINCT ON 去重；每人仅保留最新一条 is_current contract/salary |
-| 员工角色 | listEmployees() 从 user_roles 表读实际 role（不再是硬编码 "employee"） |
-| 新增员工 | `POST /api/create-employee-with-login` 单接口原子操作：校验admin→GoTrue建用户→写6表→绑UUID，失败回滚 |
-| 登录解析 | **V0.12.3**：登录入口改为后端解析，支持姓名、登录名、员工编号、邮箱登录，不再依赖前端硬编码姓名映射 |
-| 初始密码 | **V0.12.3**：新增员工成功后返回并提示真实登录名和初始密码；现有与未来账号默认密码统一由 NAS `.env` 的 `DEFAULT_INITIAL_PASSWORD` 控制 |
-| 密码安全 | DEFAULT_INITIAL_PASSWORD 从环境变量读取，不硬编码、不提交 Git；新增员工创建成功时仅向管理员前端提示一次 |
-| 改密 | 支持登录页(login参数)和已登录(JWT)两种模式；改密后置 must_change_password=false |
-| 数据看板 | 分析页图表加数值标签（13px, 常驻, 0 值隐藏）；默认"总计—所有项目"+"年"；项目名显示名称 |
-| 序列修复 | workflow_tasks_id_seq 等从 1 重置到 MAX(id)（修复 duplicate key 错误） |
-| RLS | 新增 auth_read_* + admin_insert/update/delete 策略；Grant SELECT on hr_employee_current_view |
-| FK | 补 timesheets.user_id→employees FK；workflow_tasks FK 因孤儿数据未完成 |
-| GoTrue | 配置 CORS；禁用 signup；中文名→拼音 email 映射 |
-| 前端 | Topbar 移除无效修改密码按钮；登录页改密支持 login 参数 |
-| 周表路由重算 | **V0.12.7**：管理员调整项目负责人后，系统自动重算仍处于 submitted 且未终审周表的项目审批路由；变动前已通过的项目审批保持有效，仅重派未完成的项目待办 |
-| 周表退回/重审规划 | 明确项目块级审批状态模型：项目经理撤回、部门负责人按项目块退回、已通过后重开修订、负责人变更后人工要求重审等组合场景 |
-| Adaptive Approval Graph | **V0.12.8**：新增 approval_instances / approval_rounds / approval_nodes / approval_edges / approval_events；现阶段作为 workflow_tasks 的旁路图模型和审计结构层 |
-| Realtime | **V0.12.2 已启用**：Supabase Realtime + wal2json + logical publication；BroadcastChannel 与短轮询作为 fallback |
+- 公网只暴露 Nginx 的 80/443 和 SSH。
+- Postgres、PostgREST、GoTrue、Realtime 不直接暴露公网。
+- 数据库使用宿主机持久化目录。
+- 生产环境变量存放在部署环境，不提交 Git。
+- 云端上线前使用 IP 和 HTTP 预验证，域名解析完成后再切换 HTTPS。
 
-## 9. 已知边界
+## 4. 用户角色与权限口径
 
-- Realtime 已在本机/NAS 局域网部署启用；容器冷启动后首个订阅会触发 CDC 初始化，前端保留短轮询 fallback
-- timesheets→employees / workflow_tasks→timesheets FK 尚未完成（历史孤儿数据）
-- 月度回款额数据源缺失（需后端接口）
-- 新建 GoTrue 账号通过 `/api/create-employee-with-login`（server-side service_role）
-- admin 密码独立运维设置，不存 Git
-- service_role key 不出前端，仅在 serve_spa.py 使用
-- DEFAULT_INITIAL_PASSWORD 存在 NAS .env，不提交 Git
+| 角色 | 主要能力 |
+| --- | --- |
+| 员工 | 登录、填写本人周表、保存草稿、提交审批、填写加班、查看本人数据 |
+| 项目负责人 | 审批自己负责项目的周表项目块，查看相关项目投入 |
+| 部门负责人 / 主管 | 审批本部门人员完整周表，查看本部门 BI，维护本部门及下级部门员工资料 |
+| 管理员 | 全局员工、组织、项目、审批、BI、账号、数据维护 |
+| 历史白名单超级用户 | 应用层保留 admin 视图能力 |
 
-## 10. 服务端点
+权限来源：
+
+- 主要角色来自 `user_roles.role`。
+- 部门负责人来自 `organizations.manager_user_id`。
+- 员工所属部门来自 `employee_profiles_v2.org_id`。
+- 员工直属负责人来自 `employee_profiles_v2.manager_user_id`。
+- 历史超级用户白名单仍保留，用于兼容早期账号。
+
+### 4.1 员工与组织页权限
+
+| 使用者 | 可见范围 | 可编辑范围 |
+| --- | --- | --- |
+| admin | 全部员工、全部组织 | 全部信息、角色、合同、薪酬、组织 |
+| 部门负责人 | 自己负责部门及下级部门员工 | 部门内员工基础信息、合同、薪酬，不应越权维护 admin 类账号 |
+| 普通员工 | 无入口 | 无 |
+
+当前已经通过 `026_department_manager_employee_write.sql` 补强部门负责人维护部门内员工资料的 RLS 策略。
+
+## 5. 前端页面范围
+
+| 页面 | 路由 | 说明 |
+| --- | --- | --- |
+| 登录页 | 未登录默认 | 登录、修改密码、密码明文切换 |
+| 我的周表 | `/timesheet` | 员工填写项目工时和加班 |
+| 数据看板 | `/dashboard` | 指标卡、项目汇总、BI 项目/部门/人员视角 |
+| 审批中心 | `/review` | 待审核、已审核、加班审批、周表详情 |
+| 项目列表 | `/report` | 项目 CRUD、项目负责人、项目明细与工时统计 |
+| 员工与组织 | `/employees` | 员工资料、合同薪酬、组织结构、部门负责人 |
+
+### 5.1 前端组件结构
+
+```text
+frontend/src/
+  App.tsx
+  pages/
+    DashboardPage.tsx
+    ReviewPage.tsx
+    TimesheetPage.tsx
+    ReportPage.tsx
+    EmployeesPage.tsx
+  components/
+    dashboard/
+      MetricCards.tsx
+      DashboardTable.tsx
+      PeriodFilter.tsx
+      BiPerspectiveTab.tsx
+    review/
+    timesheet/
+    report/
+    employees/
+    layout/
+      LoginScreen.tsx
+      Sidebar.tsx
+      Topbar.tsx
+  lib/
+    api.ts
+  stores/
+    authStore.ts
+    appStore.ts
+```
+
+## 6. API 与服务端口径
+
+前端仍保留 `api("/api/...")` 形式作为兼容层，实际由 `frontend/src/lib/api.ts` 分流到 GoTrue、PostgREST、RPC 或 `serve_spa.py` 受控端点。
+
+| 前端路径 | 实际实现 | 说明 |
+| --- | --- | --- |
+| `POST /api/login` | GoTrue password grant | 支持登录名、姓名、员工编号、邮箱解析 |
+| `POST /api/logout` | 前端清理 token | 纯前端退出 |
+| `POST /api/password/change` | `serve_spa.py` 受控端点 | 支持登录页和已登录改密 |
+| `GET /api/me` | PostgREST | 根据 JWT 找当前员工 |
+| `GET /api/bootstrap` | PostgREST 并行查询 | 当前用户、项目、基础数据 |
+| `GET /api/timesheet` | PostgREST 平铺查询 | 周表、明细、加班 |
+| `POST /api/timesheet/save` | PostgREST 写入 | 草稿/退回状态保存 |
+| `POST /api/timesheet/action` | `psa_timesheet_action` RPC | 周表提交、审批、退回、重开 |
+| `POST /api/overtime/action` | `psa_overtime_action` RPC | 加班审批 |
+| `GET /api/approvals/tasks` | PostgREST 平铺查询 | 待审核/已审核 |
+| `GET /api/employees` | `hr_employee_current_view` + 角色表 | 员工列表与角色 |
+| `POST /api/employees/save` | 新增走服务端，编辑走 PostgREST | 新增员工需要创建 GoTrue 账号 |
+| `GET /api/projects` | PostgREST 聚合 | 项目列表、人力投入、负责人 |
+| `GET /api/reports/weekly` | PostgREST + JS 聚合 | 周/月/区间统计 |
+
+服务端受控端点：
 
 | 端点 | 方法 | 用途 |
-|------|------|------|
-| `/api/create-employee-with-login` | POST | 管理员新增员工（含 GoTrue 建用户） |
-| `/api/change-password` | POST | 修改密码（支持 JWT 或 login 参数） |
-| `/auth/*` | * | 代理到 GoTrue |
-| `/rest/*` | * | 代理到 PostgREST |
+| --- | --- | --- |
+| `/api/create-employee-with-login` | POST | 管理员新增员工并创建 GoTrue 用户 |
+| `/api/change-password` | POST | 修改密码并清除首次改密标记 |
+| `/auth/*` | 任意 | 同源代理到 GoTrue |
+| `/rest/*` | 任意 | 同源代理到 PostgREST |
 
-## 11. Agent 协作规范
+安全约束：
 
-1. 前端改动 → `npm run build` → `tar + ssh` 部署
-2. DB 变更 → `migrations/` 目录，按序号命名，部署后 `restart postgrest`
-3. 审批 → 必须走 RPC，不 PATCH 业务表
-4. PostgREST 查询 → 无 FK 则平铺 + JS 关联
-5. 权限 → 用 `current_user_has_role()` / `current_user_can_review()`
-6. 密码 → 绝不出现在前端代码、Git、API 返回中
-7. 不改 `serve_spa.py` 端口映射、IMAGE_TAG
+- `service_role`、`JWT_SECRET`、数据库密码、NAS 密码不得进入前端。
+- 生产默认初始密码由环境变量控制，不在 PRD 明文记录。
+- GoTrue signup 禁用，新账号由受控流程创建。
+
+## 7. 核心数据模型
+
+```mermaid
+erDiagram
+  employees ||--o| employee_profiles_v2 : has_profile
+  employees ||--o{ user_roles : has_roles
+  employees ||--o{ employee_contracts : has_contracts
+  employees ||--o{ employee_salary_profiles : has_salary_profiles
+  organizations ||--o{ employee_profiles_v2 : contains
+  organizations ||--o{ projects : owns
+  employees ||--o{ timesheets : submits
+  timesheets ||--o{ timesheet_entries : has_entries
+  projects ||--o{ timesheet_entries : receives_hours
+  timesheets ||--o{ overtime_entries : has_overtime
+  timesheets ||--o{ workflow_tasks : approval_tasks
+  timesheets ||--o{ approval_logs : approval_logs
+  timesheets ||--o| approval_instances : approval_instance
+  approval_instances ||--o{ approval_rounds : has_rounds
+  approval_rounds ||--o{ approval_nodes : has_nodes
+  approval_nodes ||--o{ approval_edges : connects
+  approval_instances ||--o{ approval_events : has_events
+```
+
+核心 public schema：
+
+| 表/视图 | 用途 |
+| --- | --- |
+| `profiles` | 登录名、GoTrue 邮箱、auth UUID 映射 |
+| `employees` | 员工主表 |
+| `employee_profiles_v2` | 员工组织、岗位、直属负责人、在职状态 |
+| `employee_contracts` | 合同档案 |
+| `employee_salary_profiles` | 薪酬档案 |
+| `user_roles` | 员工角色 |
+| `organizations` | 组织架构与部门负责人 |
+| `projects` | 项目基础信息、项目负责人、项目所属部门 |
+| `timesheets` | 周表主表 |
+| `timesheet_entries` | 周表项目明细 |
+| `overtime_entries` | 加班记录 |
+| `workflow_tasks` | 当前实际审批任务队列 |
+| `approval_logs` | 审批日志 |
+| `approval_instances` | Adaptive Approval Graph 单据实例 |
+| `approval_rounds` | 审批轮次 |
+| `approval_nodes` | 审批节点 |
+| `approval_edges` | 节点依赖 |
+| `approval_events` | 审批事件 |
+| `hr_employee_current_view` | 员工当前档案视图 |
+
+## 8. 周表与审批规则
+
+### 8.1 周表基础规则
+
+- 每名员工每周只能有一张周表。
+- 每天所有项目工日合计不得超过 1 工日。
+- 周表状态主线：`draft -> submitted -> approved/rejected`。
+- 草稿和退回状态允许本人编辑。
+- 已提交和已通过状态不允许员工继续编辑。
+- 加班记录独立审批，周表通过不代表加班自动通过。
+
+### 8.2 当前审批流
+
+```mermaid
+flowchart TD
+  DRAFT["员工编辑周表<br/>draft / rejected"] --> SUBMIT["提交周表<br/>psa_timesheet_action(submit)"]
+  SUBMIT --> LOCK["周表 submitted"]
+  LOCK --> SPLIT["按 timesheet_entries.project_id 拆分项目块"]
+  SPLIT --> PROJECT_TASK["项目块审批任务<br/>scope_type = project"]
+  PROJECT_TASK --> PROJECT_OWNER["项目负责人审批"]
+  PROJECT_OWNER --> PROJECT_DECISION{"项目块审批结果"}
+  PROJECT_DECISION -->|"通过"| PROJECT_DONE["项目块 completed / approve"]
+  PROJECT_DECISION -->|"退回"| REJECTED["周表 rejected<br/>取消剩余 pending"]
+  PROJECT_DONE --> ALL_DONE{"全部项目块通过?"}
+  ALL_DONE -->|"否"| WAIT["等待其他项目块"]
+  WAIT --> ALL_DONE
+  ALL_DONE -->|"是"| SUMMARY["部门汇总审批<br/>scope_type = department_summary"]
+  SUMMARY --> DEPT_HEAD["部门负责人审批完整周表"]
+  DEPT_HEAD --> FINAL{"最终审批"}
+  FINAL -->|"通过"| APPROVED["周表 approved<br/>进入 BI 统计"]
+  FINAL -->|"退回"| REJECTED
+```
+
+### 8.3 审批人解析规则
+
+项目块审批人当前优先级：
+
+1. `projects.project_owner_id`
+2. 项目所属部门负责人 `projects.owner_org_id -> organizations.manager_user_id`
+3. 提交人所属部门负责人
+4. admin 兜底
+
+部门汇总审批人当前优先级：
+
+1. 员工直属负责人 `employee_profiles_v2.manager_user_id`
+2. 员工所属部门负责人 `organizations.manager_user_id`
+3. admin 兜底
+
+折叠规则：
+
+- 如果项目负责人和部门负责人是同一人，系统尽量避免让同一人重复审批。
+- admin 代审批过的周表，需要能在对应部门负责人的已审核视图中体现，避免部门核算漏项。
+
+### 8.4 Adaptive Approval Graph
+
+`workflow_tasks` 仍是当前实际执行队列。`approval_instances / approval_rounds / approval_nodes / approval_edges / approval_events` 是旁路审批图模型，用于追溯、检查和未来逐步接管复杂审批。
+
+当前边界：
+
+- 不替代审批中心 UI。
+- 不替代现有 `workflow_tasks` 和 RPC。
+- 不实现项目经理撤回、部门负责人选择性退回、已通过后重开修订 UI。
+- 触发器同步图结构失败时不应阻断旧审批动作。
+
+## 9. BI 数据看板
+
+BI 当前围绕所选周期做项目、部门、人员三视角分析。
+
+统计基础：
+
+- 统计 `approved`、`locked`、`summarized` 等有效周表状态。
+- 草稿、退回、未提交、未通过周表不进入正式成本统计。
+- 工日来自 `timesheet_entries`。
+- 人力成本由员工薪酬档案折算。
+- 项目、部门、人员维度在前端 API 兼容层内聚合。
+
+### 9.1 项目视角
+
+- 活跃项目数。
+- 投入总工日。
+- 人力成本支出。
+- 项目投入排行。
+- 当前 UI：左侧项目视角展示面板，含 Pie Chart with gap and rounded corners；右侧为项目对象卡片；下方展示明细。
+
+### 9.2 部门视角
+
+- 部门参与项目数。
+- 部门投入工日。
+- 部门人力成本。
+- 部门内项目投入排行。
+- 当前 UI：左上为部门明细，左下为投入排行，右侧为部门对象列表。
+
+### 9.3 人员视角
+
+- 员工参与项目数。
+- 员工分项目工日。
+- 员工人工成本。
+- 当前 UI：左上为人员明细，左下为 stacked bar chart，X 轴为员工，Y 轴为总工日，条内按项目堆叠色块；右侧为人员对象列表。
+
+## 10. 数据库迁移链
+
+当前迁移文件：
+
+| 序号 | 文件 | 说明 |
+| --- | --- | --- |
+| 001 | `001_v0.11_schema.sql` | 基础表、视图、约束 |
+| 002 | `002_v0.11_rls.sql` | 初始 RLS |
+| 003 | `003_v0.11_policies_fk_fixes.sql` | 读取策略与 FK 修复 |
+| 004 | `004_full_supabase_runtime.sql` | Supabase 运行态补齐 |
+| 005 | `005_fix_auth_user_claims.sql` | Auth claims 修复 |
+| 006 | `006_grant_service_schema_permissions.sql` | service/anon/authenticated 权限 |
+| 007 | `007_fix_postgrest_rls_runtime.sql` | PostgREST RLS 运行时修复 |
+| 008 | `008_remove_recursive_employee_policies.sql` | 移除递归策略 |
+| 009 | `009_report_dedup_constraints.sql` | 报表去重与约束 |
+| 010 | `010_timesheet_workflow_rpc.sql` | 周表审批 RPC |
+| 011 | `011_overtime_rpc.sql` | 加班审批 RPC |
+| 012 | `012_admin_employee_create_rls.sql` | 管理员新增员工 RLS |
+| 013 | `013_realtime_publication.sql` | Realtime publication |
+| 014 | `014_realtime_schema_migrations_compat.sql` | Realtime 兼容 |
+| 015 | `015_realtime_lan_tenants.sql` | 局域网 Realtime tenants |
+| 016 | `016_realtime_internal_schema.sql` | Realtime 内部 schema |
+| 017 | `017_service_login_resolution_grants.sql` | 登录解析授权 |
+| 018 | `018_migrate_timesheet_manager_role.sql` | 历史审批角色归一 |
+| 019 | `019_timesheet_project_workflow.sql` | 项目块并行审批 + 部门汇总 |
+| 020 | `020_timesheet_summary_collapse.sql` | 同人审批折叠 |
+| 021 | `021_timesheet_route_refresh.sql` | 项目负责人变更后刷新未完成路由 |
+| 022 | `022_keep_completed_project_approvals.sql` | 保留已完成项目审批有效性 |
+| 023 | `023_adaptive_approval_graph.sql` | Adaptive Approval Graph |
+| 024 | `024_fix_employee_profiles_v2_rls_recursion.sql` | 修复员工档案 RLS 递归 |
+| 025 | `025_fix_postgrest_jwt_claim_helpers.sql` | 修复 PostgREST JWT claim helper |
+| 026 | `026_department_manager_employee_write.sql` | 部门负责人维护部门内员工资料 |
+
+迁移原则：
+
+- 新数据库变更必须新增顺序迁移，不直接修改已上线迁移。
+- 应用迁移后需要刷新或重启 PostgREST schema cache。
+- NAS 与云端迁移链应保持一致。
+
+## 11. 实时刷新与缓存
+
+```mermaid
+flowchart LR
+  PG["PostgreSQL 表变更"] --> PUB["supabase_realtime publication"]
+  PUB --> RT["Realtime"]
+  RT --> FE["useRealtime"]
+  FE --> QC["TanStack Query invalidate"]
+  QC --> MODULES["timesheet / approvals / reports / dashboard / employees"]
+```
+
+当前策略：
+
+- Realtime 已在 NAS/云端部署，但前端保留 BroadcastChannel 和查询刷新作为 fallback。
+- 同源多标签页通过 `BroadcastChannel("psa-supabase-sync")` 刷新。
+- 跨设备实时刷新依赖 Realtime，异常时以页面刷新和查询重拉兜底。
+
+## 12. 部署、运维与文档
+
+当前相关文件：
+
+| 文件 | 用途 |
+| --- | --- |
+| `docker-compose.aliyun.yml` | 阿里云部署 compose |
+| `.env.production.example` | 生产环境变量模板，不含真实密码 |
+| `deploy/nginx/app.conf` | Nginx 反向代理配置 |
+| `ALIYUN_DEPLOYMENT.md` | 阿里云部署说明 |
+| `CLOUD_DEPLOY_CHECKLIST.md` | 云端上线检查清单 |
+| `SMOKE_TEST.md` | 冒烟测试清单 |
+| `ACCOUNT_SECURITY_RUNBOOK.md` | 账号安全整理 |
+| `使用说明.md` | Markdown 使用说明 |
+| `使用说明.html` | 单文件 HTML 使用手册，内嵌截图 |
+| `架构.md` | 架构与审批架构图 |
+
+云端预部署状态：
+
+- ECS 已部署应用容器和 Supabase 运行栈。
+- 域名 `xpjs.asia` 与 `www.xpjs.asia` 已配置 A 记录到云服务器公网 IP。
+- HTTP 访问已可作为预验证入口。
+- HTTPS 需要证书申请和 Nginx 443 配置完成后正式切换。
+
+## 13. 已知边界与当前风险
+
+| ID | 问题 | 影响 | 当前处理 |
+| --- | --- | --- | --- |
+| K-01 | 多部门项目仍只有单一 `projects.project_owner_id` | 一个项目同时涉及设计、项目管理、造价时，无法按提交员工部门路由到对应项目负责人 | 需要设计项目-部门-项目负责人映射，前端项目维护页同步升级 |
+| K-02 | `workflow_tasks` 承担过多业务状态 | 退回、撤回、重审、项目块局部修改难以表达 | 已有 Adaptive Approval Graph 旁路模型，未来可引入项目块状态表 |
+| K-03 | 员工编辑仍可能由前端串行写多表 | 写入失败时存在局部成功风险 | 后续建议收敛为 RPC 或服务端事务 |
+| K-04 | 历史 FK 与孤儿数据仍需整理 | PostgREST 嵌入查询受限，部分查询需平铺聚合 | 当前前端使用平铺查询 + JS 关联 |
+| K-05 | 回款数据源不完整 | BI 毛利、回款分析准确性受限 | 目前主要使用项目表金额，后续需正式回款流水 |
+| K-06 | 部门负责人权限边界需要持续校验 | 可能出现白名单或 admin 类账号可见范围与预期不一致 | 保留白名单，但需清晰记录 |
+| K-07 | NAS 与云端数据同步不是长期双主架构 | 双向订阅存在冲突和身份映射风险 | 当前以人工同步/单向迁移为主，不建议贸然双主 |
+| K-08 | 默认初始密码是运维便利与安全的折中 | 简化交付但增加上线安全风险 | 应上线前统一改密或强制首次改密 |
+
+## 14. 待讨论优化方向
+
+以下问题适合交给推理模型进一步讨论方案。
+
+### 14.1 多部门项目负责人模型
+
+业务事实：
+
+- 一个项目可能同时包含设计、项目管理、造价咨询等不同业务部门。
+- 不同部门在同一项目内可能有不同项目负责人。
+- 造价员工提交的项目块应路由给造价项目负责人，再给造价部门负责人。
+- 设计员工提交的项目块应路由给设计项目负责人，再给设计部门负责人。
+
+待优化问题：
+
+- 是否新增 `project_department_owners` 或类似映射表。
+- 映射表应该表达 `project_id + org_id -> project_owner_id`，还是更复杂的项目角色。
+- 部门负责人是否应实时从 `organizations.manager_user_id` 读取，而不是在映射表冗余。
+- 项目列表前端如何维护多部门负责人映射。
+- 员工调部门后，历史已审批数据是否保持原审批人，未完成任务是否重算。
+
+建议初步方向：
+
+- 新增项目-部门-项目负责人映射。
+- 部门负责人不在映射表内冗余，按员工提交时所属部门和当前组织负责人解析。
+- 已完成审批保持有效，未完成审批可根据配置刷新。
+- 前端项目编辑页将“项目负责人”升级为“参与部门与项目负责人”维护区。
+
+### 14.2 项目块级审批状态
+
+当前 `workflow_tasks` 是队列，不适合完整表达项目块生命周期。
+
+可讨论方案：
+
+- 新增 `timesheet_project_reviews`。
+- 每张周表每个项目块一条 review。
+- review 记录状态、项目、当前负责人、历史轮次、退回原因。
+- `workflow_tasks` 只负责待办分发。
+- `approval_events` 负责全量审计。
+
+### 14.3 员工信息保存事务化
+
+当前员工资料涉及：
+
+- `employees`
+- `employee_profiles_v2`
+- `employee_contracts`
+- `employee_salary_profiles`
+- `user_roles`
+- GoTrue `auth.users`
+
+优化方向：
+
+- 新增服务端 RPC 或受控 API，一次事务保存员工基础资料、合同、薪酬和角色。
+- 部门负责人和 admin 走同一个接口，但权限判断不同。
+- 删除/停用员工也收敛到统一接口。
+
+### 14.4 BI 数据仓库化
+
+当前 BI 多数由前端 API 聚合。
+
+可讨论方案：
+
+- 建立月度/周期汇总物化视图。
+- 建立项目-部门-人员投入事实表。
+- 将 approved 周表的工日、成本、项目、部门、人员快照化。
+- 周表通过后写入或刷新汇总，避免每次前端重算。
+
+### 14.5 NAS 与云端同步
+
+当前不建议做无规划双主同步。
+
+需讨论：
+
+- NAS 和云端谁是主库。
+- 是否允许两边同时写。
+- auth.users UUID、profiles、employees 是否一一稳定。
+- 冲突解决策略。
+- 备份和回滚优先级。
+
+### 14.6 安全与上线治理
+
+建议讨论：
+
+- 上线前强制管理员和主管改密。
+- 默认初始密码是否只允许首次登录使用。
+- admin 类账号是否禁止部门负责人编辑。
+- 白名单超级用户是否逐步退出。
+- 域名 HTTPS、HSTS、CORS、cookie/site URL 是否统一。
+
+## 15. 验收与冒烟测试
+
+基础冒烟：
+
+- 首页可打开。
+- 登录页可打开。
+- admin 可登录。
+- 普通员工可登录。
+- 数据看板可加载。
+- 审批中心可加载。
+- 项目列表可加载。
+- 员工与组织可加载。
+- 周表可保存草稿。
+- 周表可提交。
+- 项目负责人可看到待审项目块。
+- 部门负责人可看到部门汇总待办。
+- 审批通过后进入已审核。
+- 退回后员工可修改。
+- BI 统计只包含有效周表。
+- 刷新 `/dashboard`、`/timesheet`、`/review` 不 404。
+- 手机浏览器可访问。
+- Nginx 日志和容器日志可查看。
+
+部署验收：
+
+- NAS 与云端代码版本一致。
+- NAS 与云端迁移链一致。
+- 云端生产 env 不含缺失变量。
+- Postgres 使用持久化目录。
+- 数据库备份脚本可运行。
+- HTTPS 证书可申请和续期。
+- CORS 只允许正式域名和必要预部署入口。
+
+## 16. Agent 协作规范
+
+1. 前端改动后必须执行 `npm run build`。
+2. 生产部署前执行或人工走一遍冒烟测试。
+3. 数据库结构变更必须新增 `supabase-psa/migrations/` 顺序迁移。
+4. 审批状态不得回退为前端直接 PATCH，必须走 RPC 或后续统一状态机。
+5. PostgREST 遇到 FK 不完整时使用平铺查询 + JS 关联。
+6. 不得把 `service_role`、`JWT_SECRET`、数据库密码、NAS 密码、生产初始密码写入前端代码、Git、文档明文或日志。
+7. 不要恢复 FastAPI、Flask、SQLite、本地 `.sqlite3` 或旧 `/ws` 同步运行态。
+8. NAS 与云端修复应明确是否双端同步，避免只修一边。
+9. PRD、架构文档和迁移链应随版本一起更新。

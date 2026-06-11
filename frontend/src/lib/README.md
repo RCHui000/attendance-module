@@ -42,10 +42,10 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 | `/api/reports/weekly` | GET | `startDate`, `endDate` | weekly/monthly report | JS aggregation over approved/locked/summarized sheets. |
 | `/api/reports/labor-matrix` | GET | `startDate`, `endDate` | matrix rows | Project/month labor matrix. |
 | `/api/project-detail` | GET | `projectId`, `startDate`, `endDate` | employee labor rows | Project detail drawer. |
-| `/api/employees` | GET | none | employee list | Uses `hr_employee_current_view` and `user_roles`. |
+| `/api/employees` | GET | none | employee list | Uses `hr_employee_current_view` and `user_roles`; includes organization and cost specialty. |
 | `/api/employees/save` | POST | employee payload | `{ ok, employees }` | Creates auth user for new employees. |
 | `/api/employees/delete` | POST | `{ id }` | `{ ok, employees }` | Soft-deactivates employee and profile. |
-| `/api/organizations` | GET | none | organization list | Includes manager names. |
+| `/api/organizations` | GET | none | organization list | Includes parent links and manager names. |
 | `/api/organizations/save` | POST | organization payload | saved organization | Upsert. |
 | `/api/organizations/delete` | POST | `{ id }` | `{ ok, organizations }` | Soft delete. |
 

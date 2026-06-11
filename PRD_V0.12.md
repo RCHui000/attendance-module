@@ -157,6 +157,7 @@ flowchart LR
 - 部门负责人来自 `organizations.manager_user_id`。
 - 员工所属部门来自 `employee_profiles_v2.org_id`。
 - 员工直属负责人来自 `employee_profiles_v2.manager_user_id`。
+- 造价/成本部门员工专业来自 `employee_profiles_v2.cost_specialty`，当前取值为 `civil`（土建）或 `mep`（机电）。
 - 历史超级用户白名单仍保留，用于兼容早期账号。
 
 ### 4.1 员工与组织页权限
@@ -486,6 +487,7 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 035 | `035_project_service_type_roles.sql` | 项目服务类型与角色配置 |
 | 036 | `036_timesheet_regular_hours_guard.sql` | 周表普通工日精度兜底约束 |
 | 037 | `037_timesheet_regular_hours_week_cap_7.sql` | 周日作为普通工日，周上限 7.0 |
+| 038 | `038_org_hierarchy_cost_specialty.sql` | 多级组织骨架与造价专业字段 |
 
 迁移原则：
 
@@ -610,7 +612,17 @@ flowchart LR
 - 部门负责人和 admin 走同一个接口，但权限判断不同。
 - 删除/停用员工也收敛到统一接口。
 
-### 14.4 BI 数据仓库化
+### 14.4 多级组织与造价专业路由
+
+当前组织配置要求：
+
+- 部门使用 `organizations.parent_id` 表达多级结构，不再假设只有一层部门。
+- 初始业务结构为 `公司 -> 项目管理 / 成本合约`，其中 `项目管理 -> 项目管理 / 设计审核 / 成本部`。
+- 员工所属部门仍保存到 `employee_profiles_v2.org_id`，部门负责人仍来自 `organizations.manager_user_id`。
+- 成本/造价部门员工岗位限定为 `土建`、`机电`，结构化保存为 `employee_profiles_v2.cost_specialty`。
+- 后续合同或项目审批路由可根据 `cost_specialty` 将第一道造价审批分派给对应专业的造价项目负责人。
+
+### 14.5 BI 数据仓库化
 
 当前 BI 多数由前端 API 聚合。
 
@@ -621,7 +633,7 @@ flowchart LR
 - 将 approved 周表的工日、成本、项目、部门、人员快照化。
 - 周表通过后写入或刷新汇总，避免每次前端重算。
 
-### 14.5 NAS 与云端同步
+### 14.6 NAS 与云端同步
 
 当前不建议做无规划双主同步。
 
@@ -633,7 +645,7 @@ flowchart LR
 - 冲突解决策略。
 - 备份和回滚优先级。
 
-### 14.6 安全与上线治理
+### 14.7 安全与上线治理
 
 建议讨论：
 

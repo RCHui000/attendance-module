@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Employee, Organization } from "@/types/employee";
+import { flattenOrgTree, isCostOrganization, orgOptionLabel } from "@/utils/orgTree";
 
 interface EmployeeEditData {
   id: number;
@@ -17,6 +18,7 @@ interface EmployeeEditData {
   role: string;
   orgId: string;
   positionName: string;
+  costSpecialty: string;
   contractType: "labor" | "service";
   monthlySalary: string;
   dailyWage: string;
@@ -81,6 +83,18 @@ function calculateMonths(startDate: string, endDate: string): number {
   );
 }
 
+function inferCostSpecialty(positionName: string): string {
+  if (positionName.includes("土建")) return "civil";
+  if (positionName.includes("机电")) return "mep";
+  return "";
+}
+
+function costSpecialtyLabel(value: string): string {
+  if (value === "civil") return "土建";
+  if (value === "mep") return "机电";
+  return "";
+}
+
 export const EmployeeEditRow = memo(function EmployeeEditRow({
   item,
   data,
@@ -92,9 +106,16 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   onCancel,
 }: EmployeeEditRowProps) {
   const departmentOrgs = useMemo(
-    () => orgs.filter((o) => o.org_type !== "company"),
+    () => flattenOrgTree(orgs).filter((o) => o.org_type !== "company"),
     [orgs],
   );
+
+  const showCostSpecialty = useMemo(
+    () => isCostOrganization(orgs, data.orgId ? Number(data.orgId) : null),
+    [orgs, data.orgId],
+  );
+
+  const effectiveCostSpecialty = data.costSpecialty || inferCostSpecialty(data.positionName);
 
   const managerOptions = useMemo(
     () =>
@@ -112,15 +133,18 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
   const handleOrgChange = useCallback(
     (value: string) => {
-      onChange({ orgId: value });
+      const shouldKeepSpecialty = isCostOrganization(orgs, value ? Number(value) : null);
+      const nextSpecialty = shouldKeepSpecialty ? data.costSpecialty || inferCostSpecialty(data.positionName) : "";
       // Reset manager when org changes
       const scoped = getManagerOptions(value, "", item?.id ?? null, employees);
       onChange({
         orgId: value,
         managerUserId: scoped[0] ? String(scoped[0].id) : "",
+        costSpecialty: nextSpecialty,
+        positionName: shouldKeepSpecialty ? costSpecialtyLabel(nextSpecialty) : data.positionName,
       });
     },
-    [item?.id, employees, onChange],
+    [data.costSpecialty, data.positionName, item?.id, employees, orgs, onChange],
   );
 
   const handleHireDateChange = useCallback(
@@ -233,7 +257,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           <SelectContent>
             {departmentOrgs.map((org) => (
               <SelectItem key={org.id} value={String(org.id)}>
-                {org.org_name}
+                {orgOptionLabel(org)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -242,13 +266,36 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
       {/* Position */}
       <td className="p-1.5">
-        <Input
-          className="h-8 text-sm w-[80px]"
-          autoComplete="off"
-          aria-label="岗位"
-          value={data.positionName}
-          onChange={(e) => onChange({ positionName: e.target.value })}
-        />
+        {showCostSpecialty ? (
+          <Select
+            value={effectiveCostSpecialty || "none"}
+            onValueChange={(v) => {
+              const nextValue = v || "none";
+              const next = nextValue === "none" ? "" : nextValue;
+              onChange({
+                costSpecialty: next,
+                positionName: costSpecialtyLabel(next),
+              });
+            }}
+          >
+            <SelectTrigger className="h-8 text-sm w-[88px]" aria-label="造价岗位">
+              <SelectValue placeholder="岗位" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">未设</SelectItem>
+              <SelectItem value="civil">土建</SelectItem>
+              <SelectItem value="mep">机电</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            className="h-8 text-sm w-[80px]"
+            autoComplete="off"
+            aria-label="岗位"
+            value={data.positionName}
+            onChange={(e) => onChange({ positionName: e.target.value })}
+          />
+        )}
       </td>
 
       {/* Contract Type */}

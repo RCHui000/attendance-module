@@ -21,6 +21,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { useOrganizations, useSaveOrganization, useDeleteOrganization } from "@/hooks/useEmployees";
 import type { Employee, Organization } from "@/types/employee";
+import { descendantOrgIds, flattenOrgTree, orgOptionLabel } from "@/utils/orgTree";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -59,10 +60,18 @@ export function OrganizationPanel({
     return counts;
   }, [employees]);
 
-  const filtered = orgs.filter((o) =>
+  const treeOrgs = useMemo(() => flattenOrgTree(orgs), [orgs]);
+
+  const filtered = treeOrgs.filter((o) =>
     (!visibleOrgIds || visibleOrgIds.has(o.id)) &&
-    o.org_name.includes(search),
+    (!search || o.path.includes(search) || o.org_name.includes(search)),
   );
+
+  const parentOptions = useMemo(() => {
+    const blocked = editingId ? descendantOrgIds(orgs, editingId) : new Set<number>();
+    if (editingId) blocked.add(editingId);
+    return treeOrgs.filter((org) => !blocked.has(org.id));
+  }, [editingId, orgs, treeOrgs]);
 
   const managerOptions = useMemo(
     () =>
@@ -125,6 +134,24 @@ export function OrganizationPanel({
         <SelectContent>
           <SelectItem value="department">部门</SelectItem>
           <SelectItem value="company">公司</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={editData.parentId || "none"}
+        onValueChange={(v) =>
+          setEditData((d) => ({ ...d, parentId: !v || v === "none" ? "" : v }))
+        }
+      >
+        <SelectTrigger className="h-8 text-sm">
+          <SelectValue placeholder="上级部门" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">无上级</SelectItem>
+          {parentOptions.map((org) => (
+            <SelectItem key={org.id} value={String(org.id)}>
+              {orgOptionLabel(org)}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       <Select
@@ -237,7 +264,11 @@ export function OrganizationPanel({
             ) : (
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-sm font-medium">{org.org_name}</span>
+                  <span className="text-sm font-medium">
+                    {"  ".repeat(org.depth)}
+                    {org.depth > 0 ? "- " : ""}
+                    {org.org_name}
+                  </span>
                   <span className="text-xs text-muted-foreground ml-2">
                     {getManagerName(org.manager_user_id)} ·{" "}
                     {orgMemberCounts[org.id] || 0}人

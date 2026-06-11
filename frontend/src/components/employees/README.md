@@ -1,6 +1,6 @@
 # Employees And Organizations Module
 
-This module manages employees, current HR profiles, roles, salary/contract fields, and the organization tree.
+This module manages employees, current HR profiles, roles, salary/contract fields, and the configurable organization tree.
 
 ## Entry Points
 
@@ -29,11 +29,20 @@ This module manages employees, current HR profiles, roles, salary/contract field
 
 - `employees`: core employee row and auth link.
 - `profiles`: login name and GoTrue identity mapping.
-- `employee_profiles_v2`: organization, position, status, manager.
+- `employee_profiles_v2`: organization, position, cost specialty, status, manager.
 - `employee_contracts`: contract type and date range.
 - `employee_salary_profiles`: monthly salary or service daily wage.
 - `user_roles`: `employee`, `manager`, `admin`.
-- `organizations`: tree node and department manager.
+- `organizations`: multi-level tree node and department manager.
+
+## Organization And Specialty Rules
+
+- `organizations.parent_id` supports configurable multi-level departments.
+- The current seeded structure is `公司 -> 项目管理 / 成本合约`, with `项目管理 -> 项目管理 / 设计审核 / 成本部`.
+- Organization selectors render departments as a tree and store only the selected organization id.
+- Employees in a department path containing `成本` or `造价` use a constrained position selector: `土建` or `机电`.
+- The constrained cost position is stored as `employee_profiles_v2.cost_specialty`: `civil` for 土建 and `mep` for 机电.
+- Future approval routing can use `cost_specialty` for the first cost-review route to each discipline's cost project owner.
 
 ## Permission Notes
 

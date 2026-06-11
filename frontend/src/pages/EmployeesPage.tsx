@@ -24,6 +24,7 @@ import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { OrganizationPanel } from "@/components/employees/OrganizationPanel";
 import { ReminderFloat } from "@/components/employees/ReminderFloat";
 import { useAuthStore } from "@/stores/authStore";
+import { isCostOrganization } from "@/utils/orgTree";
 import type { EmployeeEditData } from "@/components/employees/EmployeeEditRow";
 import type { Employee } from "@/types/employee";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ const EMPTY_EDIT_DATA: EmployeeEditData = {
   role: "employee",
   orgId: "",
   positionName: "",
+  costSpecialty: "",
   contractType: "labor",
   monthlySalary: "",
   dailyWage: "",
@@ -43,6 +45,12 @@ const EMPTY_EDIT_DATA: EmployeeEditData = {
   managerUserId: "",
   status: "active",
 };
+
+function inferCostSpecialty(positionName: string): string {
+  if (positionName.includes("土建")) return "civil";
+  if (positionName.includes("机电")) return "mep";
+  return "";
+}
 
 export default function EmployeesPage() {
   const { user: currentUser, isAdmin, canReview } = useAuthStore();
@@ -129,6 +137,7 @@ export default function EmployeesPage() {
       role: emp.role || "employee",
       orgId: emp.org_id ? String(emp.org_id) : "",
       positionName: emp.position_name || "",
+      costSpecialty: emp.cost_specialty || inferCostSpecialty(emp.position_name || ""),
       contractType: emp.contract_type || "labor",
       monthlySalary: emp.monthly_salary || "",
       dailyWage: emp.daily_wage || "",
@@ -185,6 +194,14 @@ export default function EmployeesPage() {
       toast.error("请先填写姓名");
       return;
     }
+    if (
+      editData.orgId &&
+      isCostOrganization(orgs, Number(editData.orgId)) &&
+      !editData.costSpecialty
+    ) {
+      toast.error("造价/成本部门员工需要选择土建或机电岗位");
+      return;
+    }
 
     const payload: Record<string, unknown> = {
       id: editData.id || null,
@@ -193,6 +210,7 @@ export default function EmployeesPage() {
       role: editData.role,
       orgId: editData.orgId ? Number(editData.orgId) : null,
       positionName: editData.positionName,
+      costSpecialty: editData.costSpecialty || null,
       contractType: editData.contractType,
       monthlySalary: editData.monthlySalary,
       dailyWage: editData.dailyWage,
@@ -229,7 +247,7 @@ export default function EmployeesPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存失败");
     }
-  }, [editData, saveEmployee]);
+  }, [editData, orgs, saveEmployee]);
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;

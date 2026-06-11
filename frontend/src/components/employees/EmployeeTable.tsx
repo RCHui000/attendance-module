@@ -15,6 +15,11 @@ import { EmployeeEditRow, type EmployeeEditData } from "./EmployeeEditRow";
 import type { Employee, Organization } from "@/types/employee";
 import { Pencil } from "lucide-react";
 
+const costSpecialtyText: Record<string, string> = {
+  civil: "土建",
+  mep: "机电",
+};
+
 interface EmployeeTableProps {
   employees: Employee[];
   orgs: Organization[];
@@ -170,7 +175,14 @@ export function EmployeeTable({
                     {deptDisplay}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {emp.position_name || "—"}
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span>{emp.position_name || "—"}</span>
+                      {emp.cost_specialty && (
+                        <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
+                          {costSpecialtyText[emp.cost_specialty] || emp.cost_specialty}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm">
                     {emp.contract_type === "service" ? "劳务合同" : "劳动合同"}

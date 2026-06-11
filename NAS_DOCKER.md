@@ -20,7 +20,14 @@ docker compose up -d
 
 ## Database Migrations
 
-Apply SQL files in `supabase-psa/migrations/` in order. The current browser runtime requires `004_full_supabase_runtime.sql`.
+Apply pending SQL migrations with the ledger-aware script:
+
+```bash
+POSTGRES_CONTAINER_NAME=psa-postgres POSTGRES_USER=psa_admin POSTGRES_DB=psa \
+  bash deploy/scripts/apply-migrations.sh
+```
+
+The script applies files in `supabase-psa/migrations/` in order and records them in `public.schema_migrations`.
 
 ## Container
 

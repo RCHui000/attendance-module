@@ -53,6 +53,17 @@ export interface LaborMatrixRow {
   labor_cost: number;
 }
 
+export interface ProjectDepartmentOwner {
+  id?: number;
+  project_id?: number;
+  org_id: number;
+  org_name?: string;
+  project_owner_id: number;
+  project_owner_name?: string;
+  role_key?: string;
+  is_active?: boolean;
+}
+
 export interface ProjectBase {
   id: number;
   code: string;
@@ -64,6 +75,7 @@ export interface ProjectBase {
   owner_org_name: string | null;
   project_owner_id: number | null;
   project_owner_name: string | null;
+  department_owners?: ProjectDepartmentOwner[];
   total_labor_hours: number;
   total_labor_cost: number;
   status: string;

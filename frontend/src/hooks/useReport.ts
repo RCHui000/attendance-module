@@ -71,6 +71,11 @@ export function useSaveProject() {
       contractAmount?: number;
       receivedAmount?: number;
       projectOwnerId?: number;
+      departmentOwners?: {
+        id?: number;
+        org_id: number;
+        project_owner_id: number;
+      }[];
     }) =>
       api("/api/projects/save", {
         method: "POST",
@@ -79,9 +84,13 @@ export function useSaveProject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-base"] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["all-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["timesheet-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["timesheet"] });
+      queryClient.invalidateQueries({ queryKey: ["approvals"] });
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      publishLocalSync(["projects", "reports", "dashboard"]);
+      publishLocalSync(["projects", "timesheet", "approvals", "reports", "dashboard"]);
     },
   });
 }

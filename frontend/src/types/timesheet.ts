@@ -3,6 +3,7 @@ export type TimesheetStatus =
   | "submitted"
   | "approved"
   | "rejected"
+  | "revision_required"
   | "locked"
   | "summarized";
 

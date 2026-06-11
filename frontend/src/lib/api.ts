@@ -133,6 +133,22 @@ function projectStatusFromTasks(sheet: AnyRow, tasks: AnyRow[]): AnyRow[] {
   });
 }
 
+function projectStatusFromReviews(reviews: AnyRow[]): AnyRow[] {
+  return reviews.map((review) => ({
+    project_id: Number(review.project_id),
+    status: review.status === "final_confirmed" || review.status === "project_approved"
+      ? "approved"
+      : review.status === "needs_revision"
+        ? "rejected"
+        : review.status === "cancelled"
+          ? "draft"
+          : "pending",
+    assignee_role: review.route_source || "",
+    result_action: review.status || "",
+    completed_at: review.project_approved_at || review.final_confirmed_at || review.last_action_at || "",
+  }));
+}
+
 function approvedProjectIds(tasks: AnyRow[]): Set<number> {
   return new Set(
     tasks
@@ -149,9 +165,6 @@ function approvedProjectIds(tasks: AnyRow[]): Set<number> {
 
 function reviewedTaskKey(task: AnyRow): string {
   const timesheetId = Number(task.target_id);
-  if (task.scope_type === "project" && task.scope_id) {
-    return `project:${timesheetId}:${Number(task.scope_id)}`;
-  }
   return `timesheet:${timesheetId}`;
 }
 
@@ -162,6 +175,24 @@ function latestReviewedTasks(tasks: AnyRow[]): AnyRow[] {
     const current = latest.get(key);
     const currentTime = Date.parse(current?.completed_at || "") || 0;
     const nextTime = Date.parse(task.completed_at || "") || 0;
+    if (
+      !current ||
+      nextTime > currentTime ||
+      (nextTime === currentTime && Number(task.id || 0) > Number(current.id || 0))
+    ) {
+      latest.set(key, task);
+    }
+  }
+  return Array.from(latest.values());
+}
+
+function latestPendingTasks(tasks: AnyRow[]): AnyRow[] {
+  const latest = new Map<string, AnyRow>();
+  for (const task of tasks) {
+    const key = `${Number(task.target_id)}:${task.scope_type || "timesheet"}:${Number(task.scope_id || 0)}:${Number(task.assignee_user_id || 0)}`;
+    const current = latest.get(key);
+    const currentTime = Date.parse(current?.created_at || "") || 0;
+    const nextTime = Date.parse(task.created_at || "") || 0;
     if (
       !current ||
       nextTime > currentTime ||
@@ -275,15 +306,32 @@ async function organizations(): Promise<AnyRow[]> {
 }
 
 async function projects(): Promise<AnyRow[]> {
-  const [rows, orgs, employees, labor, sheets] = await Promise.all([
+  const [rows, orgs, employees, labor, sheets, departmentOwners] = await Promise.all([
     rest<AnyRow[]>("/projects?select=*&status=neq.deleted&order=code.asc"),
     rest<AnyRow[]>("/organizations?select=id,org_name"),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/timesheet_entries?select=id,project_id,timesheet_id,hours"),
     rest<AnyRow[]>("/timesheets?select=id,status"),
+    rest<AnyRow[]>("/project_department_owners?select=*&is_active=eq.true&order=project_id.asc,org_id.asc")
+      .catch(() => []),
   ]);
   const orgNames = new Map(orgs.map((o) => [Number(o.id), o.org_name]));
   const employeeNames = new Map(employees.map((e) => [Number(e.id), e.name]));
+  const ownerRowsByProject = new Map<number, AnyRow[]>();
+  for (const owner of departmentOwners) {
+    const projectId = Number(owner.project_id);
+    if (!ownerRowsByProject.has(projectId)) ownerRowsByProject.set(projectId, []);
+    ownerRowsByProject.get(projectId)!.push({
+      ...owner,
+      id: Number(owner.id),
+      project_id: projectId,
+      org_id: Number(owner.org_id),
+      org_name: orgNames.get(Number(owner.org_id)) || "",
+      project_owner_id: Number(owner.project_owner_id),
+      project_owner_name: employeeNames.get(Number(owner.project_owner_id)) || "",
+      is_active: owner.is_active !== false,
+    });
+  }
   const sheetMap = new Map(sheets.map((sheet) => [Number(sheet.id), sheet]));
   const hours = new Map<number, number>();
   const seenEntryIds = new Set<number>();
@@ -305,6 +353,7 @@ async function projects(): Promise<AnyRow[]> {
       receivable_amount: Number(project.receivable_amount ?? Math.max(contract - received, 0)),
       owner_org_name: project.owner_org_id ? orgNames.get(Number(project.owner_org_id)) || null : null,
       project_owner_name: project.project_owner_id ? employeeNames.get(Number(project.project_owner_id)) || null : null,
+      department_owners: ownerRowsByProject.get(Number(project.id)) || [],
       total_labor_hours: hours.get(Number(project.id)) || 0,
       total_labor_cost: 0,
     };
@@ -325,14 +374,17 @@ async function getTimesheet(weekStart: string): Promise<AnyRow> {
       body: JSON.stringify([{ id, user_id: user.id, week_start_date: weekStart }]),
     }))[0];
   }
-  const [entries, overtime, tasks] = await Promise.all([
+  const [entries, overtime, tasks, reviews] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
     rest<AnyRow[]>(`/overtime_entries?select=*&timesheet_id=eq.${sheet.id}&order=work_date.asc`),
     rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`),
+    rest<AnyRow[]>(`/approval_project_review_records_view?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,last_action_at.desc`)
+      .catch(() => rest<AnyRow[]>(`/timesheet_project_reviews?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,round_no.desc`))
+      .catch(() => []),
   ]);
-  const taskProjectStatuses = projectStatusFromTasks(sheet, tasks);
+  const taskProjectStatuses = reviews.length ? projectStatusFromReviews(reviews) : projectStatusFromTasks(sheet, tasks);
   const taskProjectIds = new Set(taskProjectStatuses.map((item) => Number(item.project_id)));
   const entryProjectIds = [...new Set(entries.map((entry) => Number(entry.project_id)).filter(Boolean))];
   return {
@@ -363,7 +415,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     `/timesheets?select=*&id=eq.${timesheetId}&limit=1`,
   ))[0];
   if (!sheet) throw new Error("Timesheet not found");
-  const [entries, overtime, userRows, profRows, tasks] = await Promise.all([
+  const [entries, overtime, userRows, profRows, tasks, reviews] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
@@ -371,6 +423,9 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     rest<AnyRow[]>(`/employees?select=name&id=eq.${sheet.user_id}&limit=1`),
     rest<AnyRow[]>(`/employee_profiles_v2?select=organizations(org_name)&employee_id=eq.${sheet.user_id}&limit=1`),
     rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`),
+    rest<AnyRow[]>(`/approval_project_review_records_view?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,last_action_at.desc`)
+      .catch(() => rest<AnyRow[]>(`/timesheet_project_reviews?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,round_no.desc`))
+      .catch(() => []),
   ]);
   const userName = userRows[0]?.name || "";
   const profile = profRows[0];
@@ -396,22 +451,31 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       reason: entry.reason || "",
       status: entry.status || "",
     })),
-    project_statuses: projectStatusFromTasks(sheet, tasks),
+    project_statuses: reviews.length ? projectStatusFromReviews(reviews) : projectStatusFromTasks(sheet, tasks),
   };
 }
 
 async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
   const sheet = await getTimesheet(body.weekStart);
-  if (!["draft", "rejected"].includes(sheet.status)) {
+  if (!["draft", "rejected", "revision_required"].includes(sheet.status)) {
     throw new Error("Submitted or approved timesheets cannot be edited");
   }
   const existingEntries = await rest<AnyRow[]>(
     `/timesheet_entries?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
   );
-  const existingTasks = await rest<AnyRow[]>(
-    `/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`,
-  );
-  const lockedProjectIds = approvedProjectIds(existingTasks);
+  const [existingTasks, graphReviews] = await Promise.all([
+    rest<AnyRow[]>(
+      `/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`,
+    ),
+    rest<AnyRow[]>(`/approval_project_review_records_view?select=project_id,status,result_action&timesheet_id=eq.${sheet.id}`)
+      .catch(() => []),
+  ]);
+  const lockedProjectIds = new Set([
+    ...approvedProjectIds(existingTasks),
+    ...graphReviews
+      .filter((review) => review.status === "project_approved" || review.result_action === "approve")
+      .map((review) => Number(review.project_id)),
+  ]);
   await rest(`/timesheets?id=eq.${sheet.id}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
@@ -492,22 +556,23 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   if (!user) throw new Error("Not authenticated");
   const admin = await isAdmin();
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const reviewedTaskFilter = admin
-    ? ""
-    : `&or=(completed_by.eq.${user.id},assignee_user_id.eq.${user.id})`;
+  const reviewedTaskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
   // Fetch ALL pending tasks (not filtered by week — approval center shows everything)
   // Flat queries — avoid PostgREST embedded resources that need missing FKs
   const [tasks, reviewedTasks, employees, employeeProfiles, entries] = await Promise.all([
-    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`),
-    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${reviewedTaskFilter}`),
+    rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`)
+      .catch(() => rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`)),
+    rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet&result_action=in.(approve,reject)${reviewedTaskFilter}`)
+      .catch(() => rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${admin ? "" : `&or=(completed_by.eq.${user.id},assignee_user_id.eq.${user.id})`}`)),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
   ]);
+  const latestPending = latestPendingTasks(tasks);
   const latestReviewed = latestReviewedTasks(reviewedTasks);
 
   // Fetch ALL timesheets referenced by tasks (not filtered by week)
-  const pendingSheetIds = [...new Set(tasks.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
+  const pendingSheetIds = [...new Set(latestPending.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
   const reviewedSheetIds = [...new Set(latestReviewed.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
   const allSheetIds = [...new Set([...pendingSheetIds, ...reviewedSheetIds])];
   const sheets = allSheetIds.length > 0
@@ -543,7 +608,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const sheetMap = new Map(sheets.map((s) => [Number(s.id), s]));
   const projectIds = [
     ...new Set(
-      [...tasks, ...latestReviewed]
+      [...latestPending, ...latestReviewed]
         .filter((task) => task.scope_type === "project" && task.scope_id)
         .map((task) => Number(task.scope_id)),
     ),
@@ -576,7 +641,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
       review_comment: source.comment || sheet.review_comment || "",
     };
   };
-  const pending = tasks
+  const pending = latestPending
     .map((task) => ({ task, sheet: sheetMap.get(Number(task.target_id)) }))
     .filter((item): item is { task: AnyRow; sheet: AnyRow } => !!item.sheet && item.sheet.status === "submitted")
     .sort((a, b) => (a.task.created_at || "").localeCompare(b.task.created_at || ""))
@@ -751,6 +816,70 @@ async function laborMatrix(startDate: string, endDate: string): Promise<AnyRow[]
     .filter((row) => row.employee_name && row.project_name);
 }
 
+async function saveProjectDepartmentOwners(projectId: number, owners: AnyRow[] = []): Promise<void> {
+  const current = await rest<AnyRow[]>(
+    `/project_department_owners?select=*&project_id=eq.${projectId}&is_active=eq.true`,
+  ).catch(() => []);
+  const activeIds = new Set<number>();
+  const seen = new Set<string>();
+
+  for (const item of owners) {
+    const orgId = Number(item.org_id || item.orgId || 0);
+    const ownerId = Number(item.project_owner_id || item.projectOwnerId || 0);
+    if (!orgId || !ownerId) continue;
+    const roleKey = item.role_key || item.roleKey || "project_owner";
+    const key = `${orgId}:${roleKey}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const row = {
+      project_id: projectId,
+      org_id: orgId,
+      project_owner_id: ownerId,
+      role_key: roleKey,
+      is_active: true,
+    };
+    const existing = item.id
+      ? current.find((owner) => Number(owner.id) === Number(item.id))
+      : current.find((owner) => Number(owner.org_id) === orgId && String(owner.role_key || "project_owner") === roleKey);
+    if (existing?.id) {
+      activeIds.add(Number(existing.id));
+      await rest(`/project_department_owners?id=eq.${existing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(row),
+      });
+    } else {
+      const inserted = await rest<AnyRow[]>("/project_department_owners", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([row]),
+      });
+      if (inserted[0]?.id) activeIds.add(Number(inserted[0].id));
+    }
+  }
+
+  const deactivateIds = current
+    .map((owner) => Number(owner.id))
+    .filter((id) => id && !activeIds.has(id));
+  if (deactivateIds.length) {
+    await rest(`/project_department_owners?id=in.(${deactivateIds.join(",")})`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: false }),
+    });
+  }
+}
+
+async function refreshProjectRoutes(projectId: number, reason: string): Promise<void> {
+  await rest("/rpc/psa_refresh_pending_project_review_routes", {
+    method: "POST",
+    body: JSON.stringify({ p_project_id: projectId, p_reason: reason }),
+  }).catch(() =>
+    rest("/rpc/psa_refresh_project_timesheet_routes", {
+      method: "POST",
+      body: JSON.stringify({ p_project_id: projectId, p_reason: reason }),
+    }),
+  );
+}
+
 async function saveProject(body: AnyRow): Promise<AnyRow> {
   const projectId = body.id ? Number(body.id) : null;
   const existingProject = projectId
@@ -769,14 +898,9 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     await rest(`/projects?id=eq.${projectId}`, { method: "PATCH", body: JSON.stringify(row) });
     const previousOwnerId = existingProject[0]?.project_owner_id ? Number(existingProject[0].project_owner_id) : null;
     const nextOwnerId = row.project_owner_id ? Number(row.project_owner_id) : null;
-    if (previousOwnerId !== nextOwnerId) {
-      await rest("/rpc/psa_refresh_project_timesheet_routes", {
-        method: "POST",
-        body: JSON.stringify({
-          p_project_id: projectId,
-          p_reason: "Route refreshed after project owner change",
-        }),
-      });
+    await saveProjectDepartmentOwners(projectId, body.departmentOwners || body.department_owners || []);
+    if (previousOwnerId !== nextOwnerId || body.departmentOwners || body.department_owners) {
+      await refreshProjectRoutes(projectId, "Route refreshed after project owner change");
     }
   } else {
     // Check for duplicate project code before inserting
@@ -786,7 +910,9 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     if (existing.length > 0) {
       throw new Error(`项目代码「${row.code}」已存在，请更换代码后重试`);
     }
-    await rest("/projects", { method: "POST", body: JSON.stringify([{ id: await nextId("projects"), ...row }]) });
+    const newProjectId = await nextId("projects");
+    await rest("/projects", { method: "POST", body: JSON.stringify([{ id: newProjectId, ...row }]) });
+    await saveProjectDepartmentOwners(newProjectId, body.departmentOwners || body.department_owners || []);
   }
   return { ok: true, projects: await projects() };
 }
@@ -930,6 +1056,10 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
     return projectDetail(url.searchParams.get("projectId") || "0", url.searchParams.get("startDate") || todayMonday(), url.searchParams.get("endDate") || todayMonday()) as T;
   }
   if (url.pathname === "/api/projects/save") return saveProject(body) as T;
+  if (url.pathname === "/api/project-department-owners/save") {
+    await saveProjectDepartmentOwners(Number(body.projectId || body.project_id), body.departmentOwners || body.department_owners || []);
+    return { ok: true, projects: await projects() } as T;
+  }
   if (url.pathname === "/api/projects/delete") {
     await rest(`/projects?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify({ status: "deleted" }) });
     return { ok: true, projects: await projects() } as T;

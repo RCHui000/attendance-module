@@ -30,6 +30,12 @@ echo "== Build and start containers =="
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" build
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d
 
+echo "== Apply database migrations =="
+POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-approval-postgres}" \
+POSTGRES_USER="${POSTGRES_USER:-psa_admin}" \
+POSTGRES_DB="${POSTGRES_DB:-psa}" \
+  bash deploy/scripts/apply-migrations.sh
+
 echo "== Apply GoTrue compatibility views =="
 docker exec -i "${POSTGRES_CONTAINER_NAME:-approval-postgres}" \
   psql -U postgres -d "${POSTGRES_DB:-psa}" \

@@ -1,6 +1,6 @@
-# 项目核算自动化系统 PRD V0.12.8.1
+# 项目核算自动化系统 PRD V0.14.7
 
-更新日期：2026-06-08
+更新日期：2026-06-11
 
 本文用于描述当前系统真实架构、业务规则、部署状态、已知边界和后续优化议题。目标读者包括产品决策者、开发 Agent、外部推理模型和未来接手维护人员。
 
@@ -8,14 +8,15 @@
 
 ## 1. 产品目标
 
-建设内部项目成本管理、工时填报、审批流转和 BI 分析系统，统一管理员工周表、项目工日、组织架构、项目负责人、部门负责人、加班、合同回款、人力成本和审批记录。
+建设内部项目成本管理、工时填报、审批流转和 BI 分析系统，统一管理员工周表、项目工日、组织架构、项目负责人、部门负责人、合同回款、人力成本和审批记录。OT/加班能力保留为预留模块，当前公司业务口径不启用 OT 填报。
 
 当前版本核心目标：
 
-- 员工按周提交项目工时和加班记录。
+- 员工按周提交项目工时，周日如实际上班按普通工日填写。
 - 项目负责人按项目块审批自己负责项目的工时。
 - 部门负责人对本部门人员的完整周表进行最终汇总审批。
 - 管理员维护员工、组织、项目、账号、审批和基础数据。
+- 项目支持 PM、CC、PMCC 服务类型，用于合同审批和负责人配置。
 - BI 从项目、部门、人员三个视角分析活跃项目数、投入工日、人力成本。
 - 系统可在 NAS 局域网和阿里云 ECS 上部署运行。
 
@@ -25,8 +26,8 @@
 
 | 项 | 当前状态 |
 | --- | --- |
-| 当前版本 | `V0.12.8.1` |
-| 基线版本 | `V0.12.8` |
+| 当前版本 | `V0.14.7` |
+| 基线版本 | `V0.14.7` |
 | 前端 | React 19 + TypeScript + Vite 8 |
 | UI | Tailwind CSS v4 + shadcn/ui 风格组件 + Lucide React |
 | 图表 | Recharts |
@@ -36,8 +37,9 @@
 | 数据访问 | PostgREST + RPC |
 | 实时能力 | Supabase Realtime + BroadcastChannel fallback |
 | 静态服务 | `serve_spa.py` 托管 `frontend/dist` 并提供受控 API/代理 |
+| 版本显示 | Vite 构建时自动从 Git release tag 推导，显式环境变量可覆盖 |
 | NAS 部署 | 局域网容器栈 |
-| 云端部署 | 阿里云 ECS 预部署，Nginx 反向代理，域名 DNS 已开始切换 |
+| 云端部署 | 阿里云 ECS，Nginx 反向代理，`approval-app` 镜像随 release tag 构建 |
 
 ## 3. 系统总架构
 
@@ -97,7 +99,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  G["GitHub main + V0.12.8.1 tag"] --> NAS["NAS 局域网部署"]
+  G["GitHub main + release tag"] --> NAS["NAS 局域网部署"]
   G --> ALI["阿里云 ECS 部署"]
 
   subgraph "NAS"
@@ -143,7 +145,7 @@ flowchart LR
 
 | 角色 | 主要能力 |
 | --- | --- |
-| 员工 | 登录、填写本人周表、保存草稿、提交审批、填写加班、查看本人数据 |
+| 员工 | 登录、填写本人周表、保存草稿、提交审批、查看本人数据 |
 | 项目负责人 | 审批自己负责项目的周表项目块，查看相关项目投入 |
 | 部门负责人 / 主管 | 审批本部门人员完整周表，查看本部门 BI，维护本部门及下级部门员工资料 |
 | 管理员 | 全局员工、组织、项目、审批、BI、账号、数据维护 |
@@ -172,10 +174,10 @@ flowchart LR
 | 页面 | 路由 | 说明 |
 | --- | --- | --- |
 | 登录页 | 未登录默认 | 登录、修改密码、密码明文切换 |
-| 我的周表 | `/timesheet` | 员工填写项目工时和加班 |
+| 我的周表 | `/timesheet` | 员工填写项目工时；OT 行预留但当前锁定 |
 | 数据看板 | `/dashboard` | 指标卡、项目汇总、BI 项目/部门/人员视角 |
-| 审批中心 | `/review` | 待审核、已审核、加班审批、周表详情 |
-| 项目列表 | `/report` | 项目 CRUD、项目负责人、项目明细与工时统计 |
+| 审批中心 | `/review` | 待审核、已审核、周表详情；OT 审批能力保留但当前业务不启用 |
+| 项目列表 | `/report` | 项目 CRUD、服务类型、PM/CC/PMCC 负责人、项目明细与工时统计 |
 | 员工与组织 | `/employees` | 员工资料、合同薪酬、组织结构、部门负责人 |
 
 ### 5.1 前端组件结构
@@ -224,12 +226,23 @@ frontend/src/
 | `GET /api/timesheet` | PostgREST 平铺查询 | 周表、明细、加班 |
 | `POST /api/timesheet/save` | PostgREST 写入 | 草稿/退回状态保存 |
 | `POST /api/timesheet/action` | `psa_timesheet_action` RPC | 周表提交、审批、退回、重开 |
-| `POST /api/overtime/action` | `psa_overtime_action` RPC | 加班审批 |
+| `GET /api/timesheet-detail` | PostgREST 平铺查询 | 审批详情页周表明细 |
+| `POST /api/overtime/action` | `psa_overtime_action` RPC | OT 预留审批接口，当前 UI 不开放填报 |
+| `GET /api/overtime/pending` | `approvalTasks` 派生 | OT 预留待办 |
 | `GET /api/approvals/tasks` | PostgREST 平铺查询 | 待审核/已审核 |
 | `GET /api/employees` | `hr_employee_current_view` + 角色表 | 员工列表与角色 |
 | `POST /api/employees/save` | 新增走服务端，编辑走 PostgREST | 新增员工需要创建 GoTrue 账号 |
+| `POST /api/employees/delete` | PostgREST 软删除 | 停用员工并标记档案离职 |
+| `GET /api/organizations` | PostgREST 聚合 | 组织树与负责人 |
+| `POST /api/organizations/save` | PostgREST upsert | 新增/编辑组织 |
+| `POST /api/organizations/delete` | PostgREST 软删除 | 标记组织删除 |
 | `GET /api/projects` | PostgREST 聚合 | 项目列表、人力投入、负责人 |
+| `POST /api/projects/save` | PostgREST upsert + 路由刷新 | 项目、服务类型、负责人、部门负责人配置 |
+| `POST /api/project-department-owners/save` | PostgREST upsert | 项目-部门负责人配置 |
+| `POST /api/projects/delete` | PostgREST 软删除 | 标记项目删除 |
 | `GET /api/reports/weekly` | PostgREST + JS 聚合 | 周/月/区间统计 |
+| `GET /api/reports/labor-matrix` | PostgREST + JS 聚合 | 项目 × 月份投入矩阵 |
+| `GET /api/project-detail` | PostgREST + JS 聚合 | 项目人员投入明细 |
 
 服务端受控端点：
 
@@ -281,6 +294,8 @@ erDiagram
 | `user_roles` | 员工角色 |
 | `organizations` | 组织架构与部门负责人 |
 | `projects` | 项目基础信息、项目负责人、项目所属部门 |
+| `project_department_owners` | 项目-部门负责人映射，支持多参与部门 |
+| `project_roles` | 项目角色配置，支持 PM/CC/PMCC 负责人 |
 | `timesheets` | 周表主表 |
 | `timesheet_entries` | 周表项目明细 |
 | `overtime_entries` | 加班记录 |
@@ -299,10 +314,12 @@ erDiagram
 
 - 每名员工每周只能有一张周表。
 - 每天所有项目工日合计不得超过 1 工日。
+- 每周普通工日最多 7 工日；周日上班按普通工日处理，不走 OT。
+- 项目行/项目块合计显示 2 位小数，避免个位数百分比在审批时被 0.1 工日展示精度掩盖。
 - 周表状态主线：`draft -> submitted -> approved/rejected`。
 - 草稿和退回状态允许本人编辑。
 - 已提交和已通过状态不允许员工继续编辑。
-- 加班记录独立审批，周表通过不代表加班自动通过。
+- OT/加班表和审批 RPC 仍保留，当前 UI 锁定 OT 输入，不计入现行业务薪酬核算。
 
 ### 8.2 当前审批流
 
@@ -348,12 +365,12 @@ flowchart TD
 
 ### 8.4 Adaptive Approval Graph
 
-`workflow_tasks` 仍是当前实际执行队列。`approval_instances / approval_rounds / approval_nodes / approval_edges / approval_events` 是旁路审批图模型，用于追溯、检查和未来逐步接管复杂审批。
+`workflow_tasks` 仍兼容旧审批中心。`approval_instances / approval_rounds / approval_nodes / approval_edges / approval_events` 已落地为 Approval Graph B 核心模型，用于承载更复杂的合同与项目审批图，并为旧周表审批提供追溯能力。
 
 当前边界：
 
-- 不替代审批中心 UI。
-- 不替代现有 `workflow_tasks` 和 RPC。
+- 周表审批 UI 仍主要使用兼容任务视图。
+- 合同审批模板已具备 PM、CC、PMCC 类型的图模板基础。
 - 不实现项目经理撤回、部门负责人选择性退回、已通过后重开修订 UI。
 - 触发器同步图结构失败时不应阻断旧审批动作。
 
@@ -424,6 +441,17 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 024 | `024_fix_employee_profiles_v2_rls_recursion.sql` | 修复员工档案 RLS 递归 |
 | 025 | `025_fix_postgrest_jwt_claim_helpers.sql` | 修复 PostgREST JWT claim helper |
 | 026 | `026_department_manager_employee_write.sql` | 部门负责人维护部门内员工资料 |
+| 027 | `027_project_department_owners.sql` | 项目-部门负责人映射 |
+| 028 | `028_timesheet_project_reviews.sql` | 周表项目块审批记录 |
+| 029 | `029_approval_route_resolver_v13.sql` | 审批路由解析器 |
+| 030 | `030_timesheet_project_review_sync_v13.sql` | 项目审批与周表状态同步 |
+| 031 | `031_project_owner_refresh_v13.sql` | 项目负责人刷新 |
+| 032 | `032_realtime_publication_v13.sql` | Realtime publication 补齐 |
+| 033 | `033_approval_graph_b_core.sql` | Approval Graph B 核心表、RPC、视图 |
+| 034 | `034_contract_approval_templates.sql` | 合同审批模板：PM、CC、PMCC |
+| 035 | `035_project_service_type_roles.sql` | 项目服务类型与角色配置 |
+| 036 | `036_timesheet_regular_hours_guard.sql` | 周表普通工日精度兜底约束 |
+| 037 | `037_timesheet_regular_hours_week_cap_7.sql` | 周日作为普通工日，周上限 7.0 |
 
 迁移原则：
 
@@ -459,11 +487,11 @@ flowchart LR
 | `deploy/nginx/app.conf` | Nginx 反向代理配置 |
 | `ALIYUN_DEPLOYMENT.md` | 阿里云部署说明 |
 | `CLOUD_DEPLOY_CHECKLIST.md` | 云端上线检查清单 |
-| `SMOKE_TEST.md` | 冒烟测试清单 |
 | `ACCOUNT_SECURITY_RUNBOOK.md` | 账号安全整理 |
 | `使用说明.md` | Markdown 使用说明 |
 | `使用说明.html` | 单文件 HTML 使用手册，内嵌截图 |
-| `架构.md` | 架构与审批架构图 |
+| `frontend/src/**/README.md` | 前端模块职责、接口、关键规则 |
+| `supabase-psa/README.md` | Supabase 运行态与迁移说明 |
 
 云端预部署状态：
 
@@ -476,7 +504,7 @@ flowchart LR
 
 | ID | 问题 | 影响 | 当前处理 |
 | --- | --- | --- | --- |
-| K-01 | 多部门项目仍只有单一 `projects.project_owner_id` | 一个项目同时涉及设计、项目管理、造价时，无法按提交员工部门路由到对应项目负责人 | 需要设计项目-部门-项目负责人映射，前端项目维护页同步升级 |
+| K-01 | 多部门/多服务类型负责人模型仍需业务校准 | 已有 `project_department_owners` 和 `project_roles`，但 PM/CC/PMCC 的真实跨部门链路还需要更多样例验证 | 项目维护页继续细化“服务类型 + 角色负责人 + 部门负责人”配置 |
 | K-02 | `workflow_tasks` 承担过多业务状态 | 退回、撤回、重审、项目块局部修改难以表达 | 已有 Adaptive Approval Graph 旁路模型，未来可引入项目块状态表 |
 | K-03 | 员工编辑仍可能由前端串行写多表 | 写入失败时存在局部成功风险 | 后续建议收敛为 RPC 或服务端事务 |
 | K-04 | 历史 FK 与孤儿数据仍需整理 | PostgREST 嵌入查询受限，部分查询需平铺聚合 | 当前前端使用平铺查询 + JS 关联 |
@@ -484,34 +512,35 @@ flowchart LR
 | K-06 | 部门负责人权限边界需要持续校验 | 可能出现白名单或 admin 类账号可见范围与预期不一致 | 保留白名单，但需清晰记录 |
 | K-07 | NAS 与云端数据同步不是长期双主架构 | 双向订阅存在冲突和身份映射风险 | 当前以人工同步/单向迁移为主，不建议贸然双主 |
 | K-08 | 默认初始密码是运维便利与安全的折中 | 简化交付但增加上线安全风险 | 应上线前统一改密或强制首次改密 |
+| K-09 | OT 模块为预留状态 | 表、RPC、审批视图仍存在，但公司当前不启用 OT | UI 锁定填报入口，后续启用前需重新确认薪酬口径 |
 
 ## 14. 待讨论优化方向
 
 以下问题适合交给推理模型进一步讨论方案。
 
-### 14.1 多部门项目负责人模型
+### 14.1 项目服务类型与负责人模型
 
-业务事实：
+已落地基础：
 
-- 一个项目可能同时包含设计、项目管理、造价咨询等不同业务部门。
-- 不同部门在同一项目内可能有不同项目负责人。
-- 造价员工提交的项目块应路由给造价项目负责人，再给造价部门负责人。
-- 设计员工提交的项目块应路由给设计项目负责人，再给设计部门负责人。
+- 项目可配置 `business_type`：`PM`、`CC`、`PMCC`。
+- 项目编码可自动识别服务类型，也允许人工调整。
+- `project_roles` 支持按角色记录项目负责人，例如 PM 项目负责人、CC 项目负责人等。
+- `project_department_owners` 保留项目参与部门负责人配置。
 
 待优化问题：
 
-- 是否新增 `project_department_owners` 或类似映射表。
-- 映射表应该表达 `project_id + org_id -> project_owner_id`，还是更复杂的项目角色。
-- 部门负责人是否应实时从 `organizations.manager_user_id` 读取，而不是在映射表冗余。
-- 项目列表前端如何维护多部门负责人映射。
-- 员工调部门后，历史已审批数据是否保持原审批人，未完成任务是否重算。
+- PMCC 合同审批中，成本合约员工提交时的跨部门链路如何从项目角色自动解析。
+- 项目管理部下“项目管理/设计审核/成本部”三个子部门是否全部进入 `organizations`，以及 role key 如何命名。
+- 部门负责人是否实时从 `organizations.manager_user_id` 读取，还是在角色配置中做快照。
+- 已完成审批保持原路由，未完成任务是否可一键刷新。
+- 项目列表是否需要固定显示“服务类型、项目名称、PM/CC 负责人、部门负责人、财务状况、累计支出、累计工日”。
 
 建议初步方向：
 
-- 新增项目-部门-项目负责人映射。
-- 部门负责人不在映射表内冗余，按员工提交时所属部门和当前组织负责人解析。
-- 已完成审批保持有效，未完成审批可根据配置刷新。
-- 前端项目编辑页将“项目负责人”升级为“参与部门与项目负责人”维护区。
+- 项目服务类型驱动合同/审批模板选择。
+- 项目角色表记录业务线负责人，组织表记录部门负责人。
+- 已完成审批保持有效，未完成审批按显式“刷新路由”动作重算。
+- 前端项目列表将服务类型与负责人配置作为项目主数据的一部分维护。
 
 ### 14.2 项目块级审批状态
 

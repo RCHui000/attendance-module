@@ -19,8 +19,12 @@ set -a
 . "${ENV_FILE}"
 set +a
 
-echo "== Pull latest code =="
-git pull --ff-only
+if [ -d .git ]; then
+  echo "== Pull latest code =="
+  git pull --ff-only
+else
+  echo "== Skip git pull: ${APP_CODE_DIR} is not a git checkout =="
+fi
 
 echo "== Build frontend =="
 npm --prefix frontend ci

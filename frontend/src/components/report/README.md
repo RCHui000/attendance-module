@@ -37,7 +37,25 @@ Key fields used by the UI:
 - `contract_amount`, `received_amount`, `receivable_amount`: financial status.
 - `total_labor_hours`: approved/locked/summarized regular workdays.
 - `department_owners`: project participating departments and department owner records.
-- `project_roles`: role-specific project owners such as PM/CC owner.
+- `project_roles`: role-specific contract approval owners.
+
+## Contract Approval Roles
+
+Project service type is contract approval master data, not only a display label.
+
+| Service type | Required route |
+| --- | --- |
+| `PM` | PM employee -> PM project owner -> PM department owner |
+| `CC` | CC employee -> CC project owner -> CC department owner |
+| `PMCC` | CC employee -> CC project owner -> PM cost department owner -> PM project owner -> PM department owner |
+
+Role keys currently used by the project list:
+
+- `cc_project_owner`
+- `cc_department_owner`
+- `pm_cost_department_owner`
+- `pm_project_owner`
+- `pm_department_owner`
 
 ## Notes
 

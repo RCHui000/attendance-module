@@ -2,6 +2,8 @@
 
 The review module is the approval center for weekly timesheets. It shows pending approvals, reviewed history, and detailed project-block workday rows.
 
+This module describes timesheet approval only. Contract approval for PM, CC, and PMCC service types is driven by project master data and Approval Graph templates; PMCC is a cross-department serial route, not the two-step timesheet project/department flow.
+
 ## Entry Points
 
 | File | Role |

@@ -26,5 +26,5 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 | `001`-`009` | Base schema, RLS, Supabase runtime, report dedup. |
 | `010`-`022` | Timesheet workflow RPC, project approvals, route refresh. |
 | `023`-`032` | Adaptive graph groundwork, employee RLS fixes, realtime updates. |
-| `033`-`035` | Approval Graph B, contract templates, project service type roles. |
+| `033`-`035` | Approval Graph B, contract templates, project service type roles. PM/CC/PMCC routes must match the PRD contract approval chains. |
 | `036`-`037` | Timesheet regular workday precision and 7-day weekly cap guards. |

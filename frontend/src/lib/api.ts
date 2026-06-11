@@ -1124,8 +1124,17 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
   await rest(`/employee_salary_profiles?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
   await rest("/employee_salary_profiles", { method: "POST", body: JSON.stringify([{ employee_id: id, salary_mode: contractType === "service" ? "daily_wage" : "monthly_salary", monthly_salary: contractType === "service" ? 0 : Number(body.monthlySalary || body.monthly_salary || 0), daily_wage: contractType === "service" ? Number(body.dailyWage || body.daily_wage || 0) : 0, is_current: true }]) });
   if (admin) {
-    await rest(`/user_roles?employee_id=eq.${id}`, { method: "DELETE" });
-    await rest("/user_roles", { method: "POST", body: JSON.stringify([{ employee_id: id, role: body.role || "employee" }]) });
+    const user = await currentUser();
+    const nextRole = body.role || "employee";
+    if (user?.id === id && nextRole !== "admin") {
+      throw new Error("不能移除当前登录管理员自己的 admin 权限");
+    }
+    await rest("/user_roles?on_conflict=employee_id,role", {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates" },
+      body: JSON.stringify([{ employee_id: id, role: nextRole }]),
+    });
+    await rest(`/user_roles?employee_id=eq.${id}&role=neq.${encodeURIComponent(nextRole)}`, { method: "DELETE" });
   }
   return { ok: true, employees: await listEmployees() };
 }

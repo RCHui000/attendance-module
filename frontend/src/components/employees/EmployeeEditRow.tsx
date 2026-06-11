@@ -95,6 +95,10 @@ function costSpecialtyLabel(value: string): string {
   return "";
 }
 
+function requiresCostSpecialty(role: string): boolean {
+  return role === "employee";
+}
+
 export const EmployeeEditRow = memo(function EmployeeEditRow({
   item,
   data,
@@ -111,8 +115,10 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   );
 
   const showCostSpecialty = useMemo(
-    () => isCostOrganization(orgs, data.orgId ? Number(data.orgId) : null),
-    [orgs, data.orgId],
+    () =>
+      requiresCostSpecialty(data.role) &&
+      isCostOrganization(orgs, data.orgId ? Number(data.orgId) : null),
+    [orgs, data.orgId, data.role],
   );
 
   const effectiveCostSpecialty = data.costSpecialty || inferCostSpecialty(data.positionName);
@@ -134,17 +140,19 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   const handleOrgChange = useCallback(
     (value: string) => {
       const shouldKeepSpecialty = isCostOrganization(orgs, value ? Number(value) : null);
-      const nextSpecialty = shouldKeepSpecialty ? data.costSpecialty || inferCostSpecialty(data.positionName) : "";
+      const nextSpecialty = shouldKeepSpecialty && requiresCostSpecialty(data.role)
+        ? data.costSpecialty || inferCostSpecialty(data.positionName)
+        : "";
       // Reset manager when org changes
       const scoped = getManagerOptions(value, "", item?.id ?? null, employees);
       onChange({
         orgId: value,
         managerUserId: scoped[0] ? String(scoped[0].id) : "",
         costSpecialty: nextSpecialty,
-        positionName: shouldKeepSpecialty ? costSpecialtyLabel(nextSpecialty) : data.positionName,
+        positionName: shouldKeepSpecialty && requiresCostSpecialty(data.role) ? costSpecialtyLabel(nextSpecialty) : data.positionName,
       });
     },
-    [data.costSpecialty, data.positionName, item?.id, employees, orgs, onChange],
+    [data.costSpecialty, data.positionName, data.role, item?.id, employees, orgs, onChange],
   );
 
   const handleHireDateChange = useCallback(

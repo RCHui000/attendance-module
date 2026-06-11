@@ -52,6 +52,10 @@ function inferCostSpecialty(positionName: string): string {
   return "";
 }
 
+function requiresCostSpecialty(role: string): boolean {
+  return role === "employee";
+}
+
 export default function EmployeesPage() {
   const { user: currentUser, isAdmin, canReview } = useAuthStore();
   const navigate = useNavigate();
@@ -196,12 +200,17 @@ export default function EmployeesPage() {
     }
     if (
       editData.orgId &&
+      requiresCostSpecialty(editData.role) &&
       isCostOrganization(orgs, Number(editData.orgId)) &&
       !editData.costSpecialty
     ) {
-      toast.error("造价/成本部门员工需要选择土建或机电岗位");
+      toast.error("成本合约执行人员需要选择土建或机电岗位");
       return;
     }
+    const shouldSaveCostSpecialty =
+      !!editData.orgId &&
+      requiresCostSpecialty(editData.role) &&
+      isCostOrganization(orgs, Number(editData.orgId));
 
     const payload: Record<string, unknown> = {
       id: editData.id || null,
@@ -210,7 +219,7 @@ export default function EmployeesPage() {
       role: editData.role,
       orgId: editData.orgId ? Number(editData.orgId) : null,
       positionName: editData.positionName,
-      costSpecialty: editData.costSpecialty || null,
+      costSpecialty: shouldSaveCostSpecialty ? editData.costSpecialty || null : null,
       contractType: editData.contractType,
       monthlySalary: editData.monthlySalary,
       dailyWage: editData.dailyWage,

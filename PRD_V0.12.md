@@ -157,7 +157,7 @@ flowchart LR
 - 部门负责人来自 `organizations.manager_user_id`。
 - 员工所属部门来自 `employee_profiles_v2.org_id`。
 - 员工直属负责人来自 `employee_profiles_v2.manager_user_id`。
-- 成本合约部门员工专业来自 `employee_profiles_v2.cost_specialty`，当前取值为 `civil`（土建）或 `mep`（机电）。
+- 成本合约执行人员/项目负责人专业来自 `employee_profiles_v2.cost_specialty`，当前取值为 `civil`（土建）或 `mep`（机电）；成本合约部门负责人不需要设置专业。
 - 历史超级用户白名单仍保留，用于兼容早期账号。
 
 ### 4.1 员工与组织页权限
@@ -489,6 +489,7 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 037 | `037_timesheet_regular_hours_week_cap_7.sql` | 周日作为普通工日，周上限 7.0 |
 | 038 | `038_org_hierarchy_cost_specialty.sql` | 多级组织骨架与造价专业字段 |
 | 039 | `039_real_department_tree.sql` | 收敛真实两大部门与项目管理三个二级部门 |
+| 040 | `040_cost_specialty_scope.sql` | 限定造价专业只用于执行/项目负责人 |
 
 迁移原则：
 
@@ -621,7 +622,8 @@ flowchart LR
 - 初始业务结构为两个一级部门：`项目管理`、`成本合约`。
 - `项目管理` 下设三个二级部门：`设计`、`管理`、`成本`；该 `成本` 是项目管理内部二级部门，不等同于一级 `成本合约`。
 - 员工所属部门仍保存到 `employee_profiles_v2.org_id`，部门负责人仍来自 `organizations.manager_user_id`。
-- `成本合约` 部门员工岗位限定为 `土建`、`机电`，结构化保存为 `employee_profiles_v2.cost_specialty`。
+- `成本合约` 下普通执行员工和具备项目负责人属性的员工岗位限定为 `土建`、`机电`，结构化保存为 `employee_profiles_v2.cost_specialty`。
+- `成本合约` 部门负责人、主管和 admin 不需要设置 `cost_specialty`。
 - 后续合同或项目审批路由可根据 `cost_specialty` 将第一道造价审批分派给对应专业的造价项目负责人。
 
 ### 14.5 BI 数据仓库化

@@ -30,3 +30,4 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 | `036`-`037` | Timesheet regular workday precision and 7-day weekly cap guards. |
 | `038` | Organization hierarchy seed and cost specialty field for civil/MEP routing. |
 | `039` | Normalize the visible department tree to 项目管理 / 成本合约 and 项目管理's 设计 / 管理 / 成本 children. |
+| `040` | Limit cost specialty to execution/project-owner employees; clear it from department heads/managers/admins. |

@@ -347,7 +347,7 @@ export const TimesheetTable = memo(function TimesheetTable({
             {/* Overtime Row */}
             <tr className="border-b border-border/50">
               <td className="sticky left-0 bg-white p-1.5 text-sm font-bold text-warning z-[5]">
-                加班 OT
+                加班 OT（预留）
               </td>
               {weekDays.map((day) => (
                 <td key={day} className="p-1.5">
@@ -357,13 +357,12 @@ export const TimesheetTable = memo(function TimesheetTable({
                     step="0.5"
                     className="h-8 w-[72px] mx-auto text-right text-sm text-warning"
                     value={overtime[day]?.hours || ""}
-                    onChange={(e) =>
-                      onUpdateOvertime(
-                        day,
-                        parseFloat(e.target.value) || 0,
-                      )
-                    }
-                    disabled={isLocked}
+                    onChange={(e) => {
+                      if (isLocked) return;
+                      onUpdateOvertime(day, parseFloat(e.target.value) || 0);
+                    }}
+                    disabled
+                    title="OT 功能预留，当前公司按普通出勤工日统计"
                     placeholder="0"
                   />
                 </td>

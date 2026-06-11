@@ -22,7 +22,7 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 type AnyRow = Record<string, any>;
 const REPORTABLE_TIMESHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
 const MAX_TIMESHEET_DAY_HOURS = 1;
-const MAX_TIMESHEET_WEEK_HOURS = 6;
+const MAX_TIMESHEET_WEEK_HOURS = 7;
 const TIMESHEET_HOURS_EPSILON = 0.0001;
 
 function formatApiHours(value: number): string {

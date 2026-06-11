@@ -463,7 +463,7 @@ function ApprovalRow({
         </Badge>
       </TableCell>
       <TableCell className="text-sm text-right tabular-nums">
-        {item.total_hours?.toFixed(1)}
+        {item.total_hours?.toFixed(item.scope_type === "project" ? 2 : 1)}
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
         {item.submitted_at
@@ -549,7 +549,7 @@ function ReviewedRow({
         </Badge>
       </TableCell>
       <TableCell className="text-sm text-right tabular-nums">
-        {item.total_hours?.toFixed(1)}
+        {item.total_hours?.toFixed(item.scope_type === "project" ? 2 : 1)}
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
         {item.review_comment || "—"}

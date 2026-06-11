@@ -287,7 +287,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                         rowTotal > 1 && "text-destructive",
                       )}
                     >
-                      {formatWorkdays(rowTotal)}
+                      {rowTotal.toFixed(2)}
                     </span>
                   </td>
 

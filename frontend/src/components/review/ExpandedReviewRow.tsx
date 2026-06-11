@@ -120,7 +120,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                               </td>
                             ))}
                             <td className="py-1.5 text-right tabular-nums font-medium">
-                              {total.toFixed(1)}
+                              {total.toFixed(2)}
                             </td>
                           </tr>
                         );

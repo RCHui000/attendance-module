@@ -118,7 +118,7 @@ export function ReviewDrawer({ timesheetId, open, onClose }: ReviewDrawerProps) 
                             </td>
                           ))}
                           <td className="py-2 text-right tabular-nums font-medium">
-                            {total.toFixed(1)}
+                            {total.toFixed(2)}
                           </td>
                         </tr>
                       );

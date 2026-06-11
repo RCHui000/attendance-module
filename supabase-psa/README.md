@@ -29,3 +29,4 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 | `033`-`035` | Approval Graph B, contract templates, project service type roles. PM/CC/PMCC routes must match the PRD contract approval chains. |
 | `036`-`037` | Timesheet regular workday precision and 7-day weekly cap guards. |
 | `038` | Organization hierarchy seed and cost specialty field for civil/MEP routing. |
+| `039` | Normalize the visible department tree to 项目管理 / 成本合约 and 项目管理's 设计 / 管理 / 成本 children. |

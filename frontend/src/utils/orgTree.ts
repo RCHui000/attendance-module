@@ -68,6 +68,17 @@ export function descendantOrgIds(orgs: Organization[], orgId: number): Set<numbe
 }
 
 export function isCostOrganization(orgs: Organization[], orgId: number | null | undefined): boolean {
-  const path = orgPath(orgs, orgId);
-  return path.includes("成本") || path.includes("造价");
+  if (!orgId) return false;
+  const byId = new Map(orgs.map((org) => [org.id, org]));
+  const seen = new Set<number>();
+  let current = byId.get(orgId);
+
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    if (current.org_code === "CC") return true;
+    if (current.org_name.includes("成本合约") || current.org_name.includes("造价")) return true;
+    current = current.parent_id ? byId.get(current.parent_id) : undefined;
+  }
+
+  return false;
 }

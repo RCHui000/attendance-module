@@ -157,7 +157,7 @@ flowchart LR
 - 部门负责人来自 `organizations.manager_user_id`。
 - 员工所属部门来自 `employee_profiles_v2.org_id`。
 - 员工直属负责人来自 `employee_profiles_v2.manager_user_id`。
-- 造价/成本部门员工专业来自 `employee_profiles_v2.cost_specialty`，当前取值为 `civil`（土建）或 `mep`（机电）。
+- 成本合约部门员工专业来自 `employee_profiles_v2.cost_specialty`，当前取值为 `civil`（土建）或 `mep`（机电）。
 - 历史超级用户白名单仍保留，用于兼容早期账号。
 
 ### 4.1 员工与组织页权限
@@ -373,7 +373,7 @@ flowchart TD
 组织结构：
 
 - 一级部门：`项目管理`、`成本合约`。
-- `项目管理` 下设三个子部门：`项目管理`、`设计审核`、`成本部`。
+- `项目管理` 下设三个二级部门：`设计`、`管理`、`成本`。其中 `项目管理 / 成本` 是项目管理内部二级部门，不等同于一级部门 `成本合约`。
 
 合同审批链：
 
@@ -488,6 +488,7 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 036 | `036_timesheet_regular_hours_guard.sql` | 周表普通工日精度兜底约束 |
 | 037 | `037_timesheet_regular_hours_week_cap_7.sql` | 周日作为普通工日，周上限 7.0 |
 | 038 | `038_org_hierarchy_cost_specialty.sql` | 多级组织骨架与造价专业字段 |
+| 039 | `039_real_department_tree.sql` | 收敛真实两大部门与项目管理三个二级部门 |
 
 迁移原则：
 
@@ -571,7 +572,7 @@ flowchart LR
 
 待优化问题：
 
-- 项目管理部下“项目管理/设计审核/成本部”三个子部门是否全部进入 `organizations`，以及 role key 如何命名。
+- 项目管理部下“设计/管理/成本”三个二级部门的负责人如何与项目角色联动。
 - 部门负责人是否实时从 `organizations.manager_user_id` 读取，还是在角色配置中做快照。
 - 已完成审批保持原路由，未完成任务是否可一键刷新。
 - 项目列表是否需要固定显示“服务类型、项目名称、PM/CC 负责人、部门负责人、财务状况、累计支出、累计工日”。
@@ -617,9 +618,10 @@ flowchart LR
 当前组织配置要求：
 
 - 部门使用 `organizations.parent_id` 表达多级结构，不再假设只有一层部门。
-- 初始业务结构为 `公司 -> 项目管理 / 成本合约`，其中 `项目管理 -> 项目管理 / 设计审核 / 成本部`。
+- 初始业务结构为两个一级部门：`项目管理`、`成本合约`。
+- `项目管理` 下设三个二级部门：`设计`、`管理`、`成本`；该 `成本` 是项目管理内部二级部门，不等同于一级 `成本合约`。
 - 员工所属部门仍保存到 `employee_profiles_v2.org_id`，部门负责人仍来自 `organizations.manager_user_id`。
-- 成本/造价部门员工岗位限定为 `土建`、`机电`，结构化保存为 `employee_profiles_v2.cost_specialty`。
+- `成本合约` 部门员工岗位限定为 `土建`、`机电`，结构化保存为 `employee_profiles_v2.cost_specialty`。
 - 后续合同或项目审批路由可根据 `cost_specialty` 将第一道造价审批分派给对应专业的造价项目负责人。
 
 ### 14.5 BI 数据仓库化

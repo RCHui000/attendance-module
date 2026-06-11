@@ -38,9 +38,10 @@ This module manages employees, current HR profiles, roles, salary/contract field
 ## Organization And Specialty Rules
 
 - `organizations.parent_id` supports configurable multi-level departments.
-- The current seeded structure is `公司 -> 项目管理 / 成本合约`, with `项目管理 -> 项目管理 / 设计审核 / 成本部`.
+- The current seeded structure has two top-level departments: `项目管理` and `成本合约`.
+- `项目管理` has three second-level departments: `设计`, `管理`, and `成本`; this `成本` node is internal to 项目管理 and is not the same as the top-level `成本合约` department.
 - Organization selectors render departments as a tree and store only the selected organization id.
-- Employees in a department path containing `成本` or `造价` use a constrained position selector: `土建` or `机电`.
+- Employees under the top-level `成本合约` line use a constrained position selector: `土建` or `机电`.
 - The constrained cost position is stored as `employee_profiles_v2.cost_specialty`: `civil` for 土建 and `mep` for 机电.
 - Future approval routing can use `cost_specialty` for the first cost-review route to each discipline's cost project owner.
 

@@ -47,12 +47,14 @@ sql_literal() {
 existing_schema="$(psql_exec -Atc "SELECT to_regclass('public.workflow_tasks') IS NOT NULL")"
 ledger_count="$(psql_exec -Atc "SELECT count(*) FROM public.schema_migrations")"
 
-if [ "${existing_schema}" = "t" ] && [ "${ledger_count}" = "0" ]; then
-  echo "== Existing schema without migration ledger; marking pre-existing migrations =="
+if [ "${existing_schema}" = "t" ]; then
+  echo "== Existing schema detected; marking baseline migrations =="
   for file in "${MIGRATIONS_DIR}"/*.sql; do
     version="$(basename "${file}" .sql)"
     case "${version}" in
-      033_*) continue ;;
+      0[0-2][0-9]_*) ;;
+      03[0-2]_*) ;;
+      *) continue ;;
     esac
     key="$(migration_key "${version}")"
     psql_exec -c "INSERT INTO public.schema_migrations(version) VALUES ($(sql_literal "${key}")) ON CONFLICT (version) DO NOTHING;"

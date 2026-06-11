@@ -1,0 +1,19 @@
+{
+  "version": "V0.14.12",
+  "runtime": "supabase-postgres-compatible",
+  "frontend": "React + Vite static bundle",
+  "base_version": "V0.14.11",
+  "required_migrations": [
+    "041_contract_routes_and_review_views.sql"
+  ],
+  "release_notes": [
+    "Add an admin approval-flow configuration page with contract template editing and live graph preview.",
+    "Change the project page to a left project directory and fixed right-side project configuration panel.",
+    "Add CC civil and MEP project owner configuration while preserving cc_project_owner compatibility for existing route resolution.",
+    "Align the PMCC contract route with the PM/CC/PMCC approval diagram by inserting CC department owner before PM project owner.",
+    "Merge Approval Graph views and legacy workflow_tasks in the approval center so restored cloud backups show pending and reviewed records."
+  ],
+  "verification": [
+    "npm --prefix frontend run build"
+  ]
+}

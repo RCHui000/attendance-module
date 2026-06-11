@@ -10,6 +10,7 @@ This module describes timesheet approval only. Contract approval for PM, CC, and
 | --- | --- |
 | `pages/ReviewPage.tsx` | Page container for approval center. |
 | `ApprovalTable.tsx` | Pending/reviewed task lists and approve/reject actions. |
+| `ApprovalFlowConfig.tsx` | Admin-only contract approval template editor with live graph preview. |
 | `ExpandedReviewRow.tsx` | Inline expanded timesheet detail. |
 | `ReviewDrawer.tsx` | Drawer-style full timesheet detail. |
 | `hooks/useApprovals.ts` | Query and mutation wrapper. |
@@ -23,6 +24,8 @@ This module describes timesheet approval only. Contract approval for PM, CC, and
 | `useTimesheetDetail` | `/api/timesheet-detail?timesheetId=...` | GET | Load sheet, entries, overtime rows, project statuses. |
 | `useTimesheetAction` | `/api/timesheet/action` | POST | Submit approval action: approve, reject, reopen. |
 | `useOvertimeAction` | `/api/overtime/action` | POST | Reserved OT approval action. |
+| `useApprovalTemplates` | `/api/approval-templates` | GET | Load PM / CC / PMCC contract approval templates with nodes and edges. |
+| `useSaveApprovalTemplate` | `/api/approval-templates/save` | POST | Admin-only update for template metadata and node configuration. |
 
 ## Approval Task Shape
 
@@ -41,4 +44,5 @@ Important fields used by the UI:
 - Department summary tasks approve or reject the full sheet after all project blocks pass.
 - Project task totals display two decimals; department summary totals keep compact one-decimal display.
 - Rejecting a task sends the sheet back to editable state and cancels remaining pending work as implemented by RPC.
-- The UI reads compatibility views over Approval Graph B and legacy `workflow_tasks`.
+- The UI reads Approval Graph B compatibility views and legacy `workflow_tasks` together, so restored backups that contain either data surface still show pending/reviewed records.
+- Admin users can open the approval-flow configuration tab to inspect PM / CC / PMCC contract templates and preview the current serial graph.

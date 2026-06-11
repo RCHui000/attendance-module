@@ -230,6 +230,21 @@ function latestReviewedTasks(tasks: AnyRow[]): AnyRow[] {
   return Array.from(latest.values());
 }
 
+function normalizedApprovalTask(task: AnyRow): AnyRow {
+  const resultAction =
+    task.result_action ||
+    (task.action === "approved" ? "approve" : task.action === "rejected" ? "reject" : task.action) ||
+    (task.status === "approved" ? "approve" : task.status === "rejected" ? "reject" : "");
+  return {
+    ...task,
+    id: Number(task.task_id || task.id),
+    target_id: Number(task.target_id || task.timesheet_id || task.business_id),
+    result_action: resultAction,
+    completed_at: task.completed_at || task.acted_at || task.updated_at,
+    created_at: task.created_at || task.activated_at,
+  };
+}
+
 function latestPendingTasks(tasks: AnyRow[]): AnyRow[] {
   const latest = new Map<string, AnyRow>();
   for (const task of tasks) {
@@ -632,17 +647,22 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const admin = await isAdmin();
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
   const reviewedTaskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  // Fetch ALL pending tasks (not filtered by week — approval center shows everything)
-  // Flat queries — avoid PostgREST embedded resources that need missing FKs
-  const [tasks, reviewedTasks, employees, employeeProfiles, entries] = await Promise.all([
-    rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`)
-      .catch(() => rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`)),
-    rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet&result_action=in.(approve,reject)${reviewedTaskFilter}`)
-      .catch(() => rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${admin ? "" : `&or=(completed_by.eq.${user.id},assignee_user_id.eq.${user.id})`}`)),
+  const legacyReviewedFilter = admin ? "" : `&or=(completed_by.eq.${user.id},assignee_user_id.eq.${user.id})`;
+  // Fetch ALL pending tasks (not filtered by week). Backup restores may contain either
+  // Approval Graph rows or legacy workflow_tasks rows, so merge both surfaces.
+  const [graphPending, legacyPending, graphReviewed, legacyReviewed, employees, employeeProfiles, entries] = await Promise.all([
+    rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
+    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`).catch(() => []),
+    rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
+    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${legacyReviewedFilter}`).catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
   ]);
+  const tasks = [...graphPending, ...legacyPending].map(normalizedApprovalTask);
+  const reviewedTasks = [...graphReviewed, ...legacyReviewed]
+    .map(normalizedApprovalTask)
+    .filter((task) => ["approve", "reject", "approved", "rejected"].includes(String(task.result_action)));
   const latestPending = latestPendingTasks(tasks);
   const latestReviewed = latestReviewedTasks(reviewedTasks);
 
@@ -702,7 +722,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
       timesheet_id: Number(sheet.id),
       user_id: Number(sheet.user_id),
       week_start_date: sheet.week_start_date,
-      status: source.result_action === "reject" ? "rejected" : sheet.status,
+      status: ["reject", "rejected"].includes(String(source.result_action)) ? "rejected" : sheet.status,
       assignee_role: source.assignee_role || "",
       scope_type: source.scope_type || "timesheet",
       scope_id: source.scope_id ? Number(source.scope_id) : null,
@@ -945,6 +965,8 @@ async function saveProjectDepartmentOwners(projectId: number, owners: AnyRow[] =
 
 async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promise<void> {
   const roleKeys = [
+    "cc_civil_project_owner",
+    "cc_mep_project_owner",
     "cc_project_owner",
     "cc_department_owner",
     "pm_cost_department_owner",
@@ -1003,6 +1025,48 @@ async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promis
       body: JSON.stringify({ status: "inactive" }),
     });
   }
+}
+
+async function approvalTemplates(): Promise<AnyRow[]> {
+  const [templates, nodes, edges] = await Promise.all([
+    rest<AnyRow[]>("/approval_templates?select=*&document_type=in.(contract,contract_approval)&order=business_type.asc,template_key.asc"),
+    rest<AnyRow[]>("/approval_template_nodes?select=*&order=template_id.asc,sort_order.asc"),
+    rest<AnyRow[]>("/approval_template_edges?select=*&order=template_id.asc,from_node_key.asc,to_node_key.asc"),
+  ]);
+  return templates.map((template) => ({
+    ...template,
+    nodes: nodes.filter((node) => Number(node.template_id) === Number(template.id)),
+    edges: edges.filter((edge) => Number(edge.template_id) === Number(template.id)),
+  }));
+}
+
+async function saveApprovalTemplate(body: AnyRow): Promise<AnyRow> {
+  if (!(await isAdmin())) throw new Error("Only admin can edit approval templates");
+  const templateId = Number(body.id || 0);
+  if (!templateId) throw new Error("Template id is required");
+  await rest(`/approval_templates?id=eq.${templateId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      name: body.name,
+      status: body.status || "active",
+      version: Number(body.version || 1),
+    }),
+  });
+  for (const node of body.nodes || []) {
+    if (!node.id) continue;
+    await rest(`/approval_template_nodes?id=eq.${Number(node.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        node_name: node.node_name,
+        resolver_type: node.resolver_type,
+        resolver_role: node.resolver_role || null,
+        approval_policy: node.approval_policy || "single",
+        reject_policy: node.reject_policy || "back_to_creator",
+        sort_order: Number(node.sort_order || 0),
+      }),
+    });
+  }
+  return { ok: true, templates: await approvalTemplates() };
 }
 
 async function refreshProjectRoutes(projectId: number, reason: string): Promise<void> {
@@ -1186,6 +1250,7 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/organizations") return organizations() as T;
   if (url.pathname === "/api/employees") return listEmployees() as T;
   if (url.pathname === "/api/projects") return projects() as T;
+  if (url.pathname === "/api/approval-templates") return approvalTemplates() as T;
   if (url.pathname === "/api/timesheet") return getTimesheet(url.searchParams.get("weekStart") || todayMonday()) as T;
   if (url.pathname === "/api/timesheet-detail") return getTimesheetDetail(Number(url.searchParams.get("timesheetId") || 0)) as T;
   if (url.pathname === "/api/timesheet/save") return saveTimesheet(body) as T;
@@ -1205,6 +1270,7 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
     return projectDetail(url.searchParams.get("projectId") || "0", url.searchParams.get("startDate") || todayMonday(), url.searchParams.get("endDate") || todayMonday()) as T;
   }
   if (url.pathname === "/api/projects/save") return saveProject(body) as T;
+  if (url.pathname === "/api/approval-templates/save") return saveApprovalTemplate(body) as T;
   if (url.pathname === "/api/project-department-owners/save") {
     await saveProjectDepartmentOwners(Number(body.projectId || body.project_id), body.departmentOwners || body.department_owners || []);
     return { ok: true, projects: await projects() } as T;

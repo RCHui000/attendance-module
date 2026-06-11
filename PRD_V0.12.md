@@ -1,4 +1,4 @@
-# 项目核算自动化系统 PRD V0.14.7
+# 项目核算自动化系统 PRD V0.14.12
 
 更新日期：2026-06-11
 
@@ -26,8 +26,8 @@
 
 | 项 | 当前状态 |
 | --- | --- |
-| 当前版本 | `V0.14.7` |
-| 基线版本 | `V0.14.7` |
+| 当前版本 | `V0.14.12` |
+| 基线版本 | `V0.14.12` |
 | 前端 | React 19 + TypeScript + Vite 8 |
 | UI | Tailwind CSS v4 + shadcn/ui 风格组件 + Lucide React |
 | 图表 | Recharts |
@@ -177,8 +177,8 @@ flowchart LR
 | 登录页 | 未登录默认 | 登录、修改密码、密码明文切换 |
 | 我的周表 | `/timesheet` | 员工填写项目工时；OT 行预留但当前锁定 |
 | 数据看板 | `/dashboard` | 指标卡、项目汇总、BI 项目/部门/人员视角 |
-| 审批中心 | `/review` | 待审核、已审核、周表详情；OT 审批能力保留但当前业务不启用 |
-| 项目列表 | `/report` | 项目 CRUD、服务类型、PM/CC/PMCC 负责人、项目明细与工时统计 |
+| 审批中心 | `/review` | 待审核、已审核、周表详情；admin 可维护合同审批模板并实时预览流程图；OT 审批能力保留但当前业务不启用 |
+| 项目列表 | `/report` | 左侧项目目录、右侧固定配置页；维护项目编码、服务类型、项目名称、PM/CC/PMCC 负责人、财务与工时统计 |
 | 员工与组织 | `/employees` | 员工资料、合同薪酬、组织结构、部门负责人 |
 
 ### 5.1 前端组件结构
@@ -231,6 +231,8 @@ frontend/src/
 | `POST /api/overtime/action` | `psa_overtime_action` RPC | OT 预留审批接口，当前 UI 不开放填报 |
 | `GET /api/overtime/pending` | `approvalTasks` 派生 | OT 预留待办 |
 | `GET /api/approvals/tasks` | PostgREST 平铺查询 | 待审核/已审核 |
+| `GET /api/approval-templates` | PostgREST 平铺查询 | 合同审批模板、节点、边 |
+| `POST /api/approval-templates/save` | PostgREST 更新 | admin 保存模板名称、版本、节点配置 |
 | `GET /api/employees` | `hr_employee_current_view` + 角色表 | 员工列表与角色 |
 | `POST /api/employees/save` | 新增走服务端，编辑走 PostgREST | 新增员工需要创建 GoTrue 账号 |
 | `POST /api/employees/delete` | PostgREST 软删除 | 停用员工并标记档案离职 |
@@ -238,7 +240,7 @@ frontend/src/
 | `POST /api/organizations/save` | PostgREST upsert | 新增/编辑组织 |
 | `POST /api/organizations/delete` | PostgREST 软删除 | 标记组织删除 |
 | `GET /api/projects` | PostgREST 聚合 | 项目列表、人力投入、负责人 |
-| `POST /api/projects/save` | PostgREST upsert + 路由刷新 | 项目、服务类型、负责人、部门负责人配置 |
+| `POST /api/projects/save` | PostgREST upsert + 路由刷新 | 项目、服务类型、负责人、部门负责人配置；CC 土建/机电负责人同步兼容 `cc_project_owner` |
 | `POST /api/project-department-owners/save` | PostgREST upsert | 项目-部门负责人配置 |
 | `POST /api/projects/delete` | PostgREST 软删除 | 标记项目删除 |
 | `GET /api/reports/weekly` | PostgREST + JS 聚合 | 周/月/区间统计 |
@@ -381,11 +383,13 @@ flowchart TD
 | --- | --- | --- |
 | `PM` | 项目管理业务合同 | 项目管理员工 -> 项目管理项目负责人 -> 项目管理部门负责人 |
 | `CC` | 成本合约业务合同 | 成本合约员工 -> 成本合约项目负责人 -> 成本合约部门负责人 |
-| `PMCC` | 成本合约部员工发起的复合合同 | 成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人 |
+| `PMCC` | 成本合约部员工发起的复合合同 | 成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 成本合约部门负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人 |
 
 对应项目角色建议：
 
-- `cc_project_owner`：成本合约项目负责人。
+- `cc_civil_project_owner`：成本合约土建项目负责人。
+- `cc_mep_project_owner`：成本合约机电项目负责人。
+- `cc_project_owner`：成本合约项目负责人兼容角色；当前保存项目时由土建/机电负责人兜底同步。
 - `cc_department_owner`：成本合约部门负责人。
 - `pm_cost_department_owner`：项目管理部成本部负责人。
 - `pm_project_owner`：项目管理部项目负责人。
@@ -405,7 +409,7 @@ flowchart TD
 当前边界：
 
 - 周表审批 UI 仍主要使用兼容任务视图。
-- 合同审批模板已具备 PM、CC、PMCC 类型的图模板基础，但模板和路由解析必须按 8.4 的真实业务链路校准。
+- 合同审批模板已具备 PM、CC、PMCC 类型的图模板基础；`041_contract_routes_and_review_views.sql` 已按 8.4 与 `Downloads/contract_approval_org_diagram.html` 校准 PMCC 串行链路，并补强备份恢复后的待审/已审视图兼容。
 - 不实现项目经理撤回、部门负责人选择性退回、已通过后重开修订 UI。
 - 触发器同步图结构失败时不应阻断旧审批动作。
 
@@ -490,6 +494,7 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 038 | `038_org_hierarchy_cost_specialty.sql` | 多级组织骨架与造价专业字段 |
 | 039 | `039_real_department_tree.sql` | 收敛真实两大部门与项目管理三个二级部门 |
 | 040 | `040_cost_specialty_scope.sql` | 限定造价专业只用于执行/项目负责人 |
+| 041 | `041_contract_routes_and_review_views.sql` | 校准 PMCC 合同路由、CC 专业负责人兜底、待审/已审备份视图兼容 |
 
 迁移原则：
 
@@ -562,28 +567,28 @@ flowchart LR
 
 - 项目可配置 `business_type`：`PM`、`CC`、`PMCC`。
 - 项目编码可自动识别服务类型，也允许人工调整。
-- `project_roles` 支持按角色记录合同审批链上的负责人，例如 `cc_project_owner`、`cc_department_owner`、`pm_cost_department_owner`、`pm_project_owner`、`pm_department_owner`。
+- `project_roles` 支持按角色记录合同审批链上的负责人，例如 `cc_civil_project_owner`、`cc_mep_project_owner`、`cc_project_owner`、`cc_department_owner`、`pm_cost_department_owner`、`pm_project_owner`、`pm_department_owner`。
 - `project_department_owners` 保留项目参与部门负责人配置。
 
 真实合同审批口径：
 
 - `PM`：项目管理员工 -> 项目管理项目负责人 -> 项目管理部门负责人。
 - `CC`：成本合约员工 -> 成本合约项目负责人 -> 成本合约部门负责人。
-- `PMCC`：成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人。
+- `PMCC`：成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 成本合约部门负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人。
 
 待优化问题：
 
 - 项目管理部下“设计/管理/成本”三个二级部门的负责人如何与项目角色联动。
 - 部门负责人是否实时从 `organizations.manager_user_id` 读取，还是在角色配置中做快照。
 - 已完成审批保持原路由，未完成任务是否可一键刷新。
-- 项目列表是否需要固定显示“服务类型、项目名称、PM/CC 负责人、部门负责人、财务状况、累计支出、累计工日”。
+- 项目列表已改为左侧短信息项目目录，右侧固定配置页，集中维护“服务类型、项目名称、PM/CC 负责人、部门负责人、财务状况、累计支出、累计工日”。
 
 建议初步方向：
 
 - 项目服务类型驱动合同/审批模板选择。
 - 项目角色表记录合同审批链所需负责人，组织表记录部门负责人和子部门关系。
 - 已完成审批保持有效，未完成审批按显式“刷新路由”动作重算。
-- 前端项目列表将服务类型与负责人配置作为项目主数据的一部分维护。
+- 前端项目列表已将服务类型与负责人配置作为项目主数据维护，并按合同编号自动识别 PM/CC/PMCC 后允许手动覆盖。
 
 ### 14.2 项目块级审批状态
 

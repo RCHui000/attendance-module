@@ -1,7 +1,7 @@
 -- V0.14.1: Contract approval templates for PM / CC / PMCC routes.
 -- The PMCC route is intentionally role-driven because it crosses departments:
 -- CC submitter -> CC project owner -> PM cost department owner ->
--- PM project owner -> PM department owner.
+-- CC department owner -> PM project owner -> PM department owner.
 
 BEGIN;
 
@@ -89,8 +89,9 @@ nodes AS (
     ('cc_submitter', 'CC Employee Submitter', 'document_creator', 'submitter', 10),
     ('cc_project_owner', 'CC Project Owner', 'project_role', 'cc_project_owner', 20),
     ('pm_cost_department_owner', 'PM Cost Department Owner', 'project_role', 'pm_cost_department_owner', 30),
-    ('pm_project_owner', 'PM Project Owner', 'project_role', 'pm_project_owner', 40),
-    ('pm_department_owner', 'PM Department Owner', 'project_role', 'pm_department_owner', 50)
+    ('cc_department_owner', 'CC Department Owner', 'project_role', 'cc_department_owner', 40),
+    ('pm_project_owner', 'PM Project Owner', 'project_role', 'pm_project_owner', 50),
+    ('pm_department_owner', 'PM Department Owner', 'project_role', 'pm_department_owner', 60)
   ) AS v(node_key, node_name, resolver_type, resolver_role, sort_order)
 )
 INSERT INTO public.approval_template_nodes(
@@ -129,11 +130,13 @@ WITH linear_edges(template_key, from_node_key, to_node_key) AS (
     ('contract_approval_cc_v1', 'cc_project_owner', 'cc_department_owner'),
     ('contract_pmcc_v1', 'cc_submitter', 'cc_project_owner'),
     ('contract_pmcc_v1', 'cc_project_owner', 'pm_cost_department_owner'),
-    ('contract_pmcc_v1', 'pm_cost_department_owner', 'pm_project_owner'),
+    ('contract_pmcc_v1', 'pm_cost_department_owner', 'cc_department_owner'),
+    ('contract_pmcc_v1', 'cc_department_owner', 'pm_project_owner'),
     ('contract_pmcc_v1', 'pm_project_owner', 'pm_department_owner'),
     ('contract_approval_pmcc_v1', 'cc_submitter', 'cc_project_owner'),
     ('contract_approval_pmcc_v1', 'cc_project_owner', 'pm_cost_department_owner'),
-    ('contract_approval_pmcc_v1', 'pm_cost_department_owner', 'pm_project_owner'),
+    ('contract_approval_pmcc_v1', 'pm_cost_department_owner', 'cc_department_owner'),
+    ('contract_approval_pmcc_v1', 'cc_department_owner', 'pm_project_owner'),
     ('contract_approval_pmcc_v1', 'pm_project_owner', 'pm_department_owner')
 )
 INSERT INTO public.approval_template_edges(template_id, from_node_key, to_node_key, edge_type, condition_expr)

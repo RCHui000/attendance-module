@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { publishLocalSync } from "@/hooks/useRealtime";
 import type {
+  ApprovalTemplate,
   ApprovalTasks,
   TimesheetDetail,
 } from "@/types/approval";
@@ -67,6 +68,28 @@ export function useOvertimeAction() {
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       publishLocalSync(["timesheet", "approvals", "reports", "dashboard"]);
+    },
+  });
+}
+
+export function useApprovalTemplates() {
+  return useQuery({
+    queryKey: ["approval-templates"],
+    queryFn: () => api<ApprovalTemplate[]>("/api/approval-templates"),
+  });
+}
+
+export function useSaveApprovalTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (template: ApprovalTemplate) =>
+      api("/api/approval-templates/save", {
+        method: "POST",
+        body: JSON.stringify(template),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["approval-templates"] });
+      publishLocalSync(["approvals"]);
     },
   });
 }

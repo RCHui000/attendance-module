@@ -7,7 +7,7 @@ The report module is the project list, project editor, and project labor/finance
 | File | Role |
 | --- | --- |
 | `pages/ReportPage.tsx` | Page container. |
-| `ProjectList.tsx` | Project table, edit controls, financial/labor columns. |
+| `ProjectList.tsx` | Left project directory and fixed right-side project configuration panel. |
 | `ProjectDrawer.tsx` | Per-project labor detail. |
 | `LaborOverview.tsx` | Period summary. |
 | `PeriodSelector.tsx` | Date range selection. |
@@ -47,15 +47,19 @@ Project service type is contract approval master data, not only a display label.
 | --- | --- |
 | `PM` | PM employee -> PM project owner -> PM department owner |
 | `CC` | CC employee -> CC project owner -> CC department owner |
-| `PMCC` | CC employee -> CC project owner -> PM cost department owner -> PM project owner -> PM department owner |
+| `PMCC` | CC employee -> CC project owner -> PM cost department owner -> CC department owner -> PM project owner -> PM department owner |
 
 Role keys currently used by the project list:
 
-- `cc_project_owner`
+- `cc_civil_project_owner`
+- `cc_mep_project_owner`
+- `cc_project_owner` compatibility fallback
 - `cc_department_owner`
 - `pm_cost_department_owner`
 - `pm_project_owner`
 - `pm_department_owner`
+
+The project page exposes separate CC civil and MEP project owners. Saving either value also writes a compatibility `cc_project_owner` row so existing route resolvers continue to work until specialty-based conditional routing is fully enabled.
 
 ## Notes
 

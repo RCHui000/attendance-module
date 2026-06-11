@@ -69,6 +69,40 @@ export interface TimesheetDetail {
   }[];
 }
 
+export interface ApprovalTemplateNode {
+  id: number;
+  template_id: number;
+  node_key: string;
+  node_name: string;
+  node_type: string;
+  resolver_type: string;
+  resolver_role: string | null;
+  approval_policy: string;
+  reject_policy: string;
+  sort_order: number;
+}
+
+export interface ApprovalTemplateEdge {
+  id: number;
+  template_id: number;
+  from_node_key: string;
+  to_node_key: string;
+  edge_type: string;
+  condition_expr: Record<string, unknown>;
+}
+
+export interface ApprovalTemplate {
+  id: number;
+  template_key: string;
+  document_type: string;
+  business_type: "PM" | "CC" | "PMCC" | null;
+  name: string;
+  version: number;
+  status: string;
+  nodes: ApprovalTemplateNode[];
+  edges: ApprovalTemplateEdge[];
+}
+
 export interface TimesheetDetailEntry {
   project_id: number;
   project_name: string;

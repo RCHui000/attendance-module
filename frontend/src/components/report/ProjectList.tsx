@@ -39,7 +39,28 @@ import type { ProjectBase, ProjectDepartmentOwner } from "@/types/project";
 import { toast } from "sonner";
 
 const NONE = "none";
-const selectValue = (value: string | null) => (value && value !== NONE ? value : "");
+const serviceTypes = ["PM", "CC", "PMCC"] as const;
+
+const roleLabels: Record<string, string> = {
+  cc_project_owner: "CC项目负责人",
+  cc_department_owner: "CC部门负责人",
+  pm_cost_department_owner: "PM成本部负责人",
+  pm_project_owner: "PM项目负责人",
+  pm_department_owner: "PM部门负责人",
+};
+
+const rolesByServiceType: Record<(typeof serviceTypes)[number], string[]> = {
+  PM: ["pm_project_owner", "pm_department_owner"],
+  CC: ["cc_project_owner", "cc_department_owner"],
+  PMCC: [
+    "cc_project_owner",
+    "pm_cost_department_owner",
+    "pm_project_owner",
+    "pm_department_owner",
+  ],
+};
+
+type BusinessType = (typeof serviceTypes)[number];
 
 type EditOwner = {
   id?: number;
@@ -47,23 +68,42 @@ type EditOwner = {
   project_owner_id: string;
 };
 
+type EditRole = {
+  role_key: string;
+  user_id: string;
+};
+
 type EditData = {
   code: string;
   name: string;
+  businessType: BusinessType | "";
   contractAmount: string;
   receivedAmount: string;
-  projectOwnerId: string;
   departmentOwners: EditOwner[];
+  projectRoles: EditRole[];
 };
 
 const emptyEditData: EditData = {
   code: "",
   name: "",
+  businessType: "",
   contractAmount: "",
   receivedAmount: "",
-  projectOwnerId: "",
   departmentOwners: [],
+  projectRoles: [],
 };
+
+function selectValue(value: string | null) {
+  return value && value !== NONE ? value : "";
+}
+
+function inferBusinessType(code: string): BusinessType | "" {
+  const normalized = code.trim().toUpperCase();
+  if (normalized.startsWith("PMCC")) return "PMCC";
+  if (normalized.startsWith("PM")) return "PM";
+  if (normalized.startsWith("CC")) return "CC";
+  return "";
+}
 
 function ownerSummary(owners?: ProjectDepartmentOwner[]) {
   const active = (owners || []).filter((owner) => owner.is_active !== false);
@@ -71,6 +111,24 @@ function ownerSummary(owners?: ProjectDepartmentOwner[]) {
   return active
     .map((owner) => `${owner.org_name || "部门"}: ${owner.project_owner_name || "负责人"}`)
     .join(" / ");
+}
+
+function projectRoleSummary(project: ProjectBase) {
+  const type = project.business_type || inferBusinessType(project.code);
+  if (!type) return "未识别服务类型";
+  const roles = new Map(
+    (project.project_roles || []).map((role) => [role.role_key, role.user_name || "未配置"]),
+  );
+  return rolesByServiceType[type]
+    .map((roleKey) => `${roleLabels[roleKey]}: ${roles.get(roleKey) || "未配置"}`)
+    .join(" / ");
+}
+
+function serviceBadgeClass(type: ProjectBase["business_type"] | "") {
+  if (type === "PM") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (type === "CC") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (type === "PMCC") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-border bg-muted text-muted-foreground";
 }
 
 export function ProjectList() {
@@ -87,28 +145,35 @@ export function ProjectList() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectBase | null>(null);
 
   const startEdit = (project?: ProjectBase) => {
-    if (project) {
-      setEditingId(project.id);
-      setIsNew(false);
-      setEditData({
-        code: project.code,
-        name: project.name,
-        contractAmount: String(project.contract_amount || ""),
-        receivedAmount: String(project.received_amount || ""),
-        projectOwnerId: project.project_owner_id ? String(project.project_owner_id) : "",
-        departmentOwners: (project.department_owners || [])
-          .filter((owner) => owner.is_active !== false)
-          .map((owner) => ({
-            id: owner.id,
-            org_id: owner.org_id ? String(owner.org_id) : "",
-            project_owner_id: owner.project_owner_id ? String(owner.project_owner_id) : "",
-          })),
-      });
-    } else {
+    if (!project) {
       setEditingId(null);
       setIsNew(true);
       setEditData(emptyEditData);
+      return;
     }
+
+    const businessType = project.business_type || inferBusinessType(project.code);
+    const roles = businessType ? rolesByServiceType[businessType] : [];
+    setEditingId(project.id);
+    setIsNew(false);
+    setEditData({
+      code: project.code,
+      name: project.name,
+      businessType,
+      contractAmount: String(project.contract_amount || ""),
+      receivedAmount: String(project.received_amount || ""),
+      departmentOwners: (project.department_owners || [])
+        .filter((owner) => owner.is_active !== false)
+        .map((owner) => ({
+          id: owner.id,
+          org_id: owner.org_id ? String(owner.org_id) : "",
+          project_owner_id: owner.project_owner_id ? String(owner.project_owner_id) : "",
+        })),
+      projectRoles: roles.map((roleKey) => {
+        const role = (project.project_roles || []).find((item) => item.role_key === roleKey);
+        return { role_key: roleKey, user_id: role?.user_id ? String(role.user_id) : "" };
+      }),
+    });
   };
 
   const cancelEdit = () => {
@@ -126,6 +191,20 @@ export function ProjectList() {
     }));
   };
 
+  const setRole = (roleKey: string, userId: string) => {
+    setEditData((data) => {
+      const exists = data.projectRoles.some((role) => role.role_key === roleKey);
+      return {
+        ...data,
+        projectRoles: exists
+          ? data.projectRoles.map((role) =>
+              role.role_key === roleKey ? { ...role, user_id: userId } : role,
+            )
+          : [...data.projectRoles, { role_key: roleKey, user_id: userId }],
+      };
+    });
+  };
+
   const addOwnerRow = () => {
     setEditData((data) => ({
       ...data,
@@ -141,10 +220,21 @@ export function ProjectList() {
   };
 
   const handleSave = () => {
-    if (!editData.code.trim() || !editData.name.trim()) {
-      toast.error("项目代码和项目名称不能为空");
+    if (!editData.code.trim()) {
+      toast.error("合同编码不能为空");
       return;
     }
+    if (!editData.name.trim()) {
+      toast.error("项目名称不能为空");
+      return;
+    }
+
+    const businessType = editData.businessType || inferBusinessType(editData.code);
+    if (!businessType) {
+      toast.error("请选择服务类型");
+      return;
+    }
+
     const departmentOwners = editData.departmentOwners
       .map((owner) => ({
         id: owner.id,
@@ -156,21 +246,32 @@ export function ProjectList() {
     const duplicateOrg = new Set<number>();
     for (const owner of departmentOwners) {
       if (duplicateOrg.has(owner.org_id)) {
-        toast.error("同一个参与部门只能配置一位项目负责人");
+        toast.error("同一参与部门只能配置一位项目负责人");
         return;
       }
       duplicateOrg.add(owner.org_id);
     }
+
+    const projectRoles = rolesByServiceType[businessType]
+      .map((roleKey) => ({
+        role_key: roleKey,
+        user_id: Number(editData.projectRoles.find((role) => role.role_key === roleKey)?.user_id || 0),
+      }))
+      .filter((role) => role.user_id);
 
     saveProject.mutate(
       {
         id: isNew ? undefined : editingId ?? undefined,
         code: editData.code.trim(),
         name: editData.name.trim(),
+        businessType,
         contractAmount: parseFloat(editData.contractAmount) || 0,
         receivedAmount: parseFloat(editData.receivedAmount) || 0,
-        projectOwnerId: editData.projectOwnerId ? Number(editData.projectOwnerId) : undefined,
+        projectOwnerId: projectRoles.find((role) =>
+          ["pm_project_owner", "cc_project_owner"].includes(role.role_key),
+        )?.user_id,
         departmentOwners,
+        projectRoles,
       },
       {
         onSuccess: () => {
@@ -209,22 +310,45 @@ export function ProjectList() {
     setDeleteTarget(null);
   };
 
+  const renderRoleEditor = () => {
+    const businessType = editData.businessType || inferBusinessType(editData.code);
+    if (!businessType) {
+      return <div className="text-xs text-muted-foreground">选择服务类型后配置负责人</div>;
+    }
+    return (
+      <div className="grid min-w-[520px] grid-cols-2 gap-2">
+        {rolesByServiceType[businessType].map((roleKey) => (
+          <Select
+            key={roleKey}
+            value={editData.projectRoles.find((role) => role.role_key === roleKey)?.user_id || NONE}
+            onValueChange={(value) => setRole(roleKey, selectValue(value))}
+          >
+            <SelectTrigger className="h-8 w-full text-sm">
+              <SelectValue placeholder={roleLabels[roleKey]} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>{roleLabels[roleKey]}</SelectItem>
+              {employees.map((emp) => (
+                <SelectItem key={emp.id} value={String(emp.id)}>
+                  {emp.name} · {emp.org_name || emp.department || "未分配"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ))}
+      </div>
+    );
+  };
+
   const renderOwnerEditor = () => (
     <div className="min-w-[360px] space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">
-          参与部门与项目负责人
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">部门负责人</span>
         <Button type="button" variant="outline" size="sm" className="h-7" onClick={addOwnerRow}>
           <Plus className="mr-1 size-3.5" />
           添加部门
         </Button>
       </div>
-      {editData.departmentOwners.length === 0 && (
-        <div className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-          未配置时使用默认项目负责人，默认负责人为空时回退到员工部门负责人。
-        </div>
-      )}
       {editData.departmentOwners.map((owner, index) => (
         <div key={`${owner.id || "new"}-${index}`} className="grid grid-cols-[1fr_1fr_32px] gap-2">
           <Select
@@ -250,7 +374,7 @@ export function ProjectList() {
             }
           >
             <SelectTrigger className="h-8 w-full text-sm">
-              <SelectValue placeholder="项目负责人" />
+              <SelectValue placeholder="部门负责人" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>选择负责人</SelectItem>
@@ -290,68 +414,75 @@ export function ProjectList() {
       </TableCell>
       <TableCell>
         <Input
-          className="h-8 text-sm"
+          className="h-8 w-[120px] text-sm"
           value={editData.code}
-          onChange={(e) => setEditData((data) => ({ ...data, code: e.target.value }))}
-          placeholder="代码"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          className="h-8 min-w-[180px] text-sm"
-          value={editData.name}
-          onChange={(e) => setEditData((data) => ({ ...data, name: e.target.value }))}
-          placeholder="名称"
+          onChange={(e) => {
+            const code = e.target.value;
+            setEditData((data) => ({
+              ...data,
+              code,
+              businessType: data.businessType || inferBusinessType(code),
+            }));
+          }}
+          placeholder="PM26001"
         />
       </TableCell>
       <TableCell>
         <Select
-          value={editData.projectOwnerId || NONE}
+          value={editData.businessType || NONE}
           onValueChange={(value) =>
-            setEditData((data) => ({ ...data, projectOwnerId: selectValue(value) }))
+            setEditData((data) => ({
+              ...data,
+              businessType: selectValue(value) as EditData["businessType"],
+            }))
           }
         >
-          <SelectTrigger className="h-8 w-[180px] text-sm">
-            <SelectValue placeholder="默认负责人" />
+          <SelectTrigger className="h-8 w-[110px] text-sm">
+            <SelectValue placeholder="服务类型" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NONE}>未设置</SelectItem>
-            {employees.map((emp) => (
-              <SelectItem key={emp.id} value={String(emp.id)}>
-                {emp.name} · {emp.org_name || emp.department || "未分配"}
+            <SelectItem value={NONE}>未识别</SelectItem>
+            {serviceTypes.map((type) => (
+              <SelectItem key={type} value={type}>
+                {type}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </TableCell>
+      <TableCell>{renderRoleEditor()}</TableCell>
       <TableCell>{renderOwnerEditor()}</TableCell>
       <TableCell>
         <Input
-          className="h-8 w-[120px] text-right text-sm"
-          type="number"
-          value={editData.contractAmount}
-          onChange={(e) => setEditData((data) => ({ ...data, contractAmount: e.target.value }))}
+          className="h-8 w-[180px] text-sm"
+          value={editData.name}
+          onChange={(e) => setEditData((data) => ({ ...data, name: e.target.value }))}
+          placeholder="项目名称"
         />
       </TableCell>
       <TableCell>
-        <Input
-          className="h-8 w-[120px] text-right text-sm"
-          type="number"
-          value={editData.receivedAmount}
-          onChange={(e) => setEditData((data) => ({ ...data, receivedAmount: e.target.value }))}
-        />
-      </TableCell>
-      <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-        {formatMoney(
-          (parseFloat(editData.contractAmount) || 0) -
-            (parseFloat(editData.receivedAmount) || 0),
-        )}
-      </TableCell>
-      <TableCell className="text-right text-sm tabular-nums">
-        {project?.total_labor_hours?.toFixed(1) || "-"}
+        <div className="grid w-[260px] grid-cols-2 gap-2">
+          <Input
+            className="h-8 text-right text-sm"
+            type="number"
+            value={editData.contractAmount}
+            onChange={(e) => setEditData((data) => ({ ...data, contractAmount: e.target.value }))}
+            placeholder="合同额"
+          />
+          <Input
+            className="h-8 text-right text-sm"
+            type="number"
+            value={editData.receivedAmount}
+            onChange={(e) => setEditData((data) => ({ ...data, receivedAmount: e.target.value }))}
+            placeholder="已回款"
+          />
+        </div>
       </TableCell>
       <TableCell className="text-right text-sm tabular-nums">
         {formatMoney(project?.total_labor_cost || 0)}
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        {project?.total_labor_hours?.toFixed(1) || "-"}
       </TableCell>
     </TableRow>
   );
@@ -389,15 +520,14 @@ export function ProjectList() {
                 <TableHead className="sticky left-0 z-20 w-[64px] bg-table-header text-xs font-bold">
                   操作
                 </TableHead>
-                <TableHead className="text-xs font-bold">项目代码</TableHead>
+                <TableHead className="text-xs font-bold">合同编码</TableHead>
+                <TableHead className="text-xs font-bold">服务类型</TableHead>
+                <TableHead className="min-w-[420px] text-xs font-bold">项目负责人</TableHead>
+                <TableHead className="min-w-[300px] text-xs font-bold">部门负责人</TableHead>
                 <TableHead className="text-xs font-bold">项目名称</TableHead>
-                <TableHead className="text-xs font-bold">默认负责人</TableHead>
-                <TableHead className="min-w-[360px] text-xs font-bold">参与部门负责人</TableHead>
-                <TableHead className="text-right text-xs font-bold">合同额</TableHead>
-                <TableHead className="text-right text-xs font-bold">已回款</TableHead>
-                <TableHead className="text-right text-xs font-bold">待回款</TableHead>
-                <TableHead className="text-right text-xs font-bold">累计工日</TableHead>
+                <TableHead className="text-right text-xs font-bold">财务状况</TableHead>
                 <TableHead className="text-right text-xs font-bold">累计支出</TableHead>
+                <TableHead className="text-right text-xs font-bold">累计工日</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -431,27 +561,28 @@ export function ProjectList() {
                       </Button>
                     </TableCell>
                     <TableCell className="text-sm font-medium">{project.code}</TableCell>
-                    <TableCell className="text-sm">{project.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {project.project_owner_name || "未设置"}
+                    <TableCell>
+                      <span className={cn("inline-flex rounded border px-2 py-0.5 text-xs font-medium", serviceBadgeClass(project.business_type || inferBusinessType(project.code)))}>
+                        {project.business_type || inferBusinessType(project.code) || "-"}
+                      </span>
                     </TableCell>
-                    <TableCell className="max-w-[460px] text-sm text-muted-foreground">
+                    <TableCell className="max-w-[520px] text-sm text-muted-foreground">
+                      <span className="line-clamp-2">{projectRoleSummary(project)}</span>
+                    </TableCell>
+                    <TableCell className="max-w-[360px] text-sm text-muted-foreground">
                       <span className="line-clamp-2">{ownerSummary(project.department_owners)}</span>
                     </TableCell>
+                    <TableCell className="text-sm">{project.name}</TableCell>
                     <TableCell className="text-right text-sm tabular-nums">
-                      {formatMoney(project.contract_amount)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-success">
-                      {formatMoney(project.received_amount)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-warning">
-                      {formatMoney(project.receivable_amount)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-medium tabular-nums">
-                      {project.total_labor_hours?.toFixed(1) || "-"}
+                      <div>{formatMoney(project.contract_amount)}</div>
+                      <div className="text-success">{formatMoney(project.received_amount)}</div>
+                      <div className="text-warning">{formatMoney(project.receivable_amount)}</div>
                     </TableCell>
                     <TableCell className="text-right text-sm tabular-nums">
                       {formatMoney(project.total_labor_cost)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium tabular-nums">
+                      {project.total_labor_hours?.toFixed(1) || "-"}
                     </TableCell>
                   </TableRow>
                 ),

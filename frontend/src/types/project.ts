@@ -64,10 +64,23 @@ export interface ProjectDepartmentOwner {
   is_active?: boolean;
 }
 
+export type ProjectBusinessType = "PM" | "CC" | "PMCC";
+
+export interface ProjectRoleAssignment {
+  id?: number;
+  project_id?: number;
+  role_key: string;
+  user_id: number;
+  employee_id?: number;
+  user_name?: string;
+  status?: string;
+}
+
 export interface ProjectBase {
   id: number;
   code: string;
   name: string;
+  business_type: ProjectBusinessType | null;
   contract_amount: number;
   received_amount: number;
   receivable_amount: number;
@@ -76,6 +89,7 @@ export interface ProjectBase {
   project_owner_id: number | null;
   project_owner_name: string | null;
   department_owners?: ProjectDepartmentOwner[];
+  project_roles?: ProjectRoleAssignment[];
   total_labor_hours: number;
   total_labor_cost: number;
   status: string;

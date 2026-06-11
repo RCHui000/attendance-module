@@ -70,11 +70,16 @@ export function useSaveProject() {
       name: string;
       contractAmount?: number;
       receivedAmount?: number;
+      businessType?: "PM" | "CC" | "PMCC";
       projectOwnerId?: number;
       departmentOwners?: {
         id?: number;
         org_id: number;
         project_owner_id: number;
+      }[];
+      projectRoles?: {
+        role_key: string;
+        user_id: number;
       }[];
     }) =>
       api("/api/projects/save", {

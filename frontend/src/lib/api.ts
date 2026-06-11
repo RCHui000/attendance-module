@@ -208,6 +208,14 @@ function isReportableTimesheet(sheet?: AnyRow | null): sheet is AnyRow {
   return !!sheet && REPORTABLE_TIMESHEET_STATUSES.has(String(sheet.status || ""));
 }
 
+function inferProjectBusinessType(code?: string | null): "PM" | "CC" | "PMCC" | null {
+  const normalized = String(code || "").trim().toUpperCase();
+  if (normalized.startsWith("PMCC")) return "PMCC";
+  if (normalized.startsWith("PM")) return "PM";
+  if (normalized.startsWith("CC")) return "CC";
+  return null;
+}
+
 function employeeDailyRate(emp?: AnyRow | null): number {
   if (!emp) return 0;
   if (emp.contract_type === "service") return Number(emp.daily_wage || 0);
@@ -306,13 +314,15 @@ async function organizations(): Promise<AnyRow[]> {
 }
 
 async function projects(): Promise<AnyRow[]> {
-  const [rows, orgs, employees, labor, sheets, departmentOwners] = await Promise.all([
+  const [rows, orgs, employees, labor, sheets, departmentOwners, projectRoles] = await Promise.all([
     rest<AnyRow[]>("/projects?select=*&status=neq.deleted&order=code.asc"),
     rest<AnyRow[]>("/organizations?select=id,org_name"),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/timesheet_entries?select=id,project_id,timesheet_id,hours"),
     rest<AnyRow[]>("/timesheets?select=id,status"),
     rest<AnyRow[]>("/project_department_owners?select=*&is_active=eq.true&order=project_id.asc,org_id.asc")
+      .catch(() => []),
+    rest<AnyRow[]>("/project_roles?select=*&status=eq.active&order=project_id.asc,role_key.asc")
       .catch(() => []),
   ]);
   const orgNames = new Map(orgs.map((o) => [Number(o.id), o.org_name]));
@@ -332,6 +342,20 @@ async function projects(): Promise<AnyRow[]> {
       is_active: owner.is_active !== false,
     });
   }
+  const roleRowsByProject = new Map<number, AnyRow[]>();
+  for (const role of projectRoles) {
+    const projectId = Number(role.project_id);
+    if (!roleRowsByProject.has(projectId)) roleRowsByProject.set(projectId, []);
+    roleRowsByProject.get(projectId)!.push({
+      ...role,
+      id: Number(role.id),
+      project_id: projectId,
+      user_id: Number(role.user_id),
+      employee_id: Number(role.employee_id || role.user_id),
+      user_name: employeeNames.get(Number(role.user_id)) || "",
+      status: role.status || "active",
+    });
+  }
   const sheetMap = new Map(sheets.map((sheet) => [Number(sheet.id), sheet]));
   const hours = new Map<number, number>();
   const seenEntryIds = new Set<number>();
@@ -348,12 +372,14 @@ async function projects(): Promise<AnyRow[]> {
     const received = Number(project.received_amount || 0);
     return {
       ...project,
+      business_type: project.business_type || inferProjectBusinessType(project.code),
       contract_amount: contract,
       received_amount: received,
       receivable_amount: Number(project.receivable_amount ?? Math.max(contract - received, 0)),
       owner_org_name: project.owner_org_id ? orgNames.get(Number(project.owner_org_id)) || null : null,
       project_owner_name: project.project_owner_id ? employeeNames.get(Number(project.project_owner_id)) || null : null,
       department_owners: ownerRowsByProject.get(Number(project.id)) || [],
+      project_roles: roleRowsByProject.get(Number(project.id)) || [],
       total_labor_hours: hours.get(Number(project.id)) || 0,
       total_labor_cost: 0,
     };
@@ -868,6 +894,68 @@ async function saveProjectDepartmentOwners(projectId: number, owners: AnyRow[] =
   }
 }
 
+async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promise<void> {
+  const roleKeys = [
+    "cc_project_owner",
+    "cc_department_owner",
+    "pm_cost_department_owner",
+    "pm_project_owner",
+    "pm_department_owner",
+  ];
+  const current = await rest<AnyRow[]>(
+    `/project_roles?select=*&project_id=eq.${projectId}&role_key=in.(${roleKeys.join(",")})&status=eq.active`,
+  ).catch(() => []);
+  const activeIds = new Set<number>();
+  const seen = new Set<string>();
+  const employeeOrgMap = new Map<number, number | null>();
+
+  for (const role of roles) {
+    const roleKey = String(role.role_key || role.roleKey || "");
+    const userId = Number(role.user_id || role.userId || role.employee_id || role.employeeId || 0);
+    if (!roleKeys.includes(roleKey) || !userId || seen.has(roleKey)) continue;
+    seen.add(roleKey);
+    if (!employeeOrgMap.has(userId)) {
+      const profile = (await rest<AnyRow[]>(
+        `/employee_profiles_v2?select=org_id&employee_id=eq.${userId}&limit=1`,
+      ).catch(() => []))[0];
+      employeeOrgMap.set(userId, profile?.org_id ? Number(profile.org_id) : null);
+    }
+    const row = {
+      project_id: projectId,
+      role_key: roleKey,
+      employee_id: userId,
+      user_id: userId,
+      org_id: employeeOrgMap.get(userId),
+      status: "active",
+    };
+    const existing = current.find((item) => String(item.role_key) === roleKey);
+    if (existing?.id) {
+      activeIds.add(Number(existing.id));
+      await rest(`/project_roles?id=eq.${existing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(row),
+      });
+    } else {
+      const inserted = await rest<AnyRow[]>("/project_roles", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([row]),
+      });
+      if (inserted[0]?.id) activeIds.add(Number(inserted[0].id));
+    }
+  }
+
+  const deactivateIds = current
+    .map((role) => Number(role.id))
+    .filter((id) => id && !activeIds.has(id));
+  if (deactivateIds.length) {
+    await rest(`/project_roles?id=in.(${deactivateIds.join(",")})`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "inactive" }),
+    });
+  }
+}
+
 async function refreshProjectRoutes(projectId: number, reason: string): Promise<void> {
   await rest("/rpc/psa_refresh_pending_project_review_routes", {
     method: "POST",
@@ -888,6 +976,7 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
   const row = {
     code: body.code,
     name: body.name,
+    business_type: body.businessType || body.business_type || inferProjectBusinessType(body.code),
     contract_amount: Number(body.contractAmount || body.contract_amount || 0),
     received_amount: Number(body.receivedAmount || body.received_amount || 0),
     owner_org_id: body.ownerOrgId || body.owner_org_id || null,
@@ -899,7 +988,8 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     const previousOwnerId = existingProject[0]?.project_owner_id ? Number(existingProject[0].project_owner_id) : null;
     const nextOwnerId = row.project_owner_id ? Number(row.project_owner_id) : null;
     await saveProjectDepartmentOwners(projectId, body.departmentOwners || body.department_owners || []);
-    if (previousOwnerId !== nextOwnerId || body.departmentOwners || body.department_owners) {
+    await saveProjectRoles(projectId, body.projectRoles || body.project_roles || []);
+    if (previousOwnerId !== nextOwnerId || body.departmentOwners || body.department_owners || body.projectRoles || body.project_roles) {
       await refreshProjectRoutes(projectId, "Route refreshed after project owner change");
     }
   } else {
@@ -913,6 +1003,7 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     const newProjectId = await nextId("projects");
     await rest("/projects", { method: "POST", body: JSON.stringify([{ id: newProjectId, ...row }]) });
     await saveProjectDepartmentOwners(newProjectId, body.departmentOwners || body.department_owners || []);
+    await saveProjectRoles(newProjectId, body.projectRoles || body.project_roles || []);
   }
   return { ok: true, projects: await projects() };
 }

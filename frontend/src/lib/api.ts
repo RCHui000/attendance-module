@@ -21,6 +21,50 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = Record<string, any>;
 const REPORTABLE_TIMESHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
+const MAX_TIMESHEET_DAY_HOURS = 1;
+const MAX_TIMESHEET_WEEK_HOURS = 6;
+const TIMESHEET_HOURS_EPSILON = 0.0001;
+
+function formatApiHours(value: number): string {
+  const roundedToOne = Number(value.toFixed(1));
+  return Math.abs(value - roundedToOne) > TIMESHEET_HOURS_EPSILON
+    ? value.toFixed(2)
+    : value.toFixed(1);
+}
+
+function assertTimesheetHoursWithinLimits(entries: AnyRow[]): void {
+  const daily = new Map<string, number>();
+  let weekly = 0;
+
+  for (const entry of entries) {
+    const hours = Number(entry.hours || 0);
+    if (hours < 0) {
+      throw new Error("普通工日不能为负数");
+    }
+    if (hours > MAX_TIMESHEET_DAY_HOURS + TIMESHEET_HOURS_EPSILON) {
+      throw new Error(
+        `${entry.work_date} 单项目普通工日 ${formatApiHours(hours)}，超过 1.0 工日`,
+      );
+    }
+    const day = String(entry.work_date);
+    daily.set(day, (daily.get(day) || 0) + hours);
+    weekly += hours;
+  }
+
+  for (const [day, hours] of daily) {
+    if (hours > MAX_TIMESHEET_DAY_HOURS + TIMESHEET_HOURS_EPSILON) {
+      throw new Error(
+        `${day} 普通工日合计 ${formatApiHours(hours)}，超过 1.0 工日`,
+      );
+    }
+  }
+
+  if (weekly > MAX_TIMESHEET_WEEK_HOURS + TIMESHEET_HOURS_EPSILON) {
+    throw new Error(
+      `本周普通工日合计 ${formatApiHours(weekly)}，超过 ${MAX_TIMESHEET_WEEK_HOURS.toFixed(1)} 工日`,
+    );
+  }
+}
 
 function authHeaders(json = true): Record<string, string> {
   const token = getStoredToken();
@@ -538,6 +582,10 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
       hours: entry.hours,
       description: entry.description || "",
     }));
+  const preservedEntries = existingEntries.filter((entry) =>
+    lockedProjectIds.has(Number(entry.project_id)),
+  );
+  assertTimesheetHoursWithinLimits([...preservedEntries, ...entries]);
   if (entries.length) {
     await rest("/timesheet_entries", { method: "POST", body: JSON.stringify(entries) });
   }

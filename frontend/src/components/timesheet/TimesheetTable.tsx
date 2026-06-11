@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
+import { formatWorkdays, MAX_REGULAR_WEEK_WORKDAYS } from "@/utils/validation";
 import type { TimesheetRow, OvertimeStore, TimesheetStatus } from "@/types/timesheet";
 import type { ProjectBrief } from "@/types/auth";
 import { CheckCircle2, Circle, Clock3, Plus, X, XCircle } from "lucide-react";
@@ -286,7 +287,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                         rowTotal > 1 && "text-destructive",
                       )}
                     >
-                      {rowTotal.toFixed(1)}
+                      {formatWorkdays(rowTotal)}
                     </span>
                   </td>
 
@@ -328,10 +329,16 @@ export const TimesheetTable = memo(function TimesheetTable({
                 </td>
               ))}
               <td className="p-1.5 text-center">
-                <span className="text-sm font-bold tabular-nums">
-                  {weekDays
-                    .reduce((s, d) => s + Math.min(dayTotals[d], 100) / 100, 0)
-                    .toFixed(1)}
+                <span
+                  className={cn(
+                    "text-sm font-bold tabular-nums",
+                    weekDays.reduce((s, d) => s + dayTotals[d] / 100, 0) >
+                      MAX_REGULAR_WEEK_WORKDAYS && "text-destructive",
+                  )}
+                >
+                  {formatWorkdays(
+                    weekDays.reduce((s, d) => s + dayTotals[d] / 100, 0),
+                  )}
                 </span>
               </td>
               <td />

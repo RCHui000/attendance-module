@@ -17,7 +17,13 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { statusText } from "@/lib/constants";
 import { addDaysToIso, getWeekDays } from "@/utils/dates";
-import { dayPercent, buildWarnings, hasBlockingError } from "@/utils/validation";
+import {
+  buildWarnings,
+  dayPercent,
+  formatWorkdays,
+  hasBlockingError,
+  weekWorkdays,
+} from "@/utils/validation";
 import type { ProjectBrief } from "@/types/auth";
 import type { SaveTimesheetPayload } from "@/types/timesheet";
 import { toast } from "sonner";
@@ -77,12 +83,8 @@ export default function TimesheetPage() {
   );
 
   const weekWorkdaysVal = useMemo(
-    () =>
-      weekDays.reduce(
-        (s, d) => s + Math.min(dayTotals[d], 100) / 100,
-        0,
-      ),
-    [dayTotals, weekDays],
+    () => weekWorkdays(store.rows, weekDays),
+    [store.rows, weekDays],
   );
 
   const status = timesheet?.status || "draft";
@@ -126,6 +128,10 @@ export default function TimesheetPage() {
 
   const handleSave = useCallback(async () => {
     try {
+      if (blocking) {
+        toast.error("请先修正每日或每周普通工日超额");
+        return;
+      }
       await saveMutation.mutateAsync(buildPayload());
       store.markClean();
       toast.success("保存成功");
@@ -135,10 +141,14 @@ export default function TimesheetPage() {
         e instanceof Error ? e.message : "保存失败",
       );
     }
-  }, [store.rows, store.overtime, store.remark, currentWeek]);
+  }, [store.rows, store.overtime, store.remark, currentWeek, blocking]);
 
   const handleSubmit = useCallback(async () => {
     try {
+      if (blocking) {
+        toast.error("请先修正每日或每周普通工日超额");
+        return;
+      }
       let id = timesheet?.id;
       if (store.isDirty || !id) {
         const result = await saveMutation.mutateAsync(buildPayload());
@@ -157,7 +167,7 @@ export default function TimesheetPage() {
         e instanceof Error ? e.message : "提交失败",
       );
     }
-  }, [timesheet?.id, store.rows, store.overtime, store.remark, store.isDirty, currentWeek]);
+  }, [timesheet?.id, store.rows, store.overtime, store.remark, store.isDirty, currentWeek, blocking]);
 
   if (isLoading) {
     return (
@@ -201,7 +211,7 @@ export default function TimesheetPage() {
             {statusText[status] || status}
           </Badge>
           <strong className="text-lg tabular-nums">
-            {weekWorkdaysVal.toFixed(1)} 工日
+            {formatWorkdays(weekWorkdaysVal)} 工日
           </strong>
         </div>
       </div>

@@ -1,8 +1,19 @@
 import type { TimesheetRow, OvertimeStore } from "@/types/timesheet";
 
+export const MAX_REGULAR_WEEK_WORKDAYS = 6;
+export const MAX_DAILY_PERCENT = 100;
+const EPSILON = 0.0001;
+
 export interface Warning {
   text: string;
   type: "error" | "warning" | "info";
+}
+
+export function formatWorkdays(value: number): string {
+  const roundedToOne = Number(value.toFixed(1));
+  return Math.abs(value - roundedToOne) > EPSILON
+    ? value.toFixed(2)
+    : value.toFixed(1);
 }
 
 export function dayPercent(
@@ -23,7 +34,7 @@ export function weekWorkdays(
   rows: TimesheetRow[],
   days: string[],
 ): number {
-  return days.reduce((sum, d) => Math.min(dayPercent(rows, d), 100) / 100 + sum, 0);
+  return days.reduce((sum, d) => dayPercent(rows, d) / 100 + sum, 0);
 }
 
 export function weekOvertime(
@@ -37,7 +48,10 @@ export function hasBlockingError(
   rows: TimesheetRow[],
   days: string[],
 ): boolean {
-  return days.some((d) => dayPercent(rows, d) > 100);
+  return (
+    days.some((d) => dayPercent(rows, d) > MAX_DAILY_PERCENT) ||
+    weekWorkdays(rows, days) > MAX_REGULAR_WEEK_WORKDAYS + EPSILON
+  );
 }
 
 export function buildWarnings(
@@ -51,9 +65,9 @@ export function buildWarnings(
 
   for (const day of days) {
     const pct = dayPercent(rows, day);
-    if (pct > 100) {
+    if (pct > MAX_DAILY_PERCENT) {
       warnings.push({ text: `${day} 合计 ${pct}%，超过 100%`, type: "error" });
-    } else if (pct < 100 && pct > 0) {
+    } else if (pct < MAX_DAILY_PERCENT && pct > 0) {
       warnings.push({
         text: `${day} 合计 ${pct}%，未达到 100%`,
         type: "warning",
@@ -70,9 +84,14 @@ export function buildWarnings(
   }
 
   const workdays = weekWorkdays(rows, days);
-  if (workdays < 6 && rows.length > 0) {
+  if (workdays > MAX_REGULAR_WEEK_WORKDAYS + EPSILON) {
     warnings.push({
-      text: `本周合计 ${workdays.toFixed(1)} 工日，未满勤 6 工日`,
+      text: `本周普通工日合计 ${formatWorkdays(workdays)}，超过 ${MAX_REGULAR_WEEK_WORKDAYS.toFixed(1)} 工日；休息日工作请填加班 OT`,
+      type: "error",
+    });
+  } else if (workdays < MAX_REGULAR_WEEK_WORKDAYS && rows.length > 0) {
+    warnings.push({
+      text: `本周合计 ${formatWorkdays(workdays)} 工日，未满勤 ${MAX_REGULAR_WEEK_WORKDAYS} 工日`,
       type: "warning",
     });
   }

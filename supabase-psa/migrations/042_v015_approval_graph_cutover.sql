@@ -709,7 +709,7 @@ BEGIN
       AND target_type = 'timesheet'
       AND scope_type = 'department_summary';
 
-    SELECT count(*) INTO v_new_pending
+    SELECT count(DISTINCT n.source_task_id) INTO v_new_pending
     FROM public.approval_nodes n
     JOIN public.approval_node_assignees a ON a.node_id = n.id
     JOIN public.workflow_tasks wt ON wt.id = n.source_task_id
@@ -719,7 +719,7 @@ BEGIN
       AND n.status = 'active'
       AND a.status = 'pending';
 
-    SELECT count(*) INTO v_new_reviewed
+    SELECT count(DISTINCT n.source_task_id) INTO v_new_reviewed
     FROM public.approval_nodes n
     JOIN public.approval_node_assignees a ON a.node_id = n.id
     JOIN public.workflow_tasks wt ON wt.id = n.source_task_id
@@ -729,7 +729,7 @@ BEGIN
       AND wt.result_action IN ('approve', 'reject')
       AND a.status IN ('approved', 'rejected');
 
-    SELECT count(*) INTO v_new_project
+    SELECT count(DISTINCT n.source_task_id) INTO v_new_project
     FROM public.approval_nodes n
     JOIN public.workflow_tasks wt ON wt.id = n.source_task_id
     WHERE wt.workflow_key = 'timesheet'
@@ -737,7 +737,7 @@ BEGIN
       AND wt.scope_type = 'project'
       AND n.scope_type = 'project';
 
-    SELECT count(*) INTO v_new_summary
+    SELECT count(DISTINCT n.source_task_id) INTO v_new_summary
     FROM public.approval_nodes n
     JOIN public.workflow_tasks wt ON wt.id = n.source_task_id
     WHERE wt.workflow_key = 'timesheet'

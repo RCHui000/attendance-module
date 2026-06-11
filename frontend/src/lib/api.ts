@@ -125,58 +125,6 @@ function weekDays(weekStart: string): string[] {
   });
 }
 
-function projectStatusFromTasks(sheet: AnyRow, tasks: AnyRow[]): AnyRow[] {
-  const projectIds = new Set<number>();
-  for (const task of tasks) {
-    if (task.scope_type === "project" && task.scope_id) {
-      projectIds.add(Number(task.scope_id));
-    }
-  }
-  return Array.from(projectIds).map((projectId) => {
-    const pending = tasks.find(
-      (task) =>
-        task.scope_type === "project" &&
-        Number(task.scope_id) === projectId &&
-        task.status === "pending",
-    );
-    const approved = tasks.find(
-      (task) =>
-        task.scope_type === "project" &&
-        Number(task.scope_id) === projectId &&
-        task.status === "completed" &&
-        task.result_action === "approve",
-    );
-    const rejected = tasks.find(
-      (task) =>
-        task.scope_type === "project" &&
-        Number(task.scope_id) === projectId &&
-        task.status === "completed" &&
-        task.result_action === "reject",
-    );
-    const summaryPending = tasks.some(
-      (task) => task.scope_type === "department_summary" && task.status === "pending",
-    );
-    const source = pending || approved || rejected;
-    return {
-      project_id: projectId,
-      status: pending
-        ? "pending"
-        : approved
-          ? summaryPending
-            ? "summary_pending"
-            : "approved"
-          : rejected
-            ? "rejected"
-            : sheet.status === "submitted"
-              ? "pending"
-              : "draft",
-      assignee_role: source?.assignee_role || "",
-      result_action: source?.result_action || "",
-      completed_at: source?.completed_at || "",
-    };
-  });
-}
-
 function projectStatusFromReviews(reviews: AnyRow[]): AnyRow[] {
   return reviews.map((review) => ({
     project_id: Number(review.project_id),
@@ -191,20 +139,6 @@ function projectStatusFromReviews(reviews: AnyRow[]): AnyRow[] {
     result_action: review.status || "",
     completed_at: review.project_approved_at || review.final_confirmed_at || review.last_action_at || "",
   }));
-}
-
-function approvedProjectIds(tasks: AnyRow[]): Set<number> {
-  return new Set(
-    tasks
-      .filter(
-        (task) =>
-          task.scope_type === "project" &&
-          task.status === "completed" &&
-          task.result_action === "approve" &&
-          task.scope_id,
-      )
-      .map((task) => Number(task.scope_id)),
-  );
 }
 
 function reviewedTaskKey(task: AnyRow): string {
@@ -460,17 +394,15 @@ async function getTimesheet(weekStart: string): Promise<AnyRow> {
       body: JSON.stringify([{ id, user_id: user.id, week_start_date: weekStart }]),
     }))[0];
   }
-  const [entries, overtime, tasks, reviews] = await Promise.all([
+  const [entries, overtime, reviews] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
     rest<AnyRow[]>(`/overtime_entries?select=*&timesheet_id=eq.${sheet.id}&order=work_date.asc`),
-    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`),
     rest<AnyRow[]>(`/approval_project_review_records_view?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,last_action_at.desc`)
-      .catch(() => rest<AnyRow[]>(`/timesheet_project_reviews?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,round_no.desc`))
       .catch(() => []),
   ]);
-  const taskProjectStatuses = reviews.length ? projectStatusFromReviews(reviews) : projectStatusFromTasks(sheet, tasks);
+  const taskProjectStatuses = reviews.length ? projectStatusFromReviews(reviews) : [];
   const taskProjectIds = new Set(taskProjectStatuses.map((item) => Number(item.project_id)));
   const entryProjectIds = [...new Set(entries.map((entry) => Number(entry.project_id)).filter(Boolean))];
   return {
@@ -501,16 +433,14 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     `/timesheets?select=*&id=eq.${timesheetId}&limit=1`,
   ))[0];
   if (!sheet) throw new Error("Timesheet not found");
-  const [entries, overtime, userRows, profRows, tasks, reviews] = await Promise.all([
+  const [entries, overtime, userRows, profRows, reviews] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
     rest<AnyRow[]>(`/overtime_entries?select=*&timesheet_id=eq.${sheet.id}&order=work_date.asc`),
     rest<AnyRow[]>(`/employees?select=name&id=eq.${sheet.user_id}&limit=1`),
     rest<AnyRow[]>(`/employee_profiles_v2?select=organizations(org_name)&employee_id=eq.${sheet.user_id}&limit=1`),
-    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`),
     rest<AnyRow[]>(`/approval_project_review_records_view?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,last_action_at.desc`)
-      .catch(() => rest<AnyRow[]>(`/timesheet_project_reviews?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,round_no.desc`))
       .catch(() => []),
   ]);
   const userName = userRows[0]?.name || "";
@@ -537,7 +467,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       reason: entry.reason || "",
       status: entry.status || "",
     })),
-    project_statuses: reviews.length ? projectStatusFromReviews(reviews) : projectStatusFromTasks(sheet, tasks),
+    project_statuses: reviews.length ? projectStatusFromReviews(reviews) : [],
   };
 }
 
@@ -549,15 +479,10 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
   const existingEntries = await rest<AnyRow[]>(
     `/timesheet_entries?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
   );
-  const [existingTasks, graphReviews] = await Promise.all([
-    rest<AnyRow[]>(
-      `/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&target_id=eq.${sheet.id}`,
-    ),
-    rest<AnyRow[]>(`/approval_project_review_records_view?select=project_id,status,result_action&timesheet_id=eq.${sheet.id}`)
-      .catch(() => []),
-  ]);
+  const graphReviews = await rest<AnyRow[]>(
+    `/approval_project_review_records_view?select=project_id,status,result_action&timesheet_id=eq.${sheet.id}`,
+  ).catch(() => []);
   const lockedProjectIds = new Set([
-    ...approvedProjectIds(existingTasks),
     ...graphReviews
       .filter((review) => review.status === "project_approved" || review.result_action === "approve")
       .map((review) => Number(review.project_id)),
@@ -647,20 +572,15 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const admin = await isAdmin();
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
   const reviewedTaskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const legacyReviewedFilter = admin ? "" : `&or=(completed_by.eq.${user.id},assignee_user_id.eq.${user.id})`;
-  // Fetch ALL pending tasks (not filtered by week). Backup restores may contain either
-  // Approval Graph rows or legacy workflow_tasks rows, so merge both surfaces.
-  const [graphPending, legacyPending, graphReviewed, legacyReviewed, employees, employeeProfiles, entries] = await Promise.all([
+  const [graphPending, graphReviewed, employees, employeeProfiles, entries] = await Promise.all([
     rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
-    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.pending${taskFilter}`).catch(() => []),
     rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
-    rest<AnyRow[]>(`/workflow_tasks?select=*&workflow_key=eq.timesheet&target_type=eq.timesheet&status=eq.completed&result_action=in.(approve,reject)${legacyReviewedFilter}`).catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
   ]);
-  const tasks = [...graphPending, ...legacyPending].map(normalizedApprovalTask);
-  const reviewedTasks = [...graphReviewed, ...legacyReviewed]
+  const tasks = graphPending.map(normalizedApprovalTask);
+  const reviewedTasks = graphReviewed
     .map(normalizedApprovalTask)
     .filter((task) => ["approve", "reject", "approved", "rejected"].includes(String(task.result_action)));
   const latestPending = latestPendingTasks(tasks);

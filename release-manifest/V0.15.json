@@ -1,0 +1,30 @@
+{
+  "version": "V0.15",
+  "released_at": "2026-06-12",
+  "base_version": "V0.14.12",
+  "summary": "Hard cutover from legacy workflow_tasks to Approval Graph for timesheet approvals.",
+  "database": {
+    "new_migrations": [
+      "042_v015_approval_graph_cutover.sql"
+    ],
+    "notes": [
+      "Migrates legacy workflow_tasks rows into approval_nodes and approval_node_assignees.",
+      "Verifies pending, reviewed, project-block, and department-summary counts before dropping workflow_tasks.",
+      "Replaces psa_timesheet_action so submit, approve, reject, and reopen operate only on Approval Graph.",
+      "Keeps workflow_tasks only as migration input and drops it in the same transaction after checks pass."
+    ]
+  },
+  "frontend": {
+    "notes": [
+      "Approval center reads approval_pending_tasks_view and approval_reviewed_timesheets_view only.",
+      "Timesheet detail and edit locking use Approval Graph project review records only.",
+      "Realtime subscriptions moved from workflow_tasks to Approval Graph tables."
+    ]
+  },
+  "verification": [
+    "Run frontend build with VITE_APP_VERSION=V0.15.",
+    "Apply migration 042 on cloud after PostgreSQL backup.",
+    "Check approval_graph_cutover_audit for old/migrated count equality and workflow_tasks_dropped=true.",
+    "Confirm to_regclass('public.workflow_tasks') returns null."
+  ]
+}

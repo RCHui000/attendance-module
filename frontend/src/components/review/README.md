@@ -44,5 +44,5 @@ Important fields used by the UI:
 - Department summary tasks approve or reject the full sheet after all project blocks pass.
 - Project task totals display two decimals; department summary totals keep compact one-decimal display.
 - Rejecting a task sends the sheet back to editable state and cancels remaining pending work as implemented by RPC.
-- The UI reads Approval Graph B compatibility views and legacy `workflow_tasks` together, so restored backups that contain either data surface still show pending/reviewed records.
+- The UI reads Approval Graph views only. Legacy `workflow_tasks` rows are migrated into graph nodes during V0.15 deployment and the legacy table is dropped after count checks pass.
 - Admin users can open the approval-flow configuration tab to inspect PM / CC / PMCC contract templates and preview the current serial graph.

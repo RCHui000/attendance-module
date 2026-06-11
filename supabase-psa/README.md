@@ -31,3 +31,5 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 | `038` | Organization hierarchy seed and cost specialty field for civil/MEP routing. |
 | `039` | Normalize the visible department tree to 项目管理 / 成本合约 and 项目管理's 设计 / 管理 / 成本 children. |
 | `040` | Limit cost specialty to execution/project-owner employees; clear it from department heads/managers/admins. |
+| `041` | Align PM/CC/PMCC contract routes and Approval Graph review views. |
+| `042` | V0.15 Approval Graph cutover: migrate `workflow_tasks`, verify counts, and drop the legacy table. |

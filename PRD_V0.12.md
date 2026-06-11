@@ -1,4 +1,4 @@
-# 项目核算自动化系统 PRD V0.14.12
+# 项目核算自动化系统 PRD V0.15
 
 更新日期：2026-06-11
 
@@ -26,8 +26,8 @@
 
 | 项 | 当前状态 |
 | --- | --- |
-| 当前版本 | `V0.14.12` |
-| 基线版本 | `V0.14.12` |
+| 当前版本 | `V0.15` |
+| 基线版本 | `V0.15` |
 | 前端 | React 19 + TypeScript + Vite 8 |
 | UI | Tailwind CSS v4 + shadcn/ui 风格组件 + Lucide React |
 | 图表 | Recharts |
@@ -276,9 +276,8 @@ erDiagram
   timesheets ||--o{ timesheet_entries : has_entries
   projects ||--o{ timesheet_entries : receives_hours
   timesheets ||--o{ overtime_entries : has_overtime
-  timesheets ||--o{ workflow_tasks : approval_tasks
-  timesheets ||--o{ approval_logs : approval_logs
   timesheets ||--o| approval_instances : approval_instance
+  timesheets ||--o{ approval_logs : approval_logs
   approval_instances ||--o{ approval_rounds : has_rounds
   approval_rounds ||--o{ approval_nodes : has_nodes
   approval_nodes ||--o{ approval_edges : connects
@@ -302,7 +301,7 @@ erDiagram
 | `timesheets` | 周表主表 |
 | `timesheet_entries` | 周表项目明细 |
 | `overtime_entries` | 加班记录 |
-| `workflow_tasks` | 当前实际审批任务队列 |
+| `workflow_tasks` | V0.15 已废弃并 Drop；历史任务在迁移时归一化到 Approval Graph |
 | `approval_logs` | 审批日志 |
 | `approval_instances` | Adaptive Approval Graph 单据实例 |
 | `approval_rounds` | 审批轮次 |
@@ -404,7 +403,7 @@ flowchart TD
 
 ### 8.5 Adaptive Approval Graph
 
-`workflow_tasks` 仍兼容旧审批中心。`approval_instances / approval_rounds / approval_nodes / approval_edges / approval_events` 已落地为 Approval Graph B 核心模型，用于承载更复杂的合同与项目审批图，并为旧周表审批提供追溯能力。
+V0.15 后审批事实源统一为 Approval Graph。`approval_instances / approval_rounds / approval_nodes / approval_edges / approval_events / approval_node_assignees` 承载周表与合同审批；旧 `workflow_tasks` 仅在 V0.15 迁移事务中用于数量校验和报警，校验通过后直接 Drop。
 
 当前边界：
 
@@ -495,6 +494,7 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 039 | `039_real_department_tree.sql` | 收敛真实两大部门与项目管理三个二级部门 |
 | 040 | `040_cost_specialty_scope.sql` | 限定造价专业只用于执行/项目负责人 |
 | 041 | `041_contract_routes_and_review_views.sql` | 校准 PMCC 合同路由、CC 专业负责人兜底、待审/已审备份视图兼容 |
+| 042 | `042_v015_approval_graph_cutover.sql` | 旧 `workflow_tasks` 一次性迁移到 Approval Graph，校验待审/已审/项目块/部门汇总数量后 Drop 旧表 |
 
 迁移原则：
 
@@ -548,7 +548,7 @@ flowchart LR
 | ID | 问题 | 影响 | 当前处理 |
 | --- | --- | --- | --- |
 | K-01 | 多部门/多服务类型负责人模型仍需业务校准 | 已有 `project_department_owners` 和 `project_roles`，但 PM/CC/PMCC 的真实跨部门链路还需要更多样例验证 | 项目维护页继续细化“服务类型 + 角色负责人 + 部门负责人”配置 |
-| K-02 | `workflow_tasks` 承担过多业务状态 | 退回、撤回、重审、项目块局部修改难以表达 | 已有 Adaptive Approval Graph 旁路模型，未来可引入项目块状态表 |
+| K-02 | 审批状态已统一到 Approval Graph | 退回、撤回、重审、项目块局部修改需要继续按图模型扩展 | V0.15 已迁移并 Drop `workflow_tasks`，后续只在 Approval Graph 上演进 |
 | K-03 | 员工编辑仍可能由前端串行写多表 | 写入失败时存在局部成功风险 | 后续建议收敛为 RPC 或服务端事务 |
 | K-04 | 历史 FK 与孤儿数据仍需整理 | PostgREST 嵌入查询受限，部分查询需平铺聚合 | 当前前端使用平铺查询 + JS 关联 |
 | K-05 | 回款数据源不完整 | BI 毛利、回款分析准确性受限 | 目前主要使用项目表金额，后续需正式回款流水 |
@@ -592,14 +592,14 @@ flowchart LR
 
 ### 14.2 项目块级审批状态
 
-当前 `workflow_tasks` 是队列，不适合完整表达项目块生命周期。
+V0.15 后项目块级审批状态由 Approval Graph 节点和节点指派记录表达，旧 `workflow_tasks` 已不再参与运行时。
 
 可讨论方案：
 
 - 新增 `timesheet_project_reviews`。
 - 每张周表每个项目块一条 review。
 - review 记录状态、项目、当前负责人、历史轮次、退回原因。
-- `workflow_tasks` 只负责待办分发。
+- V0.15 后待办分发由 `approval_nodes` + `approval_node_assignees` 表达。
 - `approval_events` 负责全量审计。
 
 ### 14.3 员工信息保存事务化

@@ -45,6 +45,6 @@ Important fields used by the UI:
 - Missing middle roles are optional and omitted from the generated graph.
 - Consecutive steps assigned to the same employee are collapsed to the last step.
 - Project task totals display two decimals.
-- Rejecting a task sends the sheet back as `rejected`; previously approved project blocks are rolled back to needing reapproval and become editable for the submitter.
+- Rejecting a timesheet project task only affects that project block. Other project blocks in the same sheet keep their current pending/approved state.
 - The UI reads Approval Graph views only. Legacy `workflow_tasks` rows are migrated into graph nodes during V0.15 deployment and the legacy table is dropped after count checks pass.
 - Admin users can open the approval-flow configuration tab to inspect PM / CC / PMCC contract templates and preview the current serial graph.

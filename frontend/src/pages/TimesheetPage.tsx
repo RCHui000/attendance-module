@@ -88,9 +88,8 @@ export default function TimesheetPage() {
   );
 
   const status = timesheet?.status || "draft";
-  const isLocked = ["submitted", "approved", "locked", "summarized"].includes(
-    status,
-  );
+  const isLocked = ["approved", "locked", "summarized"].includes(status);
+  const hasRejectedProject = store.rows.some((row) => row.approvalStatus === "rejected");
 
   const buildPayload = (): SaveTimesheetPayload => {
     const entries = store.rows.flatMap((row) =>
@@ -242,7 +241,7 @@ export default function TimesheetPage() {
             className="text-sm resize-none"
             value={store.remark}
             onChange={(e) => store.setRemark(e.target.value)}
-            disabled={isLocked}
+            disabled={isLocked || status === "submitted"}
             placeholder="填写本周重点工作、请假、外勤或特殊情况…"
           />
         </div>
@@ -252,6 +251,7 @@ export default function TimesheetPage() {
       {/* Actions */}
       <SheetActions
         status={status}
+        canEditSubmittedRevision={status === "submitted" && hasRejectedProject}
         hasBlockingError={blocking}
         isDirty={store.isDirty}
         isSaving={saveMutation.isPending}

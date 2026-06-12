@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { publishLocalSync } from "@/hooks/useRealtime";
+import { toast } from "sonner";
 import type {
   ApprovalTemplate,
   ApprovalTasks,
@@ -47,6 +48,10 @@ export function useReviewAction() {
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       publishLocalSync(["timesheet", "approvals", "reports", "dashboard"]);
+      toast.success("审批操作已提交");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "审批操作失败");
     },
   });
 }

@@ -483,17 +483,27 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
 
 async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
   const sheet = await getTimesheet(body.weekStart);
-  if (!["draft", "rejected", "revision_required"].includes(sheet.status)) {
-    throw new Error("Submitted or approved timesheets cannot be edited");
-  }
   const existingEntries = await rest<AnyRow[]>(
     `/timesheet_entries?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
   );
   const graphReviews = await rest<AnyRow[]>(
     `/approval_project_review_records_view?select=project_id,status,result_action&timesheet_id=eq.${sheet.id}`,
   ).catch(() => []);
+  const rejectedProjectIds = new Set(
+    graphReviews
+      .filter((review) => review.status === "needs_revision" || review.result_action === "reject")
+      .map((review) => Number(review.project_id)),
+  );
+  const canEditSubmittedRevision = sheet.status === "submitted" && rejectedProjectIds.size > 0;
+  if (!["draft", "rejected", "revision_required"].includes(sheet.status) && !canEditSubmittedRevision) {
+    throw new Error("Submitted or approved timesheets cannot be edited");
+  }
   const lockedProjectIds = new Set(
-    ["rejected", "revision_required"].includes(String(sheet.status || ""))
+    canEditSubmittedRevision
+      ? existingEntries
+        .map((entry) => Number(entry.project_id))
+        .filter((projectId) => !rejectedProjectIds.has(projectId))
+      : ["rejected", "revision_required"].includes(String(sheet.status || ""))
       ? []
       : graphReviews
         .filter((review) => review.status === "project_approved" || review.result_action === "approve")

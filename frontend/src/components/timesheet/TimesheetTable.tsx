@@ -174,6 +174,7 @@ export const TimesheetTable = memo(function TimesheetTable({
   overtime,
   weekDays,
   projects,
+  status,
   isLocked,
   dayTotals,
   onUpdatePercent,
@@ -183,6 +184,7 @@ export const TimesheetTable = memo(function TimesheetTable({
   onAddRow,
   onRemoveRow,
 }: TimesheetTableProps) {
+  const canAddRow = !isLocked && status !== "submitted";
   return (
     <div className="rounded-lg border border-border shadow-app overflow-hidden">
       <div className="overflow-auto">
@@ -191,7 +193,7 @@ export const TimesheetTable = memo(function TimesheetTable({
             <tr className="bg-table-header border-b border-border">
               <th className="sticky left-0 bg-table-header z-10 w-[260px] min-w-[240px] p-1.5 text-left text-xs font-bold text-muted-foreground">
                 项目
-                {!isLocked && (
+                {canAddRow && (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -223,7 +225,9 @@ export const TimesheetTable = memo(function TimesheetTable({
               const rowLocked =
                 isLocked ||
                 row.approvalStatus === "approved" ||
-                row.approvalStatus === "summary_pending";
+                row.approvalStatus === "summary_pending" ||
+                row.approvalStatus === "pending" ||
+                (status === "submitted" && row.approvalStatus !== "rejected");
               return (
                 <tr key={ri} className="border-b border-border/50 hover:bg-row-hover">
                   <td className="sticky left-0 bg-white p-1.5 z-[5]">

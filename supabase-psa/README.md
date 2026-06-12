@@ -35,3 +35,4 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 | `042` | V0.15 Approval Graph cutover: migrate `workflow_tasks`, verify counts, and drop the legacy table. |
 | `048`-`050` | Timesheet department/specialty routing, summary fallback, and restored sequence alignment. |
 | `051` | Serial timesheet project-block Approval Graph chains; optional middle roles are skipped and adjacent duplicate approvers collapse to the last role. |
+| `052` | Project-scoped timesheet rejection and resubmission; rejecting one project block no longer cancels other pending blocks in the same sheet. |

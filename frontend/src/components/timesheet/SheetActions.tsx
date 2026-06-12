@@ -3,6 +3,7 @@ import type { TimesheetStatus } from "@/types/timesheet";
 
 interface SheetActionsProps {
   status: TimesheetStatus;
+  canEditSubmittedRevision?: boolean;
   hasBlockingError: boolean;
   isDirty: boolean;
   isSaving: boolean;
@@ -13,6 +14,7 @@ interface SheetActionsProps {
 
 export function SheetActions({
   status,
+  canEditSubmittedRevision = false,
   hasBlockingError,
   isDirty,
   isSaving,
@@ -20,11 +22,9 @@ export function SheetActions({
   onSave,
   onSubmit,
 }: SheetActionsProps) {
-  const isLocked = ["submitted", "approved", "locked", "summarized"].includes(
-    status,
-  );
+  const isLocked = ["approved", "locked", "summarized"].includes(status);
 
-  if (isLocked) {
+  if (isLocked || (status === "submitted" && !canEditSubmittedRevision)) {
     return (
       <div className="sticky bottom-0 flex justify-end gap-2 py-3 mt-3 border-t border-border bg-background">
         <span className="text-sm text-muted-foreground mr-auto self-center">

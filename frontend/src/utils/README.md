@@ -12,10 +12,13 @@ Small pure helpers shared across pages.
 ## Timesheet Validation Constants
 
 - `MAX_DAILY_PERCENT = 100`
+- `FULL_ATTENDANCE_WEEK_WORKDAYS = 6`
 - `MAX_REGULAR_WEEK_WORKDAYS = 7`
 
 Validation rules:
 
 - Day total across project rows must not exceed `100%`.
+- Weekly full-attendance warning threshold is `6.0` workdays.
 - Weekly regular workdays must not exceed `7.0`.
+- Sunday is still counted as a normal regular workday when entered.
 - Workday display uses two decimals only when needed, except project row/block totals which are fixed to two decimals in their components.

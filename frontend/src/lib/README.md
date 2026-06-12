@@ -66,6 +66,7 @@ These pages are routed in the SPA but intentionally do not call `/api/*` yet:
 
 - Single project/day cannot exceed `1.0`.
 - Total regular workdays per day cannot exceed `1.0`.
+- Weekly full-attendance warning threshold is `6.0`.
 - Weekly regular workdays cannot exceed `7.0`.
 - Locked approved project rows are preserved and included in the validation candidate set.
 

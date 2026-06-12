@@ -1,5 +1,6 @@
 import type { TimesheetRow, OvertimeStore } from "@/types/timesheet";
 
+export const FULL_ATTENDANCE_WEEK_WORKDAYS = 6;
 export const MAX_REGULAR_WEEK_WORKDAYS = 7;
 export const MAX_DAILY_PERCENT = 100;
 const EPSILON = 0.0001;
@@ -89,9 +90,9 @@ export function buildWarnings(
       text: `本周普通工日合计 ${formatWorkdays(workdays)}，超过 ${MAX_REGULAR_WEEK_WORKDAYS.toFixed(1)} 工日`,
       type: "error",
     });
-  } else if (workdays < MAX_REGULAR_WEEK_WORKDAYS && rows.length > 0) {
+  } else if (workdays < FULL_ATTENDANCE_WEEK_WORKDAYS && rows.length > 0) {
     warnings.push({
-      text: `本周合计 ${formatWorkdays(workdays)} 工日，未满勤 ${MAX_REGULAR_WEEK_WORKDAYS} 工日`,
+      text: `本周合计 ${formatWorkdays(workdays)} 工日，未满勤 ${FULL_ATTENDANCE_WEEK_WORKDAYS} 工日`,
       type: "warning",
     });
   }

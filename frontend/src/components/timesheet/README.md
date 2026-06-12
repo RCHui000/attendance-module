@@ -49,6 +49,7 @@ interface SaveTimesheetPayload {
 
 - One employee has one sheet per `weekStart`.
 - Day total across all projects cannot exceed `1.0` workday.
+- `6.0` regular workdays is considered full attendance for the week.
 - Week regular total cannot exceed `7.0` workdays.
 - Sunday is a normal fillable workday when actually worked.
 - OT fields are retained for future use but currently disabled in the UI.

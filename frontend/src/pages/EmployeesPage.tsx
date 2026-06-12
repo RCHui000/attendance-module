@@ -18,16 +18,29 @@ import {
 } from "@/hooks/useEmployees";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { APP_VERSION } from "@/lib/constants";
-import { RefreshCw, Plus, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { APP_VERSION, roleText } from "@/lib/constants";
+import { ArrowDownAZ, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { OrganizationPanel } from "@/components/employees/OrganizationPanel";
 import { ReminderFloat } from "@/components/employees/ReminderFloat";
 import { useAuthStore } from "@/stores/authStore";
-import { isCostOrganization } from "@/utils/orgTree";
+import { descendantOrgIds, flattenOrgTree, isCostOrganization, orgOptionLabel } from "@/utils/orgTree";
 import type { EmployeeEditData } from "@/components/employees/EmployeeEditRow";
-import type { Employee } from "@/types/employee";
+import type { Employee, Organization } from "@/types/employee";
 import { toast } from "sonner";
+
+const ALL = "all";
+
+type EmployeeSortKey = "employeeNo" | "name" | "department" | "role" | "hireDate" | "status";
+type SortDirection = "asc" | "desc";
 
 const EMPTY_EDIT_DATA: EmployeeEditData = {
   id: 0,
@@ -56,6 +69,41 @@ function requiresCostSpecialty(role: string): boolean {
   return role === "employee";
 }
 
+function employeeSearchText(emp: Employee) {
+  return [
+    emp.employee_no,
+    emp.name,
+    emp.org_name,
+    emp.department,
+    emp.position_name,
+    roleText[emp.role],
+    emp.cost_specialty === "civil" ? "土建" : "",
+    emp.cost_specialty === "mep" ? "机电" : "",
+    emp.contract_type === "service" ? "劳务合同" : "劳动合同",
+    emp.status === "active" ? "在职" : "离职",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function employeeSortValue(emp: Employee, sortKey: EmployeeSortKey) {
+  if (sortKey === "employeeNo") return emp.employee_no || "";
+  if (sortKey === "name") return emp.name || "";
+  if (sortKey === "department") return emp.org_name || emp.department || "";
+  if (sortKey === "role") return roleText[emp.role] || emp.role || "";
+  if (sortKey === "hireDate") return emp.hire_date || "";
+  return emp.status || "";
+}
+
+function orgFilterIds(orgs: Organization[], orgId: string) {
+  if (!orgId || orgId === ALL) return null;
+  const rootId = Number(orgId);
+  const ids = descendantOrgIds(orgs, rootId);
+  ids.add(rootId);
+  return ids;
+}
+
 export default function EmployeesPage() {
   const { user: currentUser, isAdmin, canReview } = useAuthStore();
   const navigate = useNavigate();
@@ -72,6 +120,14 @@ export default function EmployeesPage() {
     id: number;
     name: string;
   } | null>(null);
+  const [search, setSearch] = useState("");
+  const [orgFilter, setOrgFilter] = useState(ALL);
+  const [roleFilter, setRoleFilter] = useState(ALL);
+  const [statusFilter, setStatusFilter] = useState(ALL);
+  const [contractFilter, setContractFilter] = useState(ALL);
+  const [specialtyFilter, setSpecialtyFilter] = useState(ALL);
+  const [sortKey, setSortKey] = useState<EmployeeSortKey>("employeeNo");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const {
     data: employees = [],
@@ -126,6 +182,51 @@ export default function EmployeesPage() {
     () => orgs.filter((org) => isAdmin || visibleOrgIds.has(org.id)),
     [orgs, isAdmin, visibleOrgIds],
   );
+  const departmentOptions = useMemo(
+    () => flattenOrgTree(visibleOrgs).filter((org) => org.org_type !== "company"),
+    [visibleOrgs],
+  );
+  const filteredEmployees = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    const scopedOrgIds = orgFilterIds(orgs, orgFilter);
+    const rows = visibleEmployees.filter((emp) => {
+      if (keyword && !employeeSearchText(emp).includes(keyword)) return false;
+      if (scopedOrgIds && (!emp.org_id || !scopedOrgIds.has(Number(emp.org_id)))) return false;
+      if (roleFilter !== ALL && emp.role !== roleFilter) return false;
+      if (statusFilter !== ALL && emp.status !== statusFilter) return false;
+      if (contractFilter !== ALL && emp.contract_type !== contractFilter) return false;
+      if (specialtyFilter !== ALL) {
+        if (specialtyFilter === "none" && emp.cost_specialty) return false;
+        if (specialtyFilter !== "none" && emp.cost_specialty !== specialtyFilter) return false;
+      }
+      return true;
+    });
+    return [...rows].sort((a, b) => {
+      const left = employeeSortValue(a, sortKey);
+      const right = employeeSortValue(b, sortKey);
+      const result = left.localeCompare(right, "zh-CN", { numeric: true });
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [
+    contractFilter,
+    orgFilter,
+    orgs,
+    roleFilter,
+    search,
+    sortDirection,
+    sortKey,
+    specialtyFilter,
+    statusFilter,
+    visibleEmployees,
+  ]);
+
+  const hasEmployeeFilters =
+    !!search.trim() ||
+    orgFilter !== ALL ||
+    roleFilter !== ALL ||
+    statusFilter !== ALL ||
+    contractFilter !== ALL ||
+    specialtyFilter !== ALL;
 
   useEffect(() => {
     if (selectedId && !visibleEmployees.some((emp) => emp.id === selectedId)) {
@@ -288,6 +389,14 @@ export default function EmployeesPage() {
   }, [selectedId, visibleEmployees, currentUser]);
 
   const deleteDisabled = !selectedId || editingId != null;
+  const clearEmployeeFilters = () => {
+    setSearch("");
+    setOrgFilter(ALL);
+    setRoleFilter(ALL);
+    setStatusFilter(ALL);
+    setContractFilter(ALL);
+    setSpecialtyFilter(ALL);
+  };
 
   return (
     <div>
@@ -309,7 +418,12 @@ export default function EmployeesPage() {
       <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
         <div>
           <div className="flex items-center justify-between mb-3">
-            <strong className="text-sm">员工列表</strong>
+            <div>
+              <strong className="text-sm">员工列表</strong>
+              <span className="ml-2 text-xs text-muted-foreground">
+                {filteredEmployees.length} / {visibleEmployees.length} 人
+              </span>
+            </div>
             <div className="flex gap-1">
               <ReminderFloat employees={visibleEmployees} />
               <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -333,6 +447,110 @@ export default function EmployeesPage() {
             </div>
           </div>
 
+          <div className="mb-3 space-y-2 rounded-lg border border-border bg-white p-3">
+            <div className="grid grid-cols-[minmax(180px,1fr)_160px_136px_120px] gap-2 max-[1180px]:grid-cols-2 max-[640px]:grid-cols-1">
+              <label className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-9 pl-8 text-sm"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="搜索编号、姓名、部门、岗位"
+                />
+              </label>
+              <Select value={orgFilter} onValueChange={(value) => setOrgFilter(value || ALL)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="部门" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>全部部门</SelectItem>
+                  {departmentOptions.map((org) => (
+                    <SelectItem key={org.id} value={String(org.id)}>
+                      {orgOptionLabel(org)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value || ALL)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="权限" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>全部权限</SelectItem>
+                  <SelectItem value="employee">员工</SelectItem>
+                  <SelectItem value="manager">主管</SelectItem>
+                  <SelectItem value="admin">管理员</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value || ALL)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>全部状态</SelectItem>
+                  <SelectItem value="active">在职</SelectItem>
+                  <SelectItem value="terminated">离职</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-[140px_140px_170px_116px_auto] gap-2 max-[1180px]:grid-cols-3 max-[640px]:grid-cols-1">
+              <Select value={contractFilter} onValueChange={(value) => setContractFilter(value || ALL)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="合同" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>全部合同</SelectItem>
+                  <SelectItem value="labor">劳动合同</SelectItem>
+                  <SelectItem value="service">劳务合同</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={specialtyFilter} onValueChange={(value) => setSpecialtyFilter(value || ALL)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="专业" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>全部专业</SelectItem>
+                  <SelectItem value="civil">土建</SelectItem>
+                  <SelectItem value="mep">机电</SelectItem>
+                  <SelectItem value="none">未设置</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortKey} onValueChange={(value) => setSortKey((value || "employeeNo") as EmployeeSortKey)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <ArrowDownAZ className="mr-1 size-3.5" />
+                  <SelectValue placeholder="排序字段" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="employeeNo">按编号</SelectItem>
+                  <SelectItem value="name">按姓名</SelectItem>
+                  <SelectItem value="department">按部门</SelectItem>
+                  <SelectItem value="role">按权限</SelectItem>
+                  <SelectItem value="hireDate">按入职日期</SelectItem>
+                  <SelectItem value="status">按状态</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortDirection} onValueChange={(value) => setSortDirection((value || "asc") as SortDirection)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">升序</SelectItem>
+                  <SelectItem value="desc">降序</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 justify-self-start"
+                disabled={!hasEmployeeFilters}
+                onClick={clearEmployeeFilters}
+              >
+                <X className="mr-1 size-3.5" />
+                清空筛选
+              </Button>
+            </div>
+          </div>
+
           {isLoading && (
             <div className="py-10 text-center text-sm text-muted-foreground">
               加载中…
@@ -345,7 +563,7 @@ export default function EmployeesPage() {
           )}
           {!isLoading && !isError && (
             <EmployeeTable
-              employees={visibleEmployees}
+              employees={filteredEmployees}
               orgs={visibleOrgs}
               selectedId={selectedId}
               editingId={editingId}

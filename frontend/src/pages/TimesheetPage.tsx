@@ -48,6 +48,23 @@ export default function TimesheetPage() {
   const submitMutation = useSubmitTimesheet();
 
   const weekDays = useMemo(() => getWeekDays(currentWeek), [currentWeek]);
+  const serverRevisionKey = useMemo(() => {
+    if (!timesheet) return "empty";
+    const projectStatuses = (timesheet.project_statuses || [])
+      .map((item) => `${item.project_id}:${item.status}:${item.result_action || ""}:${item.completed_at || ""}`)
+      .join("|");
+    const entries = (timesheet.entries || [])
+      .map((entry) => `${entry.project_id}:${entry.work_date}:${entry.hours}:${entry.description || ""}`)
+      .join("|");
+    return [
+      timesheet.id,
+      timesheet.status,
+      timesheet.updated_at || "",
+      timesheet.remark || "",
+      projectStatuses,
+      entries,
+    ].join("::");
+  }, [timesheet]);
 
   // Initialize store from server data
   useEffect(() => {
@@ -62,7 +79,7 @@ export default function TimesheetPage() {
     } else {
       store.reset();
     }
-  }, [timesheet?.id]);
+  }, [serverRevisionKey, weekDays]);
 
   const dayTotals = useMemo(() => {
     const totals: Record<string, number> = {};

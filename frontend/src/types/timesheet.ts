@@ -13,6 +13,7 @@ export interface Timesheet {
   week_start_date: string;
   status: TimesheetStatus;
   remark: string;
+  updated_at?: string;
   days: string[];
   entries: TimesheetEntry[];
   overtime: OvertimeEntry[];

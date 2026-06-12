@@ -89,6 +89,7 @@ export interface ProjectBase {
   id: number;
   code: string;
   name: string;
+  signed_date?: string | null;
   business_type: ProjectBusinessType | null;
   contract_amount: number;
   received_amount: number;

@@ -1015,6 +1015,7 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
   const row = {
     code: body.code,
     name: body.name,
+    signed_date: body.signedDate || body.signed_date || null,
     business_type: body.businessType || body.business_type || inferProjectBusinessType(body.code),
     contract_amount: Number(body.contractAmount || body.contract_amount || 0),
     received_amount: Number(body.receivedAmount || body.received_amount || 0),

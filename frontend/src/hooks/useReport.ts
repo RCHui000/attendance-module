@@ -68,6 +68,7 @@ export function useSaveProject() {
       id?: number;
       code: string;
       name: string;
+      signedDate?: string;
       contractAmount?: number;
       receivedAmount?: number;
       businessType?: "PM" | "CC" | "PMCC";

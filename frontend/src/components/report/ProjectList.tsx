@@ -19,15 +19,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useProjectBase, useSaveProject, useDeleteProject } from "@/hooks/useReport";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, useOrganizations } from "@/hooks/useEmployees";
 import { formatMoney } from "@/utils/dates";
 import { cn } from "@/lib/utils";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { descendantOrgIds } from "@/utils/orgTree";
+import { ArrowDownAZ, Plus, Save, Trash2 } from "lucide-react";
+import type { Employee, Organization } from "@/types/employee";
 import type { ProjectBase, ProjectBusinessType, ProjectRoleKey } from "@/types/project";
 import { toast } from "sonner";
 
 const NONE = "none";
 const serviceTypes: ProjectBusinessType[] = ["PM", "CC", "PMCC"];
+type ProjectSortKey = "code" | "signedDate";
 
 const roleLabels: Record<ProjectRoleKey, string> = {
   cc_civil_project_owner: "CC土建负责人",
@@ -52,10 +55,67 @@ const rolesByServiceType: Record<ProjectBusinessType, ProjectRoleKey[]> = {
   ],
 };
 
+const ccRoleKeys = new Set<ProjectRoleKey>([
+  "cc_civil_project_owner",
+  "cc_mep_project_owner",
+  "cc_project_owner",
+  "cc_department_owner",
+]);
+
+function normalizedOrgName(org?: Organization | null) {
+  return `${org?.org_code || ""} ${org?.org_name || ""}`.toUpperCase();
+}
+
+function findOrgId(orgs: Organization[], matcher: (org: Organization) => boolean) {
+  return orgs.find(matcher)?.id ?? null;
+}
+
+function orgScopeIds(orgs: Organization[], rootId: number | null) {
+  if (!rootId) return new Set<number>();
+  const ids = descendantOrgIds(orgs, rootId);
+  ids.add(rootId);
+  return ids;
+}
+
+function roleOrgScope(role: ProjectRoleKey, orgs: Organization[]) {
+  const ccRoot = findOrgId(orgs, (org) => {
+    const text = normalizedOrgName(org);
+    return text.includes("CC") || org.org_name.includes("成本合约");
+  });
+  const pmRoot = findOrgId(orgs, (org) => {
+    const text = normalizedOrgName(org);
+    return (text.includes("PM") || org.org_name.includes("项目管理")) && !org.parent_id;
+  });
+  const pmCost = findOrgId(orgs, (org) => org.org_code === "PM_COST" || org.org_name === "成本");
+  const pmManage = findOrgId(orgs, (org) => org.org_code === "PM_MANAGE" || org.org_name === "管理");
+
+  if (ccRoleKeys.has(role)) return orgScopeIds(orgs, ccRoot);
+  if (role === "pm_cost_department_owner") return orgScopeIds(orgs, pmCost || pmRoot);
+  if (role === "pm_project_owner") return orgScopeIds(orgs, pmManage || pmRoot);
+  if (role === "pm_department_owner") return orgScopeIds(orgs, pmRoot);
+  return new Set<number>();
+}
+
+function isActiveEmployee(employee: Employee) {
+  return String(employee.status || "").toLowerCase() !== "terminated";
+}
+
+function employeeMatchesRole(employee: Employee, role: ProjectRoleKey, scope: Set<number>) {
+  if (!isActiveEmployee(employee)) return false;
+  if (scope.size > 0 && (!employee.org_id || !scope.has(employee.org_id))) return false;
+  if (role === "cc_civil_project_owner") return employee.cost_specialty === "civil" || !employee.cost_specialty;
+  if (role === "cc_mep_project_owner") return employee.cost_specialty === "mep" || !employee.cost_specialty;
+  if (role === "cc_department_owner" || role === "pm_department_owner") {
+    return employee.role === "manager" || employee.role === "admin";
+  }
+  return true;
+}
+
 type EditData = {
   id?: number;
   code: string;
   name: string;
+  signedDate: string;
   businessType: ProjectBusinessType | "";
   contractAmount: string;
   receivedAmount: string;
@@ -65,6 +125,7 @@ type EditData = {
 const emptyEditData: EditData = {
   code: "",
   name: "",
+  signedDate: "",
   businessType: "",
   contractAmount: "",
   receivedAmount: "",
@@ -108,22 +169,56 @@ function projectSummary(project: ProjectBase) {
     .join(" / ");
 }
 
+function projectSignedDate(project: ProjectBase) {
+  return project.signed_date || "";
+}
+
 export function ProjectList() {
   const { data: projects = [], isLoading, isError } = useProjectBase();
   const { data: employees = [] } = useEmployees();
+  const { data: orgs = [] } = useOrganizations();
   const saveProject = useSaveProject();
   const deleteProject = useDeleteProject();
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [editData, setEditData] = useState<EditData>(emptyEditData);
   const [deleteTarget, setDeleteTarget] = useState<ProjectBase | null>(null);
+  const [sortKey, setSortKey] = useState<ProjectSortKey>("code");
 
   const activeProjects = useMemo(
     () => projects.filter((project) => project.status !== "deleted"),
     [projects],
   );
+  const sortedProjects = useMemo(() => {
+    return [...activeProjects].sort((a, b) => {
+      if (sortKey === "signedDate") {
+        const dateCompare = projectSignedDate(b).localeCompare(projectSignedDate(a));
+        if (dateCompare !== 0) return dateCompare;
+      }
+      return a.code.localeCompare(b.code, "zh-CN", { numeric: true });
+    });
+  }, [activeProjects, sortKey]);
   const selectedProject = selectedId === "new" ? null : activeProjects.find((project) => project.id === selectedId) || null;
   const businessType = editData.businessType || inferBusinessType(editData.code);
   const visibleRoles = businessType ? rolesByServiceType[businessType] : [];
+  const employeeById = useMemo(() => new Map(employees.map((employee) => [String(employee.id), employee])), [employees]);
+
+  const roleCandidates = (role: ProjectRoleKey) => {
+    const scope = roleOrgScope(role, orgs);
+    const selected = editData.roles[role];
+    const candidates = employees
+      .filter((employee) => employeeMatchesRole(employee, role, scope))
+      .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+    const selectedEmployee = selected ? employeeById.get(selected) : undefined;
+    if (selectedEmployee && !candidates.some((employee) => employee.id === selectedEmployee.id)) {
+      return [selectedEmployee, ...candidates];
+    }
+    return candidates;
+  };
+
+  const employeeLabel = (employee?: Employee) => {
+    if (!employee) return "未配置";
+    return `${employee.name} · ${employee.org_name || employee.department || "未分配部门"}`;
+  };
 
   const selectProject = (project: ProjectBase) => {
     const type = project.business_type || inferBusinessType(project.code);
@@ -134,6 +229,7 @@ export function ProjectList() {
       id: project.id,
       code: project.code,
       name: project.name,
+      signedDate: project.signed_date || "",
       businessType: type,
       contractAmount: String(project.contract_amount || ""),
       receivedAmount: String(project.received_amount || ""),
@@ -173,6 +269,7 @@ export function ProjectList() {
         id: selectedId === "new" ? undefined : editData.id,
         code: editData.code.trim(),
         name: editData.name.trim(),
+        signedDate: editData.signedDate || undefined,
         businessType,
         contractAmount: Number(editData.contractAmount || 0),
         receivedAmount: Number(editData.receivedAmount || 0),
@@ -213,17 +310,29 @@ export function ProjectList() {
   if (isError) return <div className="py-10 text-center text-sm text-destructive">项目加载失败</div>;
 
   return (
-    <div className="grid min-h-[68vh] grid-cols-[300px_minmax(0,1fr)] gap-4">
+    <div className="grid min-h-[68vh] grid-cols-[360px_minmax(0,1fr)] gap-4">
       <div className="rounded-lg border border-border bg-white">
-        <div className="flex items-center justify-between border-b border-border p-3">
+        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
           <div className="text-sm font-semibold">项目目录</div>
-          <Button size="sm" onClick={startNew}>
-            <Plus className="mr-1 size-3.5" />
-            新增
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={sortKey} onValueChange={(value) => setSortKey(value as ProjectSortKey)}>
+              <SelectTrigger className="h-8 w-[132px] text-xs">
+                <ArrowDownAZ className="mr-1 size-3.5" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="code">合同编号</SelectItem>
+                <SelectItem value="signedDate">签订日期</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={startNew}>
+              <Plus className="mr-1 size-3.5" />
+              新增
+            </Button>
+          </div>
         </div>
         <div className="max-h-[68vh] overflow-y-auto p-2">
-          {activeProjects.map((project) => {
+          {sortedProjects.map((project) => {
             const type = project.business_type || inferBusinessType(project.code);
             return (
               <button
@@ -276,7 +385,7 @@ export function ProjectList() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-[150px_150px_minmax(0,1fr)] gap-3">
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">合同编码</span>
                 <Input
@@ -318,13 +427,13 @@ export function ProjectList() {
                     <span className="text-xs font-medium text-muted-foreground">{roleLabels[role]}</span>
                     <Select value={editData.roles[role] || NONE} onValueChange={(value) => updateRole(role, value || NONE)}>
                       <SelectTrigger>
-                        <SelectValue placeholder={roleLabels[role]} />
+                        {editData.roles[role] ? employeeLabel(employeeById.get(editData.roles[role])) : <SelectValue placeholder={roleLabels[role]} />}
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={NONE}>未配置</SelectItem>
-                        {employees.map((employee) => (
+                        {roleCandidates(role).map((employee) => (
                           <SelectItem key={employee.id} value={String(employee.id)}>
-                            {employee.name} · {employee.org_name || employee.department || "未分配部门"}
+                            {employeeLabel(employee)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -334,7 +443,11 @@ export function ProjectList() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
+              <label className="space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground">签订日期</span>
+                <Input type="date" value={editData.signedDate} onChange={(event) => update({ signedDate: event.target.value })} />
+              </label>
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">合同额</span>
                 <Input type="number" value={editData.contractAmount} onChange={(event) => update({ contractAmount: event.target.value })} />

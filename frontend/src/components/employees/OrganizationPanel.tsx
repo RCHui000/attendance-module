@@ -22,7 +22,8 @@ import { Card } from "@/components/ui/card";
 import { useOrganizations, useSaveOrganization, useDeleteOrganization } from "@/hooks/useEmployees";
 import type { Employee, Organization } from "@/types/employee";
 import { descendantOrgIds, flattenOrgTree, orgOptionLabel } from "@/utils/orgTree";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ChevronDown, ChevronRight, Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrganizationPanelProps {
@@ -50,9 +51,9 @@ export function OrganizationPanel({
     managerUserId: "" as string,
   });
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [expandedOrgIds, setExpandedOrgIds] = useState<Set<number>>(() => new Set());
 
-  // Count employees per org
-  const orgMemberCounts = useMemo(() => {
+  const directOrgMemberCounts = useMemo(() => {
     const counts: Record<number, number> = {};
     employees.forEach((e) => {
       if (e.org_id) counts[e.org_id] = (counts[e.org_id] || 0) + 1;
@@ -61,11 +62,48 @@ export function OrganizationPanel({
   }, [employees]);
 
   const treeOrgs = useMemo(() => flattenOrgTree(orgs), [orgs]);
+  const orgById = useMemo(() => new Map(orgs.map((org) => [org.id, org])), [orgs]);
+  const childIdsByParent = useMemo(() => {
+    const map = new Map<number | null, number[]>();
+    orgs.forEach((org) => {
+      const parentId = org.parent_id ?? null;
+      const children = map.get(parentId) || [];
+      children.push(org.id);
+      map.set(parentId, children);
+    });
+    return map;
+  }, [orgs]);
 
-  const filtered = treeOrgs.filter((o) =>
-    (!visibleOrgIds || visibleOrgIds.has(o.id)) &&
-    (!search || o.path.includes(search) || o.org_name.includes(search)),
-  );
+  const orgMemberCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    orgs.forEach((org) => {
+      let total = directOrgMemberCounts[org.id] || 0;
+      descendantOrgIds(orgs, org.id).forEach((childId) => {
+        total += directOrgMemberCounts[childId] || 0;
+      });
+      counts[org.id] = total;
+    });
+    return counts;
+  }, [directOrgMemberCounts, orgs]);
+
+  const visibleRows = useMemo(() => {
+    const normalizedSearch = search.trim();
+    const passesSearch = (org: typeof treeOrgs[number]) =>
+      !normalizedSearch || org.path.includes(normalizedSearch) || org.org_name.includes(normalizedSearch);
+
+    return treeOrgs.filter((org) => {
+      if (visibleOrgIds && !visibleOrgIds.has(org.id)) return false;
+      if (!passesSearch(org)) return false;
+      if (normalizedSearch) return true;
+
+      let parentId = org.parent_id;
+      while (parentId) {
+        if (!expandedOrgIds.has(parentId)) return false;
+        parentId = orgById.get(parentId)?.parent_id ?? null;
+      }
+      return true;
+    });
+  }, [expandedOrgIds, orgById, search, treeOrgs, visibleOrgIds]);
 
   const parentOptions = useMemo(() => {
     const blocked = editingId ? descendantOrgIds(orgs, editingId) : new Set<number>();
@@ -222,6 +260,15 @@ export function OrganizationPanel({
     setDeleteTarget(null);
   };
 
+  const toggleExpanded = (orgId: number) => {
+    setExpandedOrgIds((current) => {
+      const next = new Set(current);
+      if (next.has(orgId)) next.delete(orgId);
+      else next.add(orgId);
+      return next;
+    });
+  };
+
   return (
     <Card className="p-3.5 shadow-app rounded-lg">
       <div className="flex items-center justify-between mb-3">
@@ -254,7 +301,10 @@ export function OrganizationPanel({
       )}
 
       <div className="grid gap-2 max-h-[55vh] overflow-auto">
-        {filtered.map((org) => (
+        {visibleRows.map((org) => {
+          const hasChildren = (childIdsByParent.get(org.id) || []).length > 0;
+          const isExpanded = expandedOrgIds.has(org.id) || !!search.trim();
+          return (
           <div
             key={org.id}
             className="rounded-md border border-border px-3 py-2 hover:bg-row-hover transition-colors"
@@ -262,13 +312,19 @@ export function OrganizationPanel({
             {editingId === org.id ? (
               renderEditForm()
             ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium">
-                    {"  ".repeat(org.depth)}
-                    {org.depth > 0 ? "- " : ""}
-                    {org.org_name}
-                  </span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center">
+                  <span style={{ width: org.depth * 18 }} className="shrink-0" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn("mr-1 size-6 shrink-0 p-0", !hasChildren && "invisible")}
+                    onClick={() => toggleExpanded(org.id)}
+                  >
+                    {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                  </Button>
+                  <span className="truncate text-sm font-medium">{org.org_name}</span>
                   <span className="text-xs text-muted-foreground ml-2">
                     {getManagerName(org.manager_user_id)} ·{" "}
                     {orgMemberCounts[org.id] || 0}人
@@ -297,7 +353,8 @@ export function OrganizationPanel({
               </div>
             )}
           </div>
-        ))}
+        );
+        })}
       </div>
 
       {/* Delete confirmation */}

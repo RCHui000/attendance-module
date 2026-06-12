@@ -83,7 +83,6 @@ export function EmployeeTable({
               <TableHead className="text-xs font-bold text-right">薪酬</TableHead>
               <TableHead className="text-xs font-bold">聘用期</TableHead>
               <TableHead className="text-xs font-bold">工龄</TableHead>
-              <TableHead className="text-xs font-bold">直属领导</TableHead>
               <TableHead className="text-xs font-bold">状态</TableHead>
             </TableRow>
           </TableHeader>
@@ -105,7 +104,7 @@ export function EmployeeTable({
 
             {employees.length === 0 && (
               <TableRow>
-                <TableCell colSpan={12} className="text-center text-muted-foreground text-sm py-8">
+                <TableCell colSpan={11} className="text-center text-muted-foreground text-sm py-8">
                   暂无员工
                 </TableCell>
               </TableRow>
@@ -199,9 +198,6 @@ export function EmployeeTable({
                   </TableCell>
                   <TableCell className="text-sm text-right tabular-nums">
                     {emp.hire_date ? calculateTenure(emp.hire_date) : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {emp.manager_name || "—"}
                   </TableCell>
                   <TableCell className="text-sm">
                     <span

@@ -25,16 +25,6 @@ export function ReminderFloat({ employees }: ReminderFloatProps) {
     for (const emp of employees) {
       if (emp.id === 0) continue;
       const name = emp.name || emp.employee_no || "未命名员工";
-      const dept = emp.org_name || emp.department || "未分配部门";
-
-      // Missing manager
-      if (!emp.manager_user_id) {
-        list.push({
-          level: "warn",
-          title: `${name} 未绑定直属领导`,
-          meta: dept,
-        });
-      }
 
       // Missing salary
       if (

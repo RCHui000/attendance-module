@@ -42,34 +42,6 @@ interface EmployeeEditRowProps {
   onCancel: () => void;
 }
 
-function isManagement(item: Employee): boolean {
-  return item.role === "manager" || item.role === "admin";
-}
-
-function getManagerOptions(
-  orgId: string,
-  selectedId: string,
-  excludeId: number | null,
-  employees: Employee[],
-) {
-  // First, management staff in the selected org
-  let scoped = employees.filter((e) => {
-    if (!isManagement(e)) return false;
-    if (orgId && String(e.org_id) !== String(orgId)) return false;
-    if (excludeId && e.id === excludeId) return false;
-    return true;
-  });
-  // Fallback: all management staff
-  if (scoped.length === 0) {
-    scoped = employees.filter((e) => {
-      if (!isManagement(e)) return false;
-      if (excludeId && e.id === excludeId) return false;
-      return true;
-    });
-  }
-  return scoped;
-}
-
 function calculateMonths(startDate: string, endDate: string): number {
   if (!startDate || !endDate) return 12;
   const start = new Date(startDate);
@@ -123,12 +95,6 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
 
   const effectiveCostSpecialty = data.costSpecialty || inferCostSpecialty(data.positionName);
 
-  const managerOptions = useMemo(
-    () =>
-      getManagerOptions(data.orgId, data.managerUserId, item?.id ?? null, employees),
-    [data.orgId, data.managerUserId, item?.id, employees],
-  );
-
   const handleContractTypeChange = useCallback(
     (value: string) => {
       const ct = value as "labor" | "service";
@@ -143,16 +109,13 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
       const nextSpecialty = shouldKeepSpecialty && requiresCostSpecialty(data.role)
         ? data.costSpecialty || inferCostSpecialty(data.positionName)
         : "";
-      // Reset manager when org changes
-      const scoped = getManagerOptions(value, "", item?.id ?? null, employees);
       onChange({
         orgId: value,
-        managerUserId: scoped[0] ? String(scoped[0].id) : "",
         costSpecialty: nextSpecialty,
         positionName: shouldKeepSpecialty && requiresCostSpecialty(data.role) ? costSpecialtyLabel(nextSpecialty) : data.positionName,
       });
     },
-    [data.costSpecialty, data.positionName, data.role, item?.id, employees, orgs, onChange],
+    [data.costSpecialty, data.positionName, data.role, orgs, onChange],
   );
 
   const handleHireDateChange = useCallback(
@@ -354,26 +317,6 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
         ) : (
           "—"
         )}
-      </td>
-
-      {/* Manager */}
-      <td className="p-1.5">
-        <Select
-          value={data.managerUserId || "none"}
-          onValueChange={(v) => onChange({ managerUserId: !v || v === "none" ? "" : v })}
-        >
-          <SelectTrigger className="h-8 text-sm w-[108px]">
-            <SelectValue placeholder="直属领导" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">未设置</SelectItem>
-            {managerOptions.map((e) => (
-              <SelectItem key={e.id} value={String(e.id)}>
-                {e.name} · {e.org_name || e.department || "—"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </td>
 
       {/* Status */}

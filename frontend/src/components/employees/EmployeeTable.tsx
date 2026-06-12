@@ -13,7 +13,7 @@ import { formatMoney } from "@/utils/dates";
 import { roleText } from "@/lib/constants";
 import { EmployeeEditRow, type EmployeeEditData } from "./EmployeeEditRow";
 import type { Employee, Organization } from "@/types/employee";
-import { Pencil } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react";
 
 const costSpecialtyText: Record<string, string> = {
   civil: "土建",
@@ -30,10 +30,26 @@ interface EmployeeTableProps {
   onEdit: (id: number) => void;
   canEditEmployee?: (employee: Employee) => boolean;
   canEditRole?: boolean;
+  sortKey: EmployeeSortKey | null;
+  sortDirection: SortDirection;
+  onSort: (key: EmployeeSortKey) => void;
   onEditChange: (data: Partial<EmployeeEditData>) => void;
   onSave: () => void;
   onCancelEdit: () => void;
 }
+
+type EmployeeSortKey =
+  | "employeeNo"
+  | "name"
+  | "role"
+  | "department"
+  | "position"
+  | "contract"
+  | "salary"
+  | "hireDate"
+  | "tenure"
+  | "status";
+type SortDirection = "asc" | "desc";
 
 function calculateTenure(hireDate: string): string {
   const start = new Date(hireDate);
@@ -41,6 +57,52 @@ function calculateTenure(hireDate: string): string {
   const total = (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth();
   if (total < 12) return `${total}个月`;
   return `${Math.floor(total / 12)}年`;
+}
+
+function SortIcon({
+  active,
+  direction,
+}: {
+  active: boolean;
+  direction: SortDirection;
+}) {
+  if (!active) return <ArrowUpDown className="size-3 text-muted-foreground/60" />;
+  if (direction === "asc") return <ArrowUp className="size-3 text-primary" />;
+  return <ArrowDown className="size-3 text-primary" />;
+}
+
+function SortableHead({
+  label,
+  sortId,
+  sortKey,
+  sortDirection,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortId: EmployeeSortKey;
+  sortKey: EmployeeSortKey | null;
+  sortDirection: SortDirection;
+  onSort: (key: EmployeeSortKey) => void;
+  className?: string;
+}) {
+  const active = sortKey === sortId;
+  return (
+    <TableHead className={cn("text-xs font-bold", className)}>
+      <button
+        type="button"
+        className={cn(
+          "flex h-full w-full items-center gap-1 text-left transition-colors hover:text-primary",
+          className?.includes("text-right") && "justify-end",
+        )}
+        onClick={() => onSort(sortId)}
+        title="点击切换排序：升序 / 降序 / 取消"
+      >
+        <span>{label}</span>
+        <SortIcon active={active} direction={sortDirection} />
+      </button>
+    </TableHead>
+  );
 }
 
 export function EmployeeTable({
@@ -53,6 +115,9 @@ export function EmployeeTable({
   onEdit,
   canEditEmployee = () => true,
   canEditRole = true,
+  sortKey,
+  sortDirection,
+  onSort,
   onEditChange,
   onSave,
   onCancelEdit,
@@ -74,16 +139,16 @@ export function EmployeeTable({
               <TableHead className="text-xs font-bold w-[60px] sticky left-0 bg-table-header z-20">
                 操作
               </TableHead>
-              <TableHead className="text-xs font-bold">编号</TableHead>
-              <TableHead className="text-xs font-bold">姓名</TableHead>
-              <TableHead className="text-xs font-bold">权限</TableHead>
-              <TableHead className="text-xs font-bold">部门</TableHead>
-              <TableHead className="text-xs font-bold">岗位</TableHead>
-              <TableHead className="text-xs font-bold">合同</TableHead>
-              <TableHead className="text-xs font-bold text-right">薪酬</TableHead>
-              <TableHead className="text-xs font-bold">聘用期</TableHead>
-              <TableHead className="text-xs font-bold">工龄</TableHead>
-              <TableHead className="text-xs font-bold">状态</TableHead>
+              <SortableHead label="编号" sortId="employeeNo" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="姓名" sortId="name" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="权限" sortId="role" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="部门" sortId="department" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="岗位" sortId="position" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="合同" sortId="contract" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="薪酬" sortId="salary" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} className="text-right" />
+              <SortableHead label="聘用期" sortId="hireDate" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="工龄" sortId="tenure" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHead label="状态" sortId="status" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
             </TableRow>
           </TableHeader>
           <TableBody>

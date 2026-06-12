@@ -23,14 +23,13 @@ import { useEmployees, useOrganizations } from "@/hooks/useEmployees";
 import { formatMoney } from "@/utils/dates";
 import { cn } from "@/lib/utils";
 import { descendantOrgIds } from "@/utils/orgTree";
-import { ArrowDownAZ, Plus, Save, Trash2 } from "lucide-react";
+import { Plus, Save, Search, Trash2 } from "lucide-react";
 import type { Employee, Organization } from "@/types/employee";
 import type { ProjectBase, ProjectBusinessType, ProjectRoleKey } from "@/types/project";
 import { toast } from "sonner";
 
 const NONE = "none";
 const serviceTypes: ProjectBusinessType[] = ["PM", "CC", "PMCC"];
-type ProjectSortKey = "code" | "signedDate";
 
 const roleLabels: Record<ProjectRoleKey, string> = {
   cc_civil_project_owner: "CC土建负责人",
@@ -169,10 +168,6 @@ function projectSummary(project: ProjectBase) {
     .join(" / ");
 }
 
-function projectSignedDate(project: ProjectBase) {
-  return project.signed_date || "";
-}
-
 export function ProjectList() {
   const { data: projects = [], isLoading, isError } = useProjectBase();
   const { data: employees = [] } = useEmployees();
@@ -182,21 +177,28 @@ export function ProjectList() {
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [editData, setEditData] = useState<EditData>(emptyEditData);
   const [deleteTarget, setDeleteTarget] = useState<ProjectBase | null>(null);
-  const [sortKey, setSortKey] = useState<ProjectSortKey>("code");
+  const [projectSearch, setProjectSearch] = useState("");
 
   const activeProjects = useMemo(
     () => projects.filter((project) => project.status !== "deleted"),
     [projects],
   );
-  const sortedProjects = useMemo(() => {
-    return [...activeProjects].sort((a, b) => {
-      if (sortKey === "signedDate") {
-        const dateCompare = projectSignedDate(b).localeCompare(projectSignedDate(a));
-        if (dateCompare !== 0) return dateCompare;
-      }
-      return a.code.localeCompare(b.code, "zh-CN", { numeric: true });
-    });
-  }, [activeProjects, sortKey]);
+  const directoryProjects = useMemo(() => {
+    const keyword = projectSearch.trim().toLowerCase();
+    return activeProjects
+      .filter((project) => {
+        if (!keyword) return true;
+        const type = project.business_type || inferBusinessType(project.code);
+        const text = [
+          project.code,
+          project.name,
+          type,
+          projectSummary(project),
+        ].join(" ").toLowerCase();
+        return text.includes(keyword);
+      })
+      .sort((a, b) => a.code.localeCompare(b.code, "zh-CN", { numeric: true }));
+  }, [activeProjects, projectSearch]);
   const selectedProject = selectedId === "new" ? null : activeProjects.find((project) => project.id === selectedId) || null;
   const businessType = editData.businessType || inferBusinessType(editData.code);
   const visibleRoles = businessType ? rolesByServiceType[businessType] : [];
@@ -313,26 +315,30 @@ export function ProjectList() {
     <div className="grid min-h-[68vh] grid-cols-[360px_minmax(0,1fr)] gap-4">
       <div className="rounded-lg border border-border bg-white">
         <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <div className="text-sm font-semibold">项目目录</div>
+          <div>
+            <div className="text-sm font-semibold">项目目录</div>
+            <div className="text-xs text-muted-foreground">{directoryProjects.length} / {activeProjects.length} 项</div>
+          </div>
           <div className="flex items-center gap-2">
-            <Select value={sortKey} onValueChange={(value) => setSortKey(value as ProjectSortKey)}>
-              <SelectTrigger className="h-8 w-[132px] text-xs">
-                <ArrowDownAZ className="mr-1 size-3.5" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="code">合同编号</SelectItem>
-                <SelectItem value="signedDate">签订日期</SelectItem>
-              </SelectContent>
-            </Select>
             <Button size="sm" onClick={startNew}>
               <Plus className="mr-1 size-3.5" />
               新增
             </Button>
           </div>
         </div>
+        <div className="border-b border-border p-2">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8 text-sm"
+              value={projectSearch}
+              onChange={(event) => setProjectSearch(event.target.value)}
+              placeholder="搜索合同编码、项目名称、服务类型、负责人"
+            />
+          </label>
+        </div>
         <div className="max-h-[68vh] overflow-y-auto p-2">
-          {sortedProjects.map((project) => {
+          {directoryProjects.map((project) => {
             const type = project.business_type || inferBusinessType(project.code);
             return (
               <button
@@ -355,6 +361,9 @@ export function ProjectList() {
               </button>
             );
           })}
+          {directoryProjects.length === 0 && (
+            <div className="py-8 text-center text-sm text-muted-foreground">没有匹配的项目</div>
+          )}
         </div>
       </div>
 

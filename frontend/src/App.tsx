@@ -10,6 +10,8 @@ import DashboardPage from "@/pages/DashboardPage";
 import ReviewPage from "@/pages/ReviewPage";
 import ReportPage from "@/pages/ReportPage";
 import EmployeesPage from "@/pages/EmployeesPage";
+import LeavePage from "@/pages/LeavePage";
+import AppsPage from "@/pages/AppsPage";
 
 function LoadingScreen() {
   return (
@@ -35,10 +37,12 @@ function AuthenticatedApp() {
       <Routes>
         <Route index element={<Navigate to={defaultRoute} replace />} />
         <Route path="timesheet" element={<TimesheetPage />} />
+        <Route path="leave" element={<LeavePage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="report" element={<ReportPage />} />
         <Route path="employees" element={<EmployeesPage />} />
+        <Route path="apps" element={<AppsPage />} />
       </Routes>
     </AppLayout>
   );

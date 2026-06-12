@@ -8,14 +8,21 @@ import {
   Calendar,
   FolderKanban,
   Users,
+  CalendarX2,
+  Grid3X3,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { view: "dashboard", label: "数据看板", icon: LayoutDashboard, requireReview: true, requireAdmin: false },
   { view: "review", label: "审批中心", icon: ClipboardCheck, requireReview: true, requireAdmin: false },
   { view: "timesheet", label: "我的周表", icon: Calendar, requireReview: false, requireAdmin: false },
+  { view: "leave", label: "请假申请", icon: CalendarX2, requireReview: false, requireAdmin: false },
   { view: "report", label: "项目列表", icon: FolderKanban, requireReview: true, requireAdmin: false },
   { view: "employees", label: "员工与组织", icon: Users, requireReview: true, requireAdmin: false },
+] as const;
+
+const BOTTOM_NAV_ITEMS = [
+  { view: "apps", label: "应用中心", icon: Grid3X3, requireReview: false, requireAdmin: false },
 ] as const;
 
 export function Sidebar() {
@@ -25,11 +32,14 @@ export function Sidebar() {
 
   const currentView = location.pathname.replace("/", "") || "dashboard";
 
-  const visibleItems = NAV_ITEMS.filter((item) => {
+  const canSee = (item: { requireAdmin: boolean; requireReview: boolean }) => {
     if (item.requireAdmin && !isAdmin) return false;
     if (item.requireReview && !canReview) return false;
     return true;
-  });
+  };
+
+  const visibleItems = NAV_ITEMS.filter(canSee);
+  const visibleBottomItems = BOTTOM_NAV_ITEMS.filter(canSee);
 
   return (
     <aside className="sticky top-0 h-screen w-[232px] shrink-0 flex flex-col bg-sidebar-bg py-3 px-4 max-[900px]:w-full max-[900px]:h-auto">
@@ -73,8 +83,30 @@ export function Sidebar() {
         )})}
       </nav>
 
+      <nav className="mt-auto grid gap-1.5 max-[900px]:mt-3 max-[900px]:grid-cols-3">
+        {visibleBottomItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.view}
+              type="button"
+              className={cn(
+                "w-full flex items-center gap-1.5 px-3 py-2 rounded-md text-sm transition-colors duration-160",
+                "text-sidebar-text hover:text-white hover:bg-white/10",
+                currentView === item.view &&
+                  "bg-white text-sidebar-bg font-medium hover:bg-white hover:text-sidebar-bg",
+              )}
+              onClick={() => navigate(`/${item.view}`)}
+            >
+              <Icon className="size-4 shrink-0" />
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
       {/* Separator */}
-      <div className="mt-auto border-t border-white/10 max-[900px]:hidden" />
+      <div className="mt-3 border-t border-white/10 max-[900px]:hidden" />
 
       {/* Logo — full width below the separator line, no padding */}
       <div className="-mx-4 max-[900px]:hidden">

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { mondayOfWeek } from "@/utils/dates";
 
-export type ViewType = "timesheet" | "dashboard" | "review" | "report" | "employees";
+export type ViewType = "timesheet" | "leave" | "dashboard" | "review" | "report" | "employees" | "apps";
 
 interface AppState {
   activeView: ViewType;

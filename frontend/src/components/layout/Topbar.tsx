@@ -6,10 +6,12 @@ import { LogOut } from "lucide-react";
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   timesheet: { title: "我的周表", subtitle: "" },
+  leave: { title: "请假申请", subtitle: "功能预留" },
   dashboard: { title: "经营与人力投入", subtitle: "按项目查看合同额、回款、人力成本、毛利和本周工日投入" },
   review: { title: "周表与加班 OT", subtitle: "审批中心" },
   report: { title: "项目列表", subtitle: "按时间跨度查看项目工日投入，或维护项目基础数据" },
   employees: { title: "员工与组织架构", subtitle: "管理员" },
+  apps: { title: "应用中心", subtitle: "功能预留" },
 };
 
 export function Topbar() {

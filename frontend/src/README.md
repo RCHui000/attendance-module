@@ -9,10 +9,12 @@ This frontend is a React + Vite single page app. It keeps the old `/api/*` call 
 - Unauthenticated users see `LoginPage`.
 - Authenticated users enter `AppLayout` with these routes:
   - `/timesheet`: weekly timesheet entry.
+  - `/leave`: leave request entry placeholder; available to all authenticated roles.
   - `/dashboard`: BI dashboard.
   - `/review`: approval center.
   - `/report`: project list and project reporting.
   - `/employees`: employee and organization management.
+  - `/apps`: application center placeholder; available to all authenticated roles and shown last in sidebar order.
 
 ## Module Directories
 

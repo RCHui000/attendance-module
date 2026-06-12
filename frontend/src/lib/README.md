@@ -51,6 +51,15 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 | `/api/organizations/save` | POST | organization payload | saved organization | Upsert. |
 | `/api/organizations/delete` | POST | `{ id }` | `{ ok, organizations }` | Soft delete. |
 
+## Route-Only Placeholders
+
+These pages are routed in the SPA but intentionally do not call `/api/*` yet:
+
+| Route | Page | Current backend contract |
+| --- | --- | --- |
+| `/leave` | 请假申请 | No API. Future leave request endpoints should be added only after request fields, balance rules, and approval routing are confirmed. |
+| `/apps` | 应用中心 | No API. Future application catalog/config endpoints should be added when app-center scope is defined. |
+
 ## Validation In API Layer
 
 `saveTimesheet` validates regular workdays before writing:

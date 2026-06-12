@@ -8,10 +8,12 @@ Pages are route-level containers. They should orchestrate hooks, stores, and fea
 | --- | --- | --- | --- |
 | `LoginPage.tsx` | unauthenticated default | `components/layout` | Login and password-change surface. |
 | `TimesheetPage.tsx` | `/timesheet` | `components/timesheet` | Weekly workday entry, save, submit. |
+| `LeavePage.tsx` | `/leave` | page placeholder | Leave request entry placeholder. No backend API yet. |
 | `DashboardPage.tsx` | `/dashboard` | `components/dashboard` | KPI and BI dashboard. |
 | `ReviewPage.tsx` | `/review` | `components/review` | Approval center. |
 | `ReportPage.tsx` | `/report` | `components/report` | Project list and reports. |
 | `EmployeesPage.tsx` | `/employees` | `components/employees` | Employee and organization admin. |
+| `AppsPage.tsx` | `/apps` | page placeholder | Application center placeholder. No backend API yet. |
 
 ## Page Responsibilities
 

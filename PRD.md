@@ -176,10 +176,12 @@ flowchart LR
 | --- | --- | --- |
 | 登录页 | 未登录默认 | 登录、修改密码、密码明文切换 |
 | 我的周表 | `/timesheet` | 员工填写项目工时；OT 行预留但当前锁定 |
+| 请假申请 | `/leave` | 全员可访问的请假功能入口；当前为占位页，暂不接后端接口 |
 | 数据看板 | `/dashboard` | 指标卡、项目汇总、BI 项目/部门/人员视角 |
 | 审批中心 | `/review` | 待审核、已审核、周表详情；admin 可维护合同审批模板并实时预览流程图；OT 审批能力保留但当前业务不启用 |
 | 项目列表 | `/report` | 左侧项目目录、右侧固定配置页；维护项目编码、服务类型、项目名称、PM/CC/PMCC 负责人、财务与工时统计 |
 | 员工与组织 | `/employees` | 员工资料、合同薪酬、组织结构、部门负责人 |
+| 应用中心 | `/apps` | 全员可访问的应用入口；当前为占位页，暂不接后端接口；在侧边栏菜单顺序中排最后 |
 
 ### 5.1 前端组件结构
 
@@ -190,8 +192,10 @@ frontend/src/
     DashboardPage.tsx
     ReviewPage.tsx
     TimesheetPage.tsx
+    LeavePage.tsx
     ReportPage.tsx
     EmployeesPage.tsx
+    AppsPage.tsx
   components/
     dashboard/
       MetricCards.tsx
@@ -246,6 +250,13 @@ frontend/src/
 | `GET /api/reports/weekly` | PostgREST + JS 聚合 | 周/月/区间统计 |
 | `GET /api/reports/labor-matrix` | PostgREST + JS 聚合 | 项目 × 月份投入矩阵 |
 | `GET /api/project-detail` | PostgREST + JS 聚合 | 项目人员投入明细 |
+
+当前无后端接口的页面：
+
+| 页面 | 路由 | 接口口径 |
+| --- | --- | --- |
+| 请假申请 | `/leave` | 仅前端占位入口；后续请假申请、余额、审批规则确认后再新增 `/api/leave/*` 或 RPC |
+| 应用中心 | `/apps` | 仅前端占位入口；后续应用清单、权限配置确认后再新增接口 |
 
 服务端受控端点：
 

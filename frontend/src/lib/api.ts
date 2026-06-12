@@ -638,11 +638,13 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     const projectId = source.scope_type === "project" ? Number(source.scope_id) : null;
     const project = projectId ? projectMap.get(projectId) : null;
     const action = String(source.result_action || "");
-    const reviewStatus = action === "approve" || action === "approved"
-      ? "approved"
-      : action === "reject" || action === "rejected"
-        ? "rejected"
-        : sheet.status;
+    const reviewStatus = ["rejected", "revision_required"].includes(String(sheet.status || ""))
+      ? "rejected"
+      : action === "approve" || action === "approved"
+        ? "approved"
+        : action === "reject" || action === "rejected"
+          ? "rejected"
+          : sheet.status;
     return {
       task_id: source.id ? Number(source.id) : undefined,
       timesheet_id: Number(sheet.id),

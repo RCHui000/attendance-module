@@ -637,12 +637,18 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     const profile = employeeProfileMap.get(Number(sheet.user_id));
     const projectId = source.scope_type === "project" ? Number(source.scope_id) : null;
     const project = projectId ? projectMap.get(projectId) : null;
+    const action = String(source.result_action || "");
+    const reviewStatus = action === "approve" || action === "approved"
+      ? "approved"
+      : action === "reject" || action === "rejected"
+        ? "rejected"
+        : sheet.status;
     return {
       task_id: source.id ? Number(source.id) : undefined,
       timesheet_id: Number(sheet.id),
       user_id: Number(sheet.user_id),
       week_start_date: sheet.week_start_date,
-      status: ["reject", "rejected"].includes(String(source.result_action)) ? "rejected" : sheet.status,
+      status: reviewStatus,
       assignee_role: source.assignee_role || "",
       scope_type: source.scope_type || "timesheet",
       scope_id: source.scope_id ? Number(source.scope_id) : null,

@@ -33,3 +33,5 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 | `040` | Limit cost specialty to execution/project-owner employees; clear it from department heads/managers/admins. |
 | `041` | Align PM/CC/PMCC contract routes and Approval Graph review views. |
 | `042` | V0.15 Approval Graph cutover: migrate `workflow_tasks`, verify counts, and drop the legacy table. |
+| `048`-`050` | Timesheet department/specialty routing, summary fallback, and restored sequence alignment. |
+| `051` | Serial timesheet project-block Approval Graph chains; optional middle roles are skipped and adjacent duplicate approvers collapse to the last role. |

@@ -31,8 +31,8 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 | `/api/timesheet` | GET | `weekStart` | `Timesheet` | Creates missing weekly sheet lazily. |
 | `/api/timesheet-detail` | GET | `timesheetId` | approval detail payload | Used by review drawer/expanded row. |
 | `/api/timesheet/save` | POST | `SaveTimesheetPayload` | `{ ok, timesheet }` | Only draft/rejected/revision_required sheets are editable. |
-| `/api/timesheet/action` | POST | `{ timesheetId, action, comment?, taskId? }` | RPC result | Calls `psa_timesheet_action`. |
-| `/api/approvals/tasks` | GET | `weekStart?` | `ApprovalTasks` | Returns pending/reviewed timesheets and OT placeholder lists. |
+| `/api/timesheet/action` | POST | `{ timesheetId, action, comment?, taskId? }` | RPC result | Calls `psa_timesheet_action`; submit creates serial project-block Approval Graph nodes directly. |
+| `/api/approvals/tasks` | GET | `weekStart?` | `ApprovalTasks` | Returns pending/reviewed Approval Graph tasks and OT placeholder lists. |
 | `/api/approval-templates` | GET | none | approval template list | Includes contract templates, nodes, and edges. |
 | `/api/approval-templates/save` | POST | approval template payload | `{ ok, templates }` | Admin-only template metadata and node update. |
 | `/api/overtime/action` | POST | `{ id, status, comment? }` | RPC result | OT is currently reserved in UI. |

@@ -336,46 +336,48 @@ erDiagram
 
 ### 8.2 周表审批流（当前审批中心）
 
-当前 `/review` 审批中心处理的是员工周表审批。它按周表项目块先并行审批，再进入员工所属部门汇总审批；这条规则不等同于合同审批流，也不用于简化 PM/CC/PMCC 合同审批链。
+当前 `/review` 审批中心处理的是员工周表审批。V0.15 起周表直接写入 Approval Graph：不同项目块之间并行，每个项目块内部按项目服务类型、提交人部门和项目负责人配置生成串行审批链。该链路复用项目主数据，但不等同于合同审批模板。
 
 ```mermaid
 flowchart TD
   DRAFT["员工编辑周表<br/>draft / rejected"] --> SUBMIT["提交周表<br/>psa_timesheet_action(submit)"]
   SUBMIT --> LOCK["周表 submitted"]
   LOCK --> SPLIT["按 timesheet_entries.project_id 拆分项目块"]
-  SPLIT --> PROJECT_TASK["项目块审批任务<br/>scope_type = project"]
-  PROJECT_TASK --> PROJECT_OWNER["项目负责人审批"]
-  PROJECT_OWNER --> PROJECT_DECISION{"项目块审批结果"}
-  PROJECT_DECISION -->|"通过"| PROJECT_DONE["项目块 completed / approve"]
-  PROJECT_DECISION -->|"退回"| REJECTED["周表 rejected<br/>取消剩余 pending"]
-  PROJECT_DONE --> ALL_DONE{"全部项目块通过?"}
+  SPLIT --> CHAIN["为每个项目块生成串行审批链<br/>scope_type = project"]
+  CHAIN --> OPTIONAL["缺失的中间负责人可选跳过"]
+  OPTIONAL --> COMPRESS["连续两级同一审批人<br/>压缩到最后一级"]
+  COMPRESS --> REVIEW["当前激活节点审批"]
+  REVIEW --> DECISION{"节点审批结果"}
+  DECISION -->|"通过"| NEXT{"本项目块还有后续节点?"}
+  NEXT -->|"有"| REVIEW
+  NEXT -->|"无"| ALL_DONE{"全部项目块链路通过?"}
   ALL_DONE -->|"否"| WAIT["等待其他项目块"]
   WAIT --> ALL_DONE
-  ALL_DONE -->|"是"| SUMMARY["部门汇总审批<br/>scope_type = department_summary"]
-  SUMMARY --> DEPT_HEAD["部门负责人审批完整周表"]
-  DEPT_HEAD --> FINAL{"最终审批"}
-  FINAL -->|"通过"| APPROVED["周表 approved<br/>进入 BI 统计"]
-  FINAL -->|"退回"| REJECTED
+  ALL_DONE -->|"是"| APPROVED["周表 approved<br/>进入 BI 统计"]
+  DECISION -->|"退回"| REJECTED["周表 rejected<br/>取消剩余 pending<br/>项目块可重新编辑"]
 ```
 
 ### 8.3 周表审批人解析规则
 
-项目块审批人当前优先级：
+项目块串行审批链由 `psa_timesheet_project_approval_chain(timesheet_id)` 生成：
 
-1. `projects.project_owner_id`
-2. 项目所属部门负责人 `projects.owner_org_id -> organizations.manager_user_id`
-3. 提交人所属部门负责人
-4. admin 兜底
+| 提交人/项目场景 | 周表项目块链路 |
+| --- | --- |
+| 成本合约员工 + `CC` 项目 | 成本合约专业项目负责人 -> 成本合约部门负责人 |
+| 成本合约员工 + `PMCC` 项目 | 成本合约专业项目负责人 -> 项目管理部成本部负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人 |
+| 项目管理成本部员工 | 项目管理部成本部负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人 |
+| 项目管理设计/管理/其他 PM 员工 | 项目管理部项目负责人 -> 项目管理部部门负责人 |
 
-部门汇总审批人当前优先级：
+角色解析来源：
 
-1. 员工直属负责人 `employee_profiles_v2.manager_user_id`
-2. 员工所属部门负责人 `organizations.manager_user_id`
-3. admin 兜底
+1. `cc_civil_project_owner` / `cc_mep_project_owner` 按成本合约员工 `cost_specialty` 分派。
+2. `cc_project_owner` 作为成本合约项目负责人兼容兜底。
+3. `pm_cost_department_owner`、`pm_project_owner`、`pm_department_owner` 来自 `project_roles`。
+4. 未配置的中间角色视为可选，不生成阻塞节点。
 
 折叠规则：
 
-- 如果项目负责人和部门负责人是同一人，系统尽量避免让同一人重复审批。
+- 如果串行链路中连续两级解析到同一人，系统只保留后一级节点。
 - admin 代审批过的周表，需要能在对应部门负责人的已审核视图中体现，避免部门核算漏项。
 
 ### 8.4 合同审批流（服务类型驱动）
@@ -393,7 +395,7 @@ flowchart TD
 | --- | --- | --- |
 | `PM` | 项目管理业务合同 | 项目管理员工 -> 项目管理项目负责人 -> 项目管理部门负责人 |
 | `CC` | 成本合约业务合同 | 成本合约员工 -> 成本合约项目负责人 -> 成本合约部门负责人 |
-| `PMCC` | 成本合约部员工发起的复合合同 | 成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 成本合约部门负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人 |
+| `PMCC` | 成本合约部员工发起的复合合同 | 成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人 |
 
 对应项目角色建议：
 
@@ -419,9 +421,10 @@ V0.15 后审批事实源统一为 Approval Graph。`approval_instances / approva
 当前边界：
 
 - 周表审批 UI 仍主要使用兼容任务视图。
+- 周表提交、审批和退回只写 Approval Graph；`workflow_tasks` 不再参与运行时。
+- 周表项目块串行图在提交时动态生成，中间缺失负责人可选跳过，连续相同审批人压缩到最后一级。
 - 合同审批模板已具备 PM、CC、PMCC 类型的图模板基础；`041_contract_routes_and_review_views.sql` 已按 8.4 与 `Downloads/contract_approval_org_diagram.html` 校准 PMCC 串行链路，并补强备份恢复后的待审/已审视图兼容。
 - 不实现项目经理撤回、部门负责人选择性退回、已通过后重开修订 UI。
-- 触发器同步图结构失败时不应阻断旧审批动作。
 
 ## 9. BI 数据看板
 
@@ -506,6 +509,15 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 040 | `040_cost_specialty_scope.sql` | 限定造价专业只用于执行/项目负责人 |
 | 041 | `041_contract_routes_and_review_views.sql` | 校准 PMCC 合同路由、CC 专业负责人兜底、待审/已审备份视图兼容 |
 | 042 | `042_v015_approval_graph_cutover.sql` | 旧 `workflow_tasks` 一次性迁移到 Approval Graph，校验待审/已审/项目块/部门汇总数量后 Drop 旧表 |
+| 043 | `043_fix_graph_cutover_function_names.sql` | 修复 cutover 后兼容函数名与视图依赖 |
+| 044 | `044_v015_approval_graph_history_repair.sql` | 修复备份恢复后的待审/已审历史数据展示 |
+| 045 | `045_project_role_owner_display.sql` | 项目负责人中文姓名与候选列表支持 |
+| 046 | `046_reject_unlock_and_hr_visibility.sql` | 退回后解锁项目块，并扩大人事可见范围 |
+| 047 | `047_fix_submit_document_ambiguous_document_id.sql` | 修复提交周表时 `document_id` 歧义 |
+| 048 | `048_timesheet_department_role_routing.sql` | 周表项目块按提交人部门与专业路由 |
+| 049 | `049_timesheet_summary_department_owner_fallback.sql` | 部门汇总负责人从项目角色兜底 |
+| 050 | `050_align_core_sequences.sql` | 备份恢复/导入后核心序列对齐 |
+| 051 | `051_timesheet_serial_approval_graph.sql` | 周表项目块串行 Approval Graph；中间节点可选跳过，连续同人压缩到最后一级 |
 
 迁移原则：
 
@@ -585,7 +597,7 @@ flowchart LR
 
 - `PM`：项目管理员工 -> 项目管理项目负责人 -> 项目管理部门负责人。
 - `CC`：成本合约员工 -> 成本合约项目负责人 -> 成本合约部门负责人。
-- `PMCC`：成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 成本合约部门负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人。
+- `PMCC`：成本合约员工 -> 成本合约项目负责人 -> 项目管理部成本部负责人 -> 项目管理部项目负责人 -> 项目管理部部门负责人。
 
 待优化问题：
 
@@ -605,12 +617,12 @@ flowchart LR
 
 V0.15 后项目块级审批状态由 Approval Graph 节点和节点指派记录表达，旧 `workflow_tasks` 已不再参与运行时。
 
-可讨论方案：
+当前实现：
 
-- 新增 `timesheet_project_reviews`。
-- 每张周表每个项目块一条 review。
-- review 记录状态、项目、当前负责人、历史轮次、退回原因。
-- V0.15 后待办分发由 `approval_nodes` + `approval_node_assignees` 表达。
+- 每张周表按项目块生成 `scope_type = project` 的 Approval Graph 节点。
+- 每个项目块内部可以是串行节点链，项目块之间并行。
+- `approval_project_review_records_view` 将同一项目块的串行节点聚合成前端兼容状态：任一节点退回为 `needs_revision`，仍有活动/等待节点为 `pending`，全部通过或跳过为 `project_approved`。
+- 待办分发由 `approval_nodes` + `approval_node_assignees` 表达。
 - `approval_events` 负责全量审计。
 
 ### 14.3 员工信息保存事务化

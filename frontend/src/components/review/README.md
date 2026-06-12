@@ -2,7 +2,7 @@
 
 The review module is the approval center for weekly timesheets. It shows pending approvals, reviewed history, and detailed project-block workday rows.
 
-This module describes timesheet approval only. Contract approval for PM, CC, and PMCC service types is driven by project master data and Approval Graph templates; PMCC is a cross-department serial route, not the two-step timesheet project/department flow.
+This module describes timesheet approval only. Timesheet project blocks now use generated Approval Graph serial chains based on submitter department, project service type, and project role configuration. Contract approval for PM, CC, and PMCC service types is driven by contract templates and the same project master data.
 
 ## Entry Points
 
@@ -33,16 +33,18 @@ Important fields used by the UI:
 
 - `timesheet_id`: target sheet.
 - `task_id` or graph node assignment id: action target.
-- `scope_type`: `project` or `department_summary`.
+- `scope_type`: currently `project` for timesheet project-block graph nodes. Historical migrated rows may still be displayed through compatibility views.
 - `project_id`, `project_code`, `project_name`: present for project block approvals.
 - `total_hours`: workdays for the task scope.
 - `status`, `result_action`, `review_comment`: reviewed history fields.
 
 ## Approval Behavior
 
-- Project-scope tasks approve or reject one project block.
-- Department summary tasks approve or reject the full sheet after all project blocks pass.
-- Project task totals display two decimals; department summary totals keep compact one-decimal display.
+- Project-scope tasks approve or reject one project block step. Multiple project blocks can still run in parallel, but each project block can contain a serial chain.
+- Serial timesheet chains are generated when the sheet is submitted: CC submitter + CC/PMCC project starts with the CC specialty project owner, then configured PMCC cross-department PM steps; PM submitter + PMCC project uses the PM-side route only.
+- Missing middle roles are optional and omitted from the generated graph.
+- Consecutive steps assigned to the same employee are collapsed to the last step.
+- Project task totals display two decimals.
 - Rejecting a task sends the sheet back as `rejected`; previously approved project blocks are rolled back to needing reapproval and become editable for the submitter.
 - The UI reads Approval Graph views only. Legacy `workflow_tasks` rows are migrated into graph nodes during V0.15 deployment and the legacy table is dropped after count checks pass.
 - Admin users can open the approval-flow configuration tab to inspect PM / CC / PMCC contract templates and preview the current serial graph.

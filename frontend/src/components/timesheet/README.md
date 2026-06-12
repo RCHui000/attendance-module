@@ -56,3 +56,4 @@ interface SaveTimesheetPayload {
 - Submitted, approved, locked, and summarized sheets are read-only.
 - Approved project rows are preserved if another project row is later revised.
 - Project row totals display two decimals to avoid hiding small percent entries.
+- Submitting a sheet writes Approval Graph nodes directly. Each project block receives a generated serial approval chain; missing middle approver roles are skipped, and adjacent duplicate approvers collapse to the last role.

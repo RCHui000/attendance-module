@@ -58,6 +58,7 @@ export const statusText: Record<string, string> = {
 export const roleText: Record<string, string> = {
   employee: "员工",
   manager: "主管",
+  hr: "人事",
   admin: "管理员",
 };
 

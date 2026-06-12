@@ -1,7 +1,7 @@
 export interface CurrentUser {
   id: number;
   name: string;
-  role: "employee" | "manager" | "admin";
+  role: "employee" | "manager" | "admin" | "hr";
   department: string;
   is_active: number;
 }

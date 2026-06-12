@@ -18,7 +18,7 @@ const NAV_ITEMS = [
   { view: "timesheet", label: "我的周表", icon: Calendar, requireReview: false, requireAdmin: false },
   { view: "leave", label: "请假申请", icon: CalendarX2, requireReview: false, requireAdmin: false },
   { view: "report", label: "项目列表", icon: FolderKanban, requireReview: true, requireAdmin: false },
-  { view: "employees", label: "员工与组织", icon: Users, requireReview: true, requireAdmin: false },
+  { view: "employees", label: "员工与组织", icon: Users, requireReview: true, requireAdmin: false, allowHr: true },
   { view: "apps", label: "应用中心", icon: Grid3X3, requireReview: false, requireAdmin: false },
 ] as const;
 
@@ -29,7 +29,8 @@ export function Sidebar() {
 
   const currentView = location.pathname.replace("/", "") || "dashboard";
 
-  const canSee = (item: { requireAdmin: boolean; requireReview: boolean }) => {
+  const canSee = (item: { requireAdmin: boolean; requireReview: boolean; allowHr?: boolean }) => {
+    if (item.allowHr && user?.role === "hr") return true;
     if (item.requireAdmin && !isAdmin) return false;
     if (item.requireReview && !canReview) return false;
     return true;
@@ -108,6 +109,7 @@ function roleLabel(role: string): string {
     employee: "员工",
     manager: "主管",
     admin: "管理员",
+    hr: "HR",
   };
   return map[role] || role;
 }

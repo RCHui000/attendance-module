@@ -125,7 +125,17 @@ function weekDays(weekStart: string): string[] {
   });
 }
 
-function projectStatusFromReviews(reviews: AnyRow[]): AnyRow[] {
+function projectStatusFromReviews(reviews: AnyRow[], sheetStatus = ""): AnyRow[] {
+  if (["rejected", "revision_required"].includes(String(sheetStatus || ""))) {
+    return reviews.map((review) => ({
+      project_id: Number(review.project_id),
+      status: "rejected",
+      assignee_role: review.route_source || "",
+      result_action: review.status || "",
+      completed_at: review.project_approved_at || review.final_confirmed_at || review.last_action_at || "",
+    }));
+  }
+
   return reviews.map((review) => ({
     project_id: Number(review.project_id),
     status: review.status === "final_confirmed" || review.status === "project_approved"
@@ -402,7 +412,7 @@ async function getTimesheet(weekStart: string): Promise<AnyRow> {
     rest<AnyRow[]>(`/approval_project_review_records_view?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,last_action_at.desc`)
       .catch(() => []),
   ]);
-  const taskProjectStatuses = reviews.length ? projectStatusFromReviews(reviews) : [];
+  const taskProjectStatuses = reviews.length ? projectStatusFromReviews(reviews, sheet.status) : [];
   const taskProjectIds = new Set(taskProjectStatuses.map((item) => Number(item.project_id)));
   const entryProjectIds = [...new Set(entries.map((entry) => Number(entry.project_id)).filter(Boolean))];
   return {
@@ -467,7 +477,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       reason: entry.reason || "",
       status: entry.status || "",
     })),
-    project_statuses: reviews.length ? projectStatusFromReviews(reviews) : [],
+    project_statuses: reviews.length ? projectStatusFromReviews(reviews, sheet.status) : [],
   };
 }
 
@@ -482,11 +492,13 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
   const graphReviews = await rest<AnyRow[]>(
     `/approval_project_review_records_view?select=project_id,status,result_action&timesheet_id=eq.${sheet.id}`,
   ).catch(() => []);
-  const lockedProjectIds = new Set([
-    ...graphReviews
-      .filter((review) => review.status === "project_approved" || review.result_action === "approve")
-      .map((review) => Number(review.project_id)),
-  ]);
+  const lockedProjectIds = new Set(
+    ["rejected", "revision_required"].includes(String(sheet.status || ""))
+      ? []
+      : graphReviews
+        .filter((review) => review.status === "project_approved" || review.result_action === "approve")
+        .map((review) => Number(review.project_id)),
+  );
   await rest(`/timesheets?id=eq.${sheet.id}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },

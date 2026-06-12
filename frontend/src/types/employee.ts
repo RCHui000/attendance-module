@@ -1,7 +1,7 @@
 export interface Employee {
   id: number;
   name: string;
-  role: "employee" | "manager" | "admin";
+  role: "employee" | "manager" | "admin" | "hr";
   employee_no: string;
   org_id: number | null;
   org_name: string;

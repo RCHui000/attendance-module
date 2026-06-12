@@ -32,7 +32,7 @@ This module manages employees, current HR profiles, roles, salary/contract field
 - `employee_profiles_v2`: organization, position, cost specialty, status, manager.
 - `employee_contracts`: contract type and date range.
 - `employee_salary_profiles`: monthly salary or service daily wage.
-- `user_roles`: `employee`, `manager`, `admin`.
+- `user_roles`: `employee`, `manager`, `hr`, `admin`.
 - `organizations`: multi-level tree node and department manager.
 
 ## Organization And Specialty Rules
@@ -49,6 +49,7 @@ This module manages employees, current HR profiles, roles, salary/contract field
 ## Permission Notes
 
 - Admin can manage all employees and organizations.
+- HR users can view all employees, employee profiles, and organizations.
 - Department managers can manage employees inside their department/subtree according to RLS.
 - GoTrue signup is disabled; new accounts go through `/api/create-employee-with-login`.
 - Deletes are soft deletes to preserve historical timesheets and approvals.

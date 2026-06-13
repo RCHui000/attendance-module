@@ -131,7 +131,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 body["auth_user_id"] = auth_uid
                 employee_id = self._write_employee(body, login_name, email, auth_header[7:])
             except Exception as be:
-                # Rollback: delete GoTrue user
+                # Rollback both sides. Business rows are written through PostgREST one by one,
+                # so a later failure must not leave an employee pointing at a deleted auth user.
+                self._delete_employee_business_rows(body.get("_employee_id"), auth_uid)
                 self._delete_auth_user(auth_uid)
                 raise be
 
@@ -228,6 +230,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         contract_type = body.get("contractType") or body.get("contract_type") or "labor"
         # Get next ID
         eid = int(body.get("_employee_id") or 0) or self._next_employee_id(bearer_token)
+        body["_employee_id"] = eid
 
         # employees
         self._rest_post("/employees", [{"id": eid, "employee_no": body.get("employeeNo") or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}], bearer_token)
@@ -255,6 +258,30 @@ class SpaHandler(SimpleHTTPRequestHandler):
             urllib.request.urlopen(req, timeout=10)
         except Exception:
             pass  # best-effort rollback
+
+    def _delete_employee_business_rows(self, employee_id: int | None, auth_uid: str | None) -> None:
+        try:
+            if employee_id:
+                eid = self._q(str(employee_id))
+                self._rest_delete(f"/user_roles?employee_id=eq.{eid}")
+                self._rest_delete(f"/employee_salary_profiles?employee_id=eq.{eid}")
+                self._rest_delete(f"/employee_contracts?employee_id=eq.{eid}")
+                self._rest_delete(f"/employee_profiles?employee_id=eq.{eid}")
+                self._rest_delete(f"/employees?id=eq.{eid}")
+            if auth_uid:
+                uid = self._q(auth_uid)
+                self._rest_delete(f"/profiles?auth_user_id=eq.{uid}")
+        except Exception:
+            pass  # best-effort rollback
+
+    def _rest_delete(self, path: str) -> None:
+        req = urllib.request.Request(
+            f"{SUPABASE_REST_URL}{path}",
+            headers={"Authorization": f"Bearer {make_service_role_token()}"},
+            method="DELETE",
+        )
+        with urllib.request.urlopen(req, timeout=10):
+            pass
 
     @staticmethod
     def _q(s: str) -> str:

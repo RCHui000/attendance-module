@@ -91,9 +91,17 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: AnyRow | null = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
   if (!response.ok) {
-    throw new Error(data?.message || data?.hint || text || "Supabase request failed");
+    const message = data?.message || data?.hint || data?.details || (text && text !== "{}" ? text : "");
+    throw new Error(message || `Supabase request failed (${response.status})`);
   }
   return data as T;
 }
@@ -368,9 +376,6 @@ async function permissionConfig(): Promise<AnyRow> {
 }
 
 async function savePermissionConfig(body: AnyRow): Promise<AnyRow> {
-  if (!(await currentUserCanAccessResource("permission_config", "write"))) {
-    throw new Error("Only permission admins can edit permission config");
-  }
   const roleKey = String(body.roleKey || body.role_key || "");
   const updates = body.permissions || [];
   if (!roleKey) throw new Error("Role key is required");
@@ -378,11 +383,19 @@ async function savePermissionConfig(body: AnyRow): Promise<AnyRow> {
     const resourceKey = String(item.resourceKey || item.resource_key || "");
     const accessLevel = String(item.accessLevel || item.access_level || "none");
     if (!resourceKey || !["none", "read", "write"].includes(accessLevel)) continue;
-    await rest("/role_permissions?on_conflict=role_key,resource_key", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates" },
-      body: JSON.stringify([{ role_key: roleKey, resource_key: resourceKey, access_level: accessLevel }]),
-    });
+    try {
+      await rest("/rpc/psa_save_role_permission", {
+        method: "POST",
+        body: JSON.stringify({
+          p_role_key: roleKey,
+          p_resource_key: resourceKey,
+          p_access_level: accessLevel,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown permission save error";
+      throw new Error(`Permission save failed for ${roleKey}/${resourceKey}: ${message}`);
+    }
   }
   return { ok: true, ...(await permissionConfig()) };
 }

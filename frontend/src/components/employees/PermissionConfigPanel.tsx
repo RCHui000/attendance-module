@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermissionConfig, useSavePermissionConfig } from "@/hooks/useEmployees";
@@ -19,6 +18,18 @@ const accessTone: Record<PermissionAccess, string> = {
   read: "border-sky-200 bg-sky-50 text-sky-700",
   write: "border-emerald-200 bg-emerald-50 text-emerald-700",
 };
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  try {
+    const serialized = JSON.stringify(error);
+    if (serialized && serialized !== "{}") return serialized;
+  } catch {
+    // Keep a stable fallback for empty or unserializable error objects.
+  }
+  return "权限保存失败，请查看服务端日志";
+}
 
 interface PermissionConfigPanelProps {
   canWrite: boolean;
@@ -50,7 +61,7 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
   }, [resources]);
 
   const setAccess = async (resourceKey: string, accessLevel: PermissionAccess) => {
-    if (!canWrite || !activeRole) return;
+    if (!canWrite || !activeRole || saveConfig.isPending) return;
     try {
       await saveConfig.mutateAsync({
         roleKey: activeRole,
@@ -58,7 +69,7 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
       });
       toast.success("权限配置已保存");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "权限保存失败");
+      toast.error(errorMessage(error));
     }
   };
 
@@ -121,7 +132,11 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
                       <Badge variant="outline" className={cn("w-fit rounded-pill", accessTone[value])}>
                         {accessText[value]}
                       </Badge>
-                      <Select value={value} disabled={!canWrite} onValueChange={(next) => setAccess(resource.resource_key, next as PermissionAccess)}>
+                      <Select
+                        value={value}
+                        disabled={!canWrite || saveConfig.isPending}
+                        onValueChange={(next) => setAccess(resource.resource_key, next as PermissionAccess)}
+                      >
                         <SelectTrigger className="h-8 text-sm">
                           <SelectValue />
                         </SelectTrigger>

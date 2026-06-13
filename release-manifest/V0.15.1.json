@@ -1,0 +1,40 @@
+{
+  "version": "V0.15.1",
+  "released_at": "2026-06-13",
+  "base_version": "V0.15",
+  "summary": "Stabilization release for the V0.15 Approval Graph and organization/permission refactor.",
+  "database": {
+    "new_migrations": [
+      "053_platform_rbac_permissions.sql",
+      "054_fix_platform_rbac_permission_rpc.sql",
+      "055_fix_profiles_insert_policy.sql",
+      "056_fix_admin_employee_profile_write_rpc.sql",
+      "057_repair_employee_profile_links.sql",
+      "058_canonical_employee_profiles.sql"
+    ],
+    "notes": [
+      "Permission configuration is persisted through the platform RBAC tables/RPCs.",
+      "Employee creation and profile linkage use the canonical employee_profiles table.",
+      "employee_profiles_v2 has been folded into employee_profiles; no runtime v2 business tables remain.",
+      "Failed employee creation now removes partial business rows before deleting the auth user."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.15.1",
+    "notes": [
+      "Version display is injected through VITE_APP_VERSION during frontend build.",
+      "System management and permission configuration remain under Employee & Organization.",
+      "Permission pages support the expanded role set: employee, lead, manager, director, admin."
+    ]
+  },
+  "deployment": {
+    "nas": "Build image with VITE_APP_VERSION=V0.15.1 and tag attendance-module:V0.15.1.",
+    "cloud": "Build image with VITE_APP_VERSION=V0.15.1 and tag approval-app:V0.15.1 after NAS validation."
+  },
+  "verification": [
+    "Run frontend build with VITE_APP_VERSION=V0.15.1.",
+    "Verify NAS homepage asset contains V0.15.1.",
+    "Verify cloud homepage asset contains V0.15.1.",
+    "Verify employee login repair path with a known employee account."
+  ]
+}

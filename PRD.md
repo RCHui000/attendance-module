@@ -528,10 +528,11 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 049 | `049_timesheet_summary_department_owner_fallback.sql` | 部门汇总负责人从项目角色兜底 |
 | 050 | `050_align_core_sequences.sql` | 备份恢复/导入后核心序列对齐 |
 | 051 | `051_timesheet_serial_approval_graph.sql` | 周表项目块串行 Approval Graph；中间节点可选跳过，连续同人压缩到最后一级 |
-| 052 | `052_platform_roles_and_employee_permissions.sql` | 平台角色调整为员工/基层负责人/主管/董事/管理员，并将员工组织权限从审批身份中解耦 |
-| 053 | `053_platform_rbac_permissions.sql` | 平台 RBAC 权限角色、资源、矩阵、RLS/RPC；默认权限只补缺失项，不覆盖已配置项 |
+| 052 | `052_project_scoped_timesheet_reject.sql` | 项目块退回只影响当前项目块，避免取消同周其他待审项目块 |
+| 053 | `053_platform_rbac_permissions.sql` | 平台角色调整为员工/基层负责人/主管/董事/管理员；RBAC 权限角色、资源、矩阵、RLS/RPC；默认权限只补缺失项，不覆盖已配置项 |
 | 054 | `054_fix_gotrue_search_path_shadow_views.sql` | 修复 GoTrue search_path 下 public shadow view 导致的 NAS 登录 500 |
 | 055 | `055_permission_rpc_and_login_rls.sql` | 补齐登录身份读取 RLS、权限保存 RPC、`role_permissions` 写入策略与 PostgREST schema reload |
+| 056 | `056_profiles_rbac_write.sql` | 将登录资料表 `profiles` 纳入系统管理 RBAC 读写，修复新增员工/董事时 RLS 拦截 |
 
 迁移原则：
 

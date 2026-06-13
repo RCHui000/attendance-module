@@ -389,7 +389,7 @@ export default function EmployeesPage() {
   return (
     <div>
       <div className="mb-4 flex items-start justify-between gap-3 max-[640px]:flex-col">
-        <strong className="block text-sm text-foreground">员工与组织架构</strong>
+        <span aria-hidden="true" />
         <Badge
           variant="outline"
           className="h-7 rounded-pill border-border bg-white px-3 text-xs font-bold text-muted-foreground"

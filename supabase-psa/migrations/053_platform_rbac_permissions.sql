@@ -95,9 +95,7 @@ WITH defaults(role_key, resource_key, access_level) AS (
 )
 INSERT INTO public.role_permissions(role_key, resource_key, access_level)
 SELECT role_key, resource_key, access_level FROM defaults
-ON CONFLICT (role_key, resource_key) DO UPDATE
-SET access_level = EXCLUDED.access_level,
-    updated_at = NOW();
+ON CONFLICT (role_key, resource_key) DO NOTHING;
 
 -- The old HR platform role is folded into the configurable manager role.
 DELETE FROM public.user_roles hr
@@ -312,3 +310,5 @@ $$;
 
 ALTER FUNCTION public.psa_save_role_permission(TEXT, TEXT, TEXT) OWNER TO postgres;
 GRANT EXECUTE ON FUNCTION public.psa_save_role_permission(TEXT, TEXT, TEXT) TO authenticated, anon;
+
+NOTIFY pgrst, 'reload schema';

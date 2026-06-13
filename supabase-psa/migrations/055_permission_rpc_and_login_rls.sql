@@ -68,3 +68,5 @@ $$;
 
 ALTER FUNCTION public.psa_save_role_permission(TEXT, TEXT, TEXT) OWNER TO postgres;
 GRANT EXECUTE ON FUNCTION public.psa_save_role_permission(TEXT, TEXT, TEXT) TO authenticated, anon;
+
+NOTIFY pgrst, 'reload schema';

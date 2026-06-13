@@ -1,9 +1,14 @@
+export type PlatformRole = "employee" | "lead" | "manager" | "director" | "admin";
+export type PermissionAccess = "none" | "read" | "write";
+export type PermissionMap = Record<string, PermissionAccess>;
+
 export interface CurrentUser {
   id: number;
   name: string;
-  role: "employee" | "manager" | "admin" | "hr";
+  role: PlatformRole;
   department: string;
   is_active: number;
+  permissions?: PermissionMap;
 }
 
 export interface UserBrief {
@@ -15,6 +20,7 @@ export interface UserBrief {
 
 export interface BootstrapData {
   currentUser: CurrentUser | null;
+  permissions: PermissionMap;
   users: UserBrief[];
   projects: ProjectBrief[];
   currentWeek: string;

@@ -25,6 +25,12 @@ const MAX_TIMESHEET_DAY_HOURS = 1;
 const MAX_TIMESHEET_WEEK_HOURS = 7;
 const TIMESHEET_HOURS_EPSILON = 0.0001;
 
+function accessRank(access: string | undefined): number {
+  if (access === "write") return 2;
+  if (access === "read") return 1;
+  return 0;
+}
+
 function formatApiHours(value: number): string {
   const roundedToOne = Number(value.toFixed(1));
   return Math.abs(value - roundedToOne) > TIMESHEET_HOURS_EPSILON
@@ -252,18 +258,33 @@ async function currentUser(): Promise<AnyRow | null> {
     department = "";
   }
   const roleRow = roles[0];
+  const permissions = roleRow?.role ? await currentUserPermissions(roleRow.role) : {};
   return {
     id: Number(row.id),
     name: row.name,
     role: roleRow?.role || "employee",
     department,
     is_active: row.is_active ? 1 : 0,
+    permissions,
   };
+}
+
+async function currentUserPermissions(role: string): Promise<Record<string, string>> {
+  const rows = await rest<AnyRow[]>(
+    `/role_permissions?select=resource_key,access_level&role_key=eq.${encodeURIComponent(role)}`,
+  ).catch(() => []);
+  return Object.fromEntries(rows.map((row) => [String(row.resource_key), String(row.access_level || "none")]));
 }
 
 async function isAdmin(): Promise<boolean> {
   const user = await currentUser();
-  return user?.role === "admin" || user?.name === "admin";
+  return user?.role === "admin";
+}
+
+async function currentUserCanAccessResource(resourceKey: string, minAccess = "read"): Promise<boolean> {
+  const user = await currentUser();
+  if (!user) return false;
+  return accessRank(user.permissions?.[resourceKey]) >= accessRank(minAccess);
 }
 
 async function listEmployees(): Promise<AnyRow[]> {
@@ -315,6 +336,55 @@ async function organizations(): Promise<AnyRow[]> {
     ...org,
     manager_name: org.manager_user_id ? names.get(Number(org.manager_user_id)) || null : null,
   }));
+}
+
+async function permissionConfig(): Promise<AnyRow> {
+  const [roles, resources, permissions] = await Promise.all([
+    rest<AnyRow[]>("/permission_roles?select=*&is_active=eq.true&order=sort_order.asc"),
+    rest<AnyRow[]>("/permission_resources?select=*&is_active=eq.true&order=resource_group.asc,sort_order.asc"),
+    rest<AnyRow[]>("/role_permissions?select=*&order=role_key.asc,resource_key.asc"),
+  ]);
+  return {
+    roles: roles.map((role) => ({
+      role_key: role.role_key,
+      role_name: role.role_name,
+      sort_order: Number(role.sort_order || 0),
+      is_system: role.is_system !== false,
+      is_active: role.is_active !== false,
+    })),
+    resources: resources.map((resource) => ({
+      resource_key: resource.resource_key,
+      resource_name: resource.resource_name,
+      resource_group: resource.resource_group || "sidebar",
+      sort_order: Number(resource.sort_order || 0),
+      is_active: resource.is_active !== false,
+    })),
+    permissions: permissions.map((permission) => ({
+      role_key: permission.role_key,
+      resource_key: permission.resource_key,
+      access_level: permission.access_level || "none",
+    })),
+  };
+}
+
+async function savePermissionConfig(body: AnyRow): Promise<AnyRow> {
+  if (!(await currentUserCanAccessResource("permission_config", "write"))) {
+    throw new Error("Only permission admins can edit permission config");
+  }
+  const roleKey = String(body.roleKey || body.role_key || "");
+  const updates = body.permissions || [];
+  if (!roleKey) throw new Error("Role key is required");
+  for (const item of updates) {
+    const resourceKey = String(item.resourceKey || item.resource_key || "");
+    const accessLevel = String(item.accessLevel || item.access_level || "none");
+    if (!resourceKey || !["none", "read", "write"].includes(accessLevel)) continue;
+    await rest("/role_permissions?on_conflict=role_key,resource_key", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify([{ role_key: roleKey, resource_key: resourceKey, access_level: accessLevel }]),
+    });
+  }
+  return { ok: true, ...(await permissionConfig()) };
 }
 
 async function projects(): Promise<AnyRow[]> {
@@ -1130,7 +1200,7 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
 
   // Edit existing employee: direct PostgREST writes
   const id = Number(body.id);
-  const admin = await isAdmin();
+  const canEditRoles = await currentUserCanAccessResource("permission_config", "write");
   const contractType = body.contractType || body.contract_type || "labor";
   await rest(`/employees?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ name, employee_no: body.employeeNo || body.employee_no || `QS${String(id).padStart(6, "0")}`, is_active: (body.status || "active") !== "terminated" }) });
   await rest(`/employee_profiles_v2?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ org_id: body.orgId || body.org_id || null, position_name: body.positionName || body.position_name || "", cost_specialty: body.costSpecialty || body.cost_specialty || null, employment_status: body.status || "active", manager_user_id: body.managerUserId || body.manager_user_id || null, hire_date: body.hireDate || body.hire_date || null }) });
@@ -1138,7 +1208,7 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
   await rest("/employee_contracts", { method: "POST", body: JSON.stringify([{ employee_id: id, contract_type: contractType, employment_type: body.employmentType || body.employment_type || "labor", is_current: true }]) });
   await rest(`/employee_salary_profiles?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
   await rest("/employee_salary_profiles", { method: "POST", body: JSON.stringify([{ employee_id: id, salary_mode: contractType === "service" ? "daily_wage" : "monthly_salary", monthly_salary: contractType === "service" ? 0 : Number(body.monthlySalary || body.monthly_salary || 0), daily_wage: contractType === "service" ? Number(body.dailyWage || body.daily_wage || 0) : 0, is_current: true }]) });
-  if (admin) {
+  if (canEditRoles) {
     const user = await currentUser();
     const nextRole = body.role || "employee";
     if (user?.id === id && nextRole !== "admin") {
@@ -1196,10 +1266,11 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/bootstrap") {
     const user = await currentUser();
     const projectRows = user ? await projects().catch(() => []) : [];
-    return { currentUser: user, users: [], projects: projectRows, currentWeek: todayMonday(), dbRecommendation: "Supabase PostgREST" } as T;
+    return { currentUser: user, permissions: user?.permissions || {}, users: [], projects: projectRows, currentWeek: todayMonday(), dbRecommendation: "Supabase PostgREST" } as T;
   }
   if (url.pathname === "/api/organizations") return organizations() as T;
   if (url.pathname === "/api/employees") return listEmployees() as T;
+  if (url.pathname === "/api/permissions") return permissionConfig() as T;
   if (url.pathname === "/api/projects") return projects() as T;
   if (url.pathname === "/api/approval-templates") return approvalTemplates() as T;
   if (url.pathname === "/api/timesheet") return getTimesheet(url.searchParams.get("weekStart") || todayMonday()) as T;
@@ -1236,6 +1307,7 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
     return { ok: true, organizations: await organizations() } as T;
   }
   if (url.pathname === "/api/employees/save") return saveEmployee(body) as T;
+  if (url.pathname === "/api/permissions/save") return savePermissionConfig(body) as T;
   if (url.pathname === "/api/employees/delete") {
     await rest(`/employees?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify({ is_active: false }) });
     await rest(`/employee_profiles_v2?employee_id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify({ employment_status: "terminated" }) });

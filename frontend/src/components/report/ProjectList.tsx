@@ -104,9 +104,6 @@ function employeeMatchesRole(employee: Employee, role: ProjectRoleKey, scope: Se
   if (scope.size > 0 && (!employee.org_id || !scope.has(employee.org_id))) return false;
   if (role === "cc_civil_project_owner") return employee.cost_specialty === "civil" || !employee.cost_specialty;
   if (role === "cc_mep_project_owner") return employee.cost_specialty === "mep" || !employee.cost_specialty;
-  if (role === "cc_department_owner" || role === "pm_department_owner") {
-    return employee.role === "manager" || employee.role === "admin";
-  }
   return true;
 }
 

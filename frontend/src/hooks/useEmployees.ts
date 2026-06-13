@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { publishLocalSync } from "@/hooks/useRealtime";
-import type { Employee, Organization } from "@/types/employee";
+import type { Employee, Organization, PermissionConfig } from "@/types/employee";
 
 export function useEmployees() {
   return useQuery({
@@ -16,6 +16,30 @@ export function useOrganizations() {
     queryKey: ["organizations"],
     queryFn: () => api<Organization[]>("/api/organizations"),
     refetchInterval: 30_000,
+  });
+}
+
+export function usePermissionConfig() {
+  return useQuery({
+    queryKey: ["permission-config"],
+    queryFn: () => api<PermissionConfig>("/api/permissions"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useSavePermissionConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) =>
+      api("/api/permissions/save", {
+        method: "POST",
+        body: JSON.stringify(params),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["permission-config"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      publishLocalSync(["employees", "organizations"]);
+    },
   });
 }
 

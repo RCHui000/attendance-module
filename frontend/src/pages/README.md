@@ -12,7 +12,7 @@ Pages are route-level containers. They should orchestrate hooks, stores, and fea
 | `DashboardPage.tsx` | `/dashboard` | `components/dashboard` | KPI and BI dashboard. |
 | `ReviewPage.tsx` | `/review` | `components/review` | Approval center. |
 | `ReportPage.tsx` | `/report` | `components/report` | Project list and reports. |
-| `EmployeesPage.tsx` | `/employees` | `components/employees` | Employee and organization admin. |
+| `EmployeesPage.tsx` | `/employees` | `components/employees` | System management and permission configuration. |
 | `AppsPage.tsx` | `/apps` | page placeholder | Application center placeholder. No backend API yet. |
 
 ## Page Responsibilities

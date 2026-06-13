@@ -27,7 +27,7 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 | `/api/logout` | POST | none | `{ ok }` | Clears local token only. |
 | `/api/password/change` | POST | `{ login?, oldPassword, newPassword }` | `{ ok }` | Proxies to controlled server endpoint. |
 | `/api/me` | GET | none | `{ user }` | Resolves JWT to employee and role. |
-| `/api/bootstrap` | GET | none | Current user, projects, current week | Compatibility bootstrap. |
+| `/api/bootstrap` | GET | none | Current user, permissions, projects, current week | Compatibility bootstrap. |
 | `/api/timesheet` | GET | `weekStart` | `Timesheet` | Creates missing weekly sheet lazily. |
 | `/api/timesheet-detail` | GET | `timesheetId` | approval detail payload | Used by review drawer/expanded row. |
 | `/api/timesheet/save` | POST | `SaveTimesheetPayload` | `{ ok, timesheet }` | Only draft/rejected/revision_required sheets are editable. |
@@ -50,6 +50,8 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 | `/api/organizations` | GET | none | organization list | Includes parent links and manager names. |
 | `/api/organizations/save` | POST | organization payload | saved organization | Upsert. |
 | `/api/organizations/delete` | POST | `{ id }` | `{ ok, organizations }` | Soft delete. |
+| `/api/permissions` | GET | none | role/resource/permission matrix | Loads platform RBAC config. |
+| `/api/permissions/save` | POST | `{ roleKey, permissions[] }` | updated permission matrix | Admin-only role-resource access updates. |
 
 ## Route-Only Placeholders
 

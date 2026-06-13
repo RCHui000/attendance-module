@@ -1,7 +1,9 @@
+import type { PlatformRole } from "@/types/auth";
+
 export interface Employee {
   id: number;
   name: string;
-  role: "employee" | "manager" | "admin" | "hr";
+  role: PlatformRole;
   employee_no: string;
   org_id: number | null;
   org_name: string;
@@ -19,6 +21,34 @@ export interface Employee {
   employment_type: string;
   status: "active" | "terminated";
   standard_monthly_workdays: number;
+}
+
+export interface PermissionRole {
+  role_key: PlatformRole;
+  role_name: string;
+  sort_order: number;
+  is_system: boolean;
+  is_active: boolean;
+}
+
+export interface PermissionResource {
+  resource_key: string;
+  resource_name: string;
+  resource_group: "sidebar" | "employee_org" | string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface RolePermission {
+  role_key: PlatformRole;
+  resource_key: string;
+  access_level: "none" | "read" | "write";
+}
+
+export interface PermissionConfig {
+  roles: PermissionRole[];
+  resources: PermissionResource[];
+  permissions: RolePermission[];
 }
 
 export interface Organization {

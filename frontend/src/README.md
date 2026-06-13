@@ -13,8 +13,8 @@ This frontend is a React + Vite single page app. It keeps the old `/api/*` call 
   - `/dashboard`: BI dashboard.
   - `/review`: approval center.
   - `/report`: project list and project reporting.
-  - `/employees`: employee and organization management.
-  - `/apps`: application center placeholder; available to all authenticated roles and shown last in sidebar order.
+  - `/employees`: employee/organization system management and platform permission configuration.
+  - `/apps`: application center placeholder; visible when the `apps` resource is readable.
 
 ## Module Directories
 
@@ -23,7 +23,7 @@ This frontend is a React + Vite single page app. It keeps the old `/api/*` call 
 | `components/timesheet` | Weekly project workday entry table and validation UI. |
 | `components/review` | Approval task lists and timesheet detail expansion/drawer. |
 | `components/report` | Project CRUD, project financial/labor summary, project detail drawer. |
-| `components/employees` | Employee table, edit rows, organization tree, reminders. |
+| `components/employees` | Employee table, edit rows, organization tree, reminders, permission matrix. |
 | `components/dashboard` | Metric cards and BI perspectives. |
 | `components/layout` | App shell, sidebar, topbar, brand, login screen. |
 | `components/ui` | Local shadcn-style primitives. |

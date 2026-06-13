@@ -115,7 +115,6 @@ export function OrganizationPanel({
     () =>
       employees.filter((e) => {
         if (String(e.status || "").toLowerCase() === "terminated") return false;
-        if (e.role !== "manager" && e.role !== "admin") return false;
         return true;
       }),
     [employees],

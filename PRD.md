@@ -61,7 +61,7 @@ flowchart LR
   REST --> PG
   RT --> PG
 
-  PG --> RLS["RLS 权限策略<br/>admin / manager / employee"]
+  PG --> RLS["RLS 权限策略<br/>平台 RBAC / Approval Graph assignee"]
   PG --> RPC["业务 RPC<br/>审批状态机 / 路由刷新 / 权限函数"]
 ```
 
@@ -143,32 +143,34 @@ flowchart LR
 
 ## 4. 用户角色与权限口径
 
-| 角色 | 主要能力 |
+平台权限角色只控制系统页面和功能访问，不参与审批流路由。审批流中的项目负责人、部门负责人、专业负责人来自 `project_roles`、`organizations.manager_user_id`、`approval_node_assignees` 等业务身份配置。
+
+| 平台角色 | 默认能力 |
 | --- | --- |
 | 员工 | 登录、填写本人周表、保存草稿、提交审批、查看本人数据 |
-| 项目负责人 | 审批自己负责项目的周表项目块，查看相关项目投入 |
-| 部门负责人 / 主管 | 审批本部门人员完整周表，查看本部门 BI，维护本部门及下级部门员工资料 |
+| 基层负责人 | 默认可进入审批中心、查看基础看板和项目列表 |
+| 主管 | 默认可维护系统管理、项目列表，并处理被路由给自己的审批任务 |
+| 董事 | 默认可查看经营看板、审批中心、系统管理 |
 | 管理员 | 全局员工、组织、项目、审批、BI、账号、数据维护 |
-| 历史白名单超级用户 | 应用层保留 admin 视图能力 |
 
 权限来源：
 
-- 主要角色来自 `user_roles.role`。
+- 平台角色来自 `user_roles.role`，当前取值为 `employee`、`lead`、`manager`、`director`、`admin`。
+- 资源权限来自 `permission_roles`、`permission_resources`、`role_permissions`，权限级别为 `不可见 / 只读 / 编辑`。
 - 部门负责人来自 `organizations.manager_user_id`。
 - 员工所属部门来自 `employee_profiles_v2.org_id`。
-- 员工直属负责人来自 `employee_profiles_v2.manager_user_id`。
 - 成本合约执行人员/项目负责人专业来自 `employee_profiles_v2.cost_specialty`，当前取值为 `civil`（土建）或 `mep`（机电）；成本合约部门负责人不需要设置专业。
-- 历史超级用户白名单仍保留，用于兼容早期账号。
 
 ### 4.1 员工与组织页权限
 
-| 使用者 | 可见范围 | 可编辑范围 |
-| --- | --- | --- |
-| admin | 全部员工、全部组织 | 全部信息、角色、合同、薪酬、组织 |
-| 部门负责人 | 自己负责部门及下级部门员工 | 部门内员工基础信息、合同、薪酬，不应越权维护 admin 类账号 |
-| 普通员工 | 无入口 | 无 |
+`/employees` 下设两个并列页：
 
-当前已经通过 `026_department_manager_employee_write.sql` 补强部门负责人维护部门内员工资料的 RLS 策略。
+| 子页 | 资源键 | 说明 |
+| --- | --- | --- |
+| 系统管理 | `system_management` | 员工列表、部门列表、组织负责人维护 |
+| 权限配置 | `permission_config` | 左侧权限角色列表，右侧配置各侧边栏/员工组织资源的可见、只读、编辑权限 |
+
+资源权限控制页面入口和前端操作能力；后端/RLS/RPC 继续使用 `current_user_can_access_resource()` 与 `current_user_can_review()` 做服务端校验。
 
 ## 5. 前端页面范围
 
@@ -180,7 +182,7 @@ flowchart LR
 | 数据看板 | `/dashboard` | 指标卡、项目汇总、BI 项目/部门/人员视角 |
 | 审批中心 | `/review` | 待审核、已审核、周表详情；admin 可维护合同审批模板并实时预览流程图；OT 审批能力保留但当前业务不启用 |
 | 项目列表 | `/report` | 左侧项目目录、右侧固定配置页；维护项目编码、服务类型、项目名称、PM/CC/PMCC 负责人、财务与工时统计 |
-| 员工与组织 | `/employees` | 员工资料、合同薪酬、组织结构、部门负责人 |
+| 员工与组织 | `/employees` | 系统管理与权限配置并列；员工资料、合同薪酬、组织结构、部门负责人、平台权限矩阵 |
 | 应用中心 | `/apps` | 全员可访问的应用入口；当前为占位页，暂不接后端接口；在侧边栏菜单顺序中排最后 |
 
 ### 5.1 前端组件结构

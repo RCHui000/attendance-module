@@ -27,10 +27,10 @@ function LoadingScreen() {
 }
 
 function AuthenticatedApp() {
-  const { canReview } = useAuthStore();
+  const { canAccess } = useAuthStore();
   useRealtime();
 
-  const defaultRoute = canReview ? "/dashboard" : "/timesheet";
+  const defaultRoute = canAccess("dashboard") ? "/dashboard" : "/timesheet";
 
   return (
     <AppLayout>

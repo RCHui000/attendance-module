@@ -213,8 +213,9 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="employee">员工</SelectItem>
+            <SelectItem value="lead">基层负责人</SelectItem>
             <SelectItem value="manager">主管</SelectItem>
-            <SelectItem value="hr">人事</SelectItem>
+            <SelectItem value="director">董事</SelectItem>
             <SelectItem value="admin">管理员</SelectItem>
           </SelectContent>
         </Select>

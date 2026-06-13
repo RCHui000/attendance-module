@@ -13,30 +13,23 @@ import {
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { view: "dashboard", label: "数据看板", icon: LayoutDashboard, requireReview: true, requireAdmin: false },
-  { view: "review", label: "审批中心", icon: ClipboardCheck, requireReview: true, requireAdmin: false },
-  { view: "timesheet", label: "我的周表", icon: Calendar, requireReview: false, requireAdmin: false },
-  { view: "leave", label: "请假申请", icon: CalendarX2, requireReview: false, requireAdmin: false },
-  { view: "report", label: "项目列表", icon: FolderKanban, requireReview: true, requireAdmin: false },
-  { view: "employees", label: "员工与组织", icon: Users, requireReview: true, requireAdmin: false, allowHr: true },
-  { view: "apps", label: "应用中心", icon: Grid3X3, requireReview: false, requireAdmin: false },
+  { view: "timesheet", resource: "timesheet", label: "我的周表", icon: Calendar },
+  { view: "leave", resource: "leave", label: "请假申请", icon: CalendarX2 },
+  { view: "dashboard", resource: "dashboard", label: "数据看板", icon: LayoutDashboard },
+  { view: "review", resource: "review", label: "审批中心", icon: ClipboardCheck },
+  { view: "report", resource: "report", label: "项目列表", icon: FolderKanban },
+  { view: "employees", resource: "system_management", label: "员工与组织", icon: Users },
+  { view: "apps", resource: "apps", label: "应用中心", icon: Grid3X3 },
 ] as const;
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, canReview } = useAuthStore();
+  const { user, canAccess } = useAuthStore();
 
   const currentView = location.pathname.replace("/", "") || "dashboard";
 
-  const canSee = (item: { requireAdmin: boolean; requireReview: boolean; allowHr?: boolean }) => {
-    if (item.allowHr && user?.role === "hr") return true;
-    if (item.requireAdmin && !isAdmin) return false;
-    if (item.requireReview && !canReview) return false;
-    return true;
-  };
-
-  const visibleItems = NAV_ITEMS.filter(canSee);
+  const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.resource));
 
   return (
     <aside className="sticky top-0 h-screen w-[232px] shrink-0 flex flex-col bg-sidebar-bg py-3 px-4 max-[900px]:w-full max-[900px]:h-auto">
@@ -107,9 +100,10 @@ export function Sidebar() {
 function roleLabel(role: string): string {
   const map: Record<string, string> = {
     employee: "员工",
+    lead: "基层负责人",
     manager: "主管",
+    director: "董事",
     admin: "管理员",
-    hr: "HR",
   };
   return map[role] || role;
 }

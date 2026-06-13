@@ -57,10 +57,8 @@ export const statusText: Record<string, string> = {
 
 export const roleText: Record<string, string> = {
   employee: "员工",
+  lead: "基层负责人",
   manager: "主管",
-  hr: "人事",
+  director: "董事",
   admin: "管理员",
 };
-
-export const SUPERUSER_NAMES = new Set(["admin", "鞠松松"]);
-export const SUPERUSER_IDS = new Set([18]);

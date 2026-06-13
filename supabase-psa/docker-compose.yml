@@ -31,7 +31,7 @@ services:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: "postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa?sslmode=disable"
+      GOTRUE_DB_DATABASE_URL: "postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa?sslmode=disable&options=-c%20search_path%3Dauth%2Cpublic"
       GOTRUE_SITE_URL: "http://192.168.2.100:8767"
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_AUD: authenticated

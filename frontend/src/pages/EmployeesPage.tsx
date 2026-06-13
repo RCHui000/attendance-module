@@ -19,11 +19,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { APP_VERSION, roleText } from "@/lib/constants";
 import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { OrganizationPanel } from "@/components/employees/OrganizationPanel";
 import { ReminderFloat } from "@/components/employees/ReminderFloat";
+import { PermissionConfigPanel } from "@/components/employees/PermissionConfigPanel";
 import { useAuthStore } from "@/stores/authStore";
 import { flattenOrgTree, isCostOrganization } from "@/utils/orgTree";
 import type { EmployeeEditData } from "@/components/employees/EmployeeEditRow";
@@ -105,13 +107,16 @@ function employeeSortValue(emp: Employee, sortKey: EmployeeSortKey) {
 }
 
 export default function EmployeesPage() {
-  const { user: currentUser, isAdmin, canReview } = useAuthStore();
+  const { user: currentUser, canAccess } = useAuthStore();
   const navigate = useNavigate();
+  const canReadSystem = canAccess("system_management", "read");
+  const canWriteSystem = canAccess("system_management", "write");
+  const canReadPermissions = canAccess("permission_config", "read");
+  const canWritePermissions = canAccess("permission_config", "write");
 
-  // Redirect users without management access away
   useEffect(() => {
-    if (!isAdmin && !canReview) navigate("/timesheet", { replace: true });
-  }, [isAdmin, canReview, navigate]);
+    if (!canReadSystem && !canReadPermissions) navigate("/timesheet", { replace: true });
+  }, [canReadPermissions, canReadSystem, navigate]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -158,24 +163,23 @@ export default function EmployeesPage() {
   }, [currentUser, orgs]);
 
   const canEditEmployee = useCallback(
-    (emp: Employee) =>
-      isAdmin || (!!emp.org_id && managedOrgIds.has(Number(emp.org_id))),
-    [isAdmin, managedOrgIds],
+    (_emp: Employee) => canWriteSystem,
+    [canWriteSystem],
   );
 
   const visibleOrgIds = useMemo(() => {
-    if (isAdmin) return new Set(orgs.map((org) => org.id));
+    if (canReadSystem) return new Set(orgs.map((org) => org.id));
     return managedOrgIds;
-  }, [isAdmin, orgs, managedOrgIds]);
+  }, [canReadSystem, orgs, managedOrgIds]);
 
   const visibleEmployees = useMemo(
-    () => employees.filter((emp) => isAdmin || canEditEmployee(emp)),
-    [employees, isAdmin, canEditEmployee],
+    () => employees.filter((emp) => canReadSystem || canEditEmployee(emp)),
+    [employees, canReadSystem, canEditEmployee],
   );
 
   const visibleOrgs = useMemo(
-    () => orgs.filter((org) => isAdmin || visibleOrgIds.has(org.id)),
-    [orgs, isAdmin, visibleOrgIds],
+    () => orgs.filter((org) => canReadSystem || visibleOrgIds.has(org.id)),
+    [orgs, canReadSystem, visibleOrgIds],
   );
   const orgPathById = useMemo(
     () => new Map(flattenOrgTree(orgs).map((org) => [org.id, org.path])),
@@ -385,12 +389,7 @@ export default function EmployeesPage() {
   return (
     <div>
       <div className="mb-4 flex items-start justify-between gap-3 max-[640px]:flex-col">
-        <div>
-          <strong className="block text-sm text-foreground">系统管理</strong>
-          <p className="mt-1 text-xs text-muted-foreground">
-            维护员工账号、组织关系与系统基础配置
-          </p>
-        </div>
+        <strong className="block text-sm text-foreground">员工与组织架构</strong>
         <Badge
           variant="outline"
           className="h-7 rounded-pill border-border bg-white px-3 text-xs font-bold text-muted-foreground"
@@ -399,89 +398,106 @@ export default function EmployeesPage() {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <strong className="text-sm">员工列表</strong>
-              <span className="ml-2 text-xs text-muted-foreground">
-                {filteredEmployees.length} / {visibleEmployees.length} 人
-              </span>
-            </div>
-            <div className="flex gap-1">
-              <ReminderFloat employees={visibleEmployees} />
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                <RefreshCw className="size-3.5 mr-1" />
-                刷新
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={deleteDisabled}
-                onClick={handleDelete}
-                className={isAdmin ? "" : "hidden"}
-              >
-                <Trash2 className="size-3.5 mr-1" />
-                删除员工
-              </Button>
-              <Button size="sm" onClick={handleNew} className={isAdmin ? "" : "hidden"}>
-                <Plus className="size-3.5 mr-1" />
-                新增员工
-              </Button>
-            </div>
-          </div>
+      <Tabs defaultValue={canReadSystem ? "system" : "permissions"} className="gap-4">
+        <TabsList>
+          {canReadSystem && <TabsTrigger value="system">系统管理</TabsTrigger>}
+          {canReadPermissions && <TabsTrigger value="permissions">权限配置</TabsTrigger>}
+        </TabsList>
 
-          <div className="mb-3 rounded-lg border border-border bg-white p-3">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="h-9 pl-8 text-sm"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="级联搜索：编号 / 姓名 / 部门路径 / 权限 / 岗位 / 合同 / 专业 / 状态，多个条件用空格分隔"
+        {canReadSystem && (
+          <TabsContent value="system">
+            <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <strong className="text-sm">员工列表</strong>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {filteredEmployees.length} / {visibleEmployees.length} 人
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    <ReminderFloat employees={visibleEmployees} />
+                    <Button variant="outline" size="sm" onClick={() => refetch()}>
+                      <RefreshCw className="size-3.5 mr-1" />
+                      刷新
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={deleteDisabled}
+                      onClick={handleDelete}
+                      className={canWriteSystem ? "" : "hidden"}
+                    >
+                      <Trash2 className="size-3.5 mr-1" />
+                      删除员工
+                    </Button>
+                    <Button size="sm" onClick={handleNew} className={canWriteSystem ? "" : "hidden"}>
+                      <Plus className="size-3.5 mr-1" />
+                      新增员工
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mb-3 rounded-lg border border-border bg-white p-3">
+                  <label className="relative block">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      className="h-9 pl-8 text-sm"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="级联搜索：编号 / 姓名 / 部门路径 / 权限 / 岗位 / 合同 / 专业 / 状态，多个条件用空格分隔"
+                    />
+                  </label>
+                </div>
+
+                {isLoading && (
+                  <div className="py-10 text-center text-sm text-muted-foreground">
+                    加载中…
+                  </div>
+                )}
+                {isError && (
+                  <div className="py-10 text-center text-sm text-destructive">
+                    加载失败
+                  </div>
+                )}
+                {!isLoading && !isError && (
+                  <EmployeeTable
+                    employees={filteredEmployees}
+                    orgs={visibleOrgs}
+                    selectedId={selectedId}
+                    editingId={editingId}
+                    editData={editData}
+                    onSelect={setSelectedId}
+                    onEdit={handleEdit}
+                    canEditEmployee={canEditEmployee}
+              canEditRole={canWritePermissions}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    onEditChange={(update) =>
+                      setEditData((prev) => (prev ? { ...prev, ...update } : prev))
+                    }
+                    onSave={handleSave}
+                    onCancelEdit={handleCancelEdit}
+                  />
+                )}
+              </div>
+
+              <OrganizationPanel
+                employees={visibleEmployees}
+                canManage={canWriteSystem}
+                visibleOrgIds={visibleOrgIds}
               />
-            </label>
-          </div>
-
-          {isLoading && (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              加载中…
             </div>
-          )}
-          {isError && (
-            <div className="py-10 text-center text-sm text-destructive">
-              加载失败
-            </div>
-          )}
-          {!isLoading && !isError && (
-            <EmployeeTable
-              employees={filteredEmployees}
-              orgs={visibleOrgs}
-              selectedId={selectedId}
-              editingId={editingId}
-              editData={editData}
-              onSelect={setSelectedId}
-              onEdit={handleEdit}
-              canEditEmployee={canEditEmployee}
-              canEditRole={isAdmin}
-              sortKey={sortKey}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-              onEditChange={(update) =>
-                setEditData((prev) => (prev ? { ...prev, ...update } : prev))
-              }
-              onSave={handleSave}
-              onCancelEdit={handleCancelEdit}
-            />
-          )}
-        </div>
+          </TabsContent>
+        )}
 
-        <OrganizationPanel
-          employees={visibleEmployees}
-          canManage={isAdmin}
-          visibleOrgIds={visibleOrgIds}
-        />
-      </div>
+        {canReadPermissions && (
+          <TabsContent value="permissions">
+            <PermissionConfigPanel canWrite={canWritePermissions} />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <AlertDialog
         open={deleteTarget != null}

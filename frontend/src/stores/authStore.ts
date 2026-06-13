@@ -1,15 +1,16 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
-import { SUPERUSER_NAMES, SUPERUSER_IDS } from "@/lib/constants";
 import { useAppStore } from "@/stores/appStore";
 import { setStoredToken, clearStoredToken } from "@/lib/supabase";
-import type { CurrentUser, BootstrapData } from "@/types/auth";
+import type { CurrentUser, BootstrapData, PermissionAccess, PermissionMap } from "@/types/auth";
 
 interface AuthState {
   user: CurrentUser | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
   canReview: boolean;
+  permissions: PermissionMap;
+  canAccess: (resourceKey: string, minAccess?: PermissionAccess) => boolean;
   isLoading: boolean;
   login: (login: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -24,21 +25,29 @@ interface AuthState {
 function computePermissions(user: CurrentUser | null) {
   if (!user)
     return { isAdmin: false, canReview: false };
-  const isAdmin =
-    user.role === "admin" ||
-    SUPERUSER_NAMES.has(user.name) ||
-    SUPERUSER_IDS.has(user.id);
-  const canReview =
-    isAdmin || user.role === "manager";
+  const isAdmin = user.role === "admin";
+  const canReview = isAdmin || accessRank(user.permissions?.review) >= accessRank("read");
   return { isAdmin, canReview };
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+function accessRank(access: PermissionAccess | undefined) {
+  if (access === "write") return 2;
+  if (access === "read") return 1;
+  return 0;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   isAdmin: false,
   canReview: false,
+  permissions: {},
   isLoading: true,
+  canAccess: (resourceKey: string, minAccess: PermissionAccess = "read"): boolean => {
+    const state = get();
+    if (state.isAdmin) return true;
+    return accessRank(state.permissions[resourceKey]) >= accessRank(minAccess);
+  },
 
   login: async (login: string, password: string) => {
     const data = await api<{ ok: boolean; token: string }>("/api/login", {
@@ -64,16 +73,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   checkSession: async () => {
     try {
       const data = await api<BootstrapData>("/api/bootstrap");
-      const user = data.currentUser;
+      const user = data.currentUser ? { ...data.currentUser, permissions: data.permissions || {} } : null;
       const { isAdmin, canReview } = computePermissions(user);
-      set({ user, isAuthenticated: !!user, isAdmin, canReview, isLoading: false });
+      set({ user, isAuthenticated: !!user, isAdmin, canReview, permissions: data.permissions || {}, isLoading: false });
 
       // Set the correct Monday from the server
       if (data.currentWeek) {
         useAppStore.getState().setCurrentWeek(data.currentWeek);
       }
     } catch {
-      set({ user: null, isAuthenticated: false, isAdmin: false, canReview: false, isLoading: false });
+      set({ user: null, isAuthenticated: false, isAdmin: false, canReview: false, permissions: {}, isLoading: false });
     }
   },
 

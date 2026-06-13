@@ -32,6 +32,11 @@ interface TimesheetTableProps {
   onRemoveRow: (rowIndex: number) => void;
 }
 
+function rowWorkdaysTotal(row: TimesheetRow, weekDays: string[]): number {
+  const days = new Set([...weekDays, ...Object.keys(row.percents)]);
+  return Array.from(days).reduce((sum, day) => sum + (row.percents[day] || 0) / 100, 0);
+}
+
 function PercentCell({
   value,
   onChange,
@@ -218,10 +223,7 @@ export const TimesheetTable = memo(function TimesheetTable({
           </thead>
           <tbody>
             {rows.map((row, ri) => {
-              const rowTotal = weekDays.reduce(
-                (s, d) => s + (row.percents[d] || 0) / 100,
-                0,
-              );
+              const rowTotal = rowWorkdaysTotal(row, weekDays);
               const rowLocked =
                 isLocked ||
                 row.approvalStatus === "approved" ||

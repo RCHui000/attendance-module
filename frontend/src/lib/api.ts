@@ -682,7 +682,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name)"),
-    rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
+    rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,work_date,hours"),
   ]);
   const tasks = graphPending.map(normalizedApprovalTask);
   const reviewedTasks = graphReviewed
@@ -718,14 +718,20 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   });
   const employeeMap = new Map(employees.map((e) => [Number(e.id), e]));
   const employeeProfileMap = new Map(employeeProfiles.map((profile) => [Number(profile.employee_id), profile]));
+  const sheetMap = new Map(sheets.map((s) => [Number(s.id), s]));
   const hours = new Map<number, number>();
   const projectHours = new Map<string, number>();
-  for (const entry of entries) hours.set(Number(entry.timesheet_id), (hours.get(Number(entry.timesheet_id)) || 0) + Number(entry.hours || 0));
   for (const entry of entries) {
-    const key = `${Number(entry.timesheet_id)}:${Number(entry.project_id)}`;
-    projectHours.set(key, (projectHours.get(key) || 0) + Number(entry.hours || 0));
+    const sheetId = Number(entry.timesheet_id);
+    const sheet = sheetMap.get(sheetId);
+    if (!sheet) continue;
+    const allowedDays = new Set(weekDays(sheet.week_start_date));
+    if (!allowedDays.has(String(entry.work_date))) continue;
+    const value = Number(entry.hours || 0);
+    hours.set(sheetId, (hours.get(sheetId) || 0) + value);
+    const key = `${sheetId}:${Number(entry.project_id)}`;
+    projectHours.set(key, (projectHours.get(key) || 0) + value);
   }
-  const sheetMap = new Map(sheets.map((s) => [Number(s.id), s]));
   const projectIds = [
     ...new Set(
       [...latestPending, ...latestReviewed]

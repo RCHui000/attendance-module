@@ -24,7 +24,8 @@
     "notes": [
       "Version display is injected through VITE_APP_VERSION during frontend build.",
       "System management and permission configuration remain under Employee & Organization.",
-      "Permission pages support the expanded role set: employee, lead, manager, director, admin."
+      "Permission pages support the expanded role set: employee, lead, manager, director, admin.",
+      "Timesheet project-block totals include Sunday workdays so block routing totals match daily totals."
     ]
   },
   "deployment": {

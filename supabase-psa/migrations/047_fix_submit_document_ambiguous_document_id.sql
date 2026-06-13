@@ -1,4 +1,4 @@
--- V0.15: qualify approval_instances.document_id inside submit_document.
+﻿-- V0.15: qualify approval_instances.document_id inside submit_document.
 
 BEGIN;
 
@@ -31,7 +31,7 @@ DECLARE
   v_to_id bigint;
 BEGIN
   SELECT ep.org_id INTO v_creator_org
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   WHERE ep.employee_id = v_creator
   LIMIT 1;
 

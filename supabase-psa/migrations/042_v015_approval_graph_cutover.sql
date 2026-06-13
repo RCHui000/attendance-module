@@ -1,4 +1,4 @@
--- V0.15: migrate legacy workflow_tasks into Approval Graph and remove the legacy task table.
+﻿-- V0.15: migrate legacy workflow_tasks into Approval Graph and remove the legacy task table.
 
 BEGIN;
 
@@ -69,7 +69,7 @@ BEGIN
   LOOP
     SELECT ep.org_id
       INTO v_creator_org_id
-    FROM public.employee_profiles_v2 ep
+    FROM public.employee_profiles ep
     WHERE ep.employee_id = v_sheet.user_id
     ORDER BY ep.created_at ASC NULLS LAST
     LIMIT 1;

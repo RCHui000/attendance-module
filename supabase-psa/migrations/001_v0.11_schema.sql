@@ -1,4 +1,4 @@
--- V0.11 Full Schema Migration for Supabase Postgres
+﻿-- V0.11 Full Schema Migration for Supabase Postgres
 
 BEGIN;
 
@@ -145,7 +145,7 @@ CREATE TABLE employees (
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE employee_profiles_v2 (
+CREATE TABLE employee_profiles (
     id              BIGSERIAL PRIMARY KEY,
     employee_id     BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     org_id          BIGINT REFERENCES organizations(id),
@@ -253,7 +253,7 @@ SELECT
     e.is_active
 FROM employees e
 LEFT JOIN profiles p ON p.auth_user_id = e.auth_user_id
-LEFT JOIN employee_profiles_v2 ep ON ep.employee_id = e.id
+LEFT JOIN employee_profiles ep ON ep.employee_id = e.id
 LEFT JOIN organizations o ON o.id = ep.org_id
 LEFT JOIN employee_contracts ec ON ec.employee_id = e.id AND ec.is_current = TRUE
 LEFT JOIN employee_salary_profiles esp ON esp.employee_id = e.id AND esp.is_current = TRUE;

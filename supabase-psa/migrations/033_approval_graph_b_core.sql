@@ -1,4 +1,4 @@
--- V0.14: Approval Graph B core model and Timesheet entrypoint.
+﻿-- V0.14: Approval Graph B core model and Timesheet entrypoint.
 -- This migration upgrades the existing bigint PSA schema without replacing
 -- the V0.12 read-model tables. workflow_tasks remains as a compatibility
 -- projection only; new approval actions write approval_events.
@@ -462,7 +462,7 @@ DECLARE
   v_to_id bigint;
 BEGIN
   SELECT ep.org_id INTO v_creator_org
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   WHERE ep.employee_id = v_creator
   LIMIT 1;
 

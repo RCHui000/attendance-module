@@ -1,17 +1,17 @@
--- V0.14.8: Multi-level organization seed and cost specialty for future routing.
+﻿-- V0.14.8: Multi-level organization seed and cost specialty for future routing.
 
 BEGIN;
 
-ALTER TABLE public.employee_profiles_v2
+ALTER TABLE public.employee_profiles
   ADD COLUMN IF NOT EXISTS cost_specialty text;
 
-ALTER TABLE public.employee_profiles_v2
+ALTER TABLE public.employee_profiles
   DROP CONSTRAINT IF EXISTS chk_employee_profiles_cost_specialty;
-ALTER TABLE public.employee_profiles_v2
+ALTER TABLE public.employee_profiles
   ADD CONSTRAINT chk_employee_profiles_cost_specialty
   CHECK (cost_specialty IS NULL OR cost_specialty IN ('civil', 'mep'));
 
-COMMENT ON COLUMN public.employee_profiles_v2.cost_specialty IS
+COMMENT ON COLUMN public.employee_profiles.cost_specialty IS
   'Cost discipline for routing: civil=土建, mep=机电.';
 
 DO $$
@@ -120,7 +120,7 @@ SELECT
     ep.cost_specialty
 FROM public.employees e
 LEFT JOIN public.profiles p ON p.auth_user_id = e.auth_user_id
-LEFT JOIN public.employee_profiles_v2 ep ON ep.employee_id = e.id
+LEFT JOIN public.employee_profiles ep ON ep.employee_id = e.id
 LEFT JOIN public.organizations o ON o.id = ep.org_id
 LEFT JOIN public.employee_contracts ec ON ec.employee_id = e.id AND ec.is_current = TRUE
 LEFT JOIN public.employee_salary_profiles esp ON esp.employee_id = e.id AND esp.is_current = TRUE;

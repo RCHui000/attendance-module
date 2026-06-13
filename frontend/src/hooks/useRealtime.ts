@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+﻿import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RealtimeClient } from "@supabase/realtime-js";
 import { getStoredToken } from "@/lib/supabase";
@@ -35,7 +35,7 @@ const TABLE_MODULES: Record<string, SyncModule[]> = {
   projects: ["projects", "reports", "dashboard"],
   project_department_owners: ["projects", "timesheet", "approvals", "reports", "dashboard"],
   employees: ["employees", "organizations", "approvals", "dashboard"],
-  employee_profiles_v2: ["employees", "organizations", "approvals", "dashboard"],
+  employee_profiles: ["employees", "organizations", "approvals", "dashboard"],
   organizations: ["organizations", "employees", "dashboard"],
   user_roles: ["employees", "organizations", "approvals"],
 };

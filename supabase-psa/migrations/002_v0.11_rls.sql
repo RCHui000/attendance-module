@@ -1,4 +1,4 @@
--- V0.11 RLS Policies
+﻿-- V0.11 RLS Policies
 -- Run after 001_v0.11_schema.sql
 
 BEGIN;
@@ -6,7 +6,7 @@ BEGIN;
 -- Enable RLS on core tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE employee_profiles_v2 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_salary_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
@@ -46,7 +46,7 @@ CREATE POLICY "Admin read all employees" ON employees
 
 CREATE POLICY "Manager read org employees" ON employees
     FOR SELECT USING (
-        EXISTS (SELECT 1 FROM employee_profiles_v2 ep
+        EXISTS (SELECT 1 FROM employee_profiles ep
                 JOIN employees me ON me.id = ep.manager_user_id
                 WHERE me.auth_user_id = auth.uid()
                   AND ep.employee_id = employees.id)

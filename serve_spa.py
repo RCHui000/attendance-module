@@ -1,4 +1,4 @@
-import hashlib, hmac, json, os, re, time, base64
+﻿import hashlib, hmac, json, os, re, time, base64
 import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -233,8 +233,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._rest_post("/employees", [{"id": eid, "employee_no": body.get("employeeNo") or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}], bearer_token)
         # profiles
         self._rest_post("/profiles", [{"login_name": login_name, "auth_email": email, "auth_user_id": body["auth_user_id"], "display_name": name, "is_active": True, "must_change_password": True}], bearer_token)
-        # profiles_v2
-        self._rest_post("/employee_profiles_v2", [{"employee_id": eid, "org_id": body.get("orgId") or body.get("org_id") or None, "position_name": body.get("positionName") or body.get("position_name") or "", "cost_specialty": body.get("costSpecialty") or body.get("cost_specialty") or None, "employment_status": body.get("status") or "active", "manager_user_id": body.get("managerUserId") or body.get("manager_user_id") or None, "hire_date": body.get("hireDate") or body.get("hire_date") or None}], bearer_token)
+        # profiles
+        self._rest_post("/employee_profiles", [{"employee_id": eid, "org_id": body.get("orgId") or body.get("org_id") or None, "position_name": body.get("positionName") or body.get("position_name") or "", "cost_specialty": body.get("costSpecialty") or body.get("cost_specialty") or None, "employment_status": body.get("status") or "active", "manager_user_id": body.get("managerUserId") or body.get("manager_user_id") or None, "hire_date": body.get("hireDate") or body.get("hire_date") or None}], bearer_token)
         # contracts
         self._rest_post("/employee_contracts", [{"employee_id": eid, "contract_type": contract_type, "employment_type": body.get("employmentType") or body.get("employment_type") or "labor", "is_current": True}], bearer_token)
         # salary

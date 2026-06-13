@@ -1,4 +1,4 @@
--- V0.12: Atomic timesheet workflow transitions for PostgREST clients.
+﻿-- V0.12: Atomic timesheet workflow transitions for PostgREST clients.
 
 begin;
 
@@ -16,7 +16,7 @@ as $$
   ),
   employee_profile as (
     select ep.manager_user_id, ep.org_id
-    from public.employee_profiles_v2 ep
+    from public.employee_profiles ep
     join sheet s on s.user_id = ep.employee_id
     limit 1
   ),

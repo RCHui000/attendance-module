@@ -1,4 +1,4 @@
--- V0.12: Browser/PostgREST runtime support.
+﻿-- V0.12: Browser/PostgREST runtime support.
 -- The browser uses GoTrue and PostgREST directly for business operations.
 
 BEGIN;
@@ -83,7 +83,7 @@ CREATE POLICY "Reviewer read employees" ON employees
   FOR SELECT TO authenticated
   USING (current_user_can_review());
 
-CREATE POLICY "Reviewer read profiles v2" ON employee_profiles_v2
+CREATE POLICY "Reviewer read profiles" ON employee_profiles
   FOR SELECT TO authenticated
   USING (current_user_can_review());
 

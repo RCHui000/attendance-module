@@ -1,4 +1,4 @@
--- V0.13: Backfill and keep project reviews in sync with workflow tasks.
+﻿-- V0.13: Backfill and keep project reviews in sync with workflow tasks.
 
 BEGIN;
 
@@ -59,7 +59,7 @@ BEGIN
 
   SELECT ep.org_id
     INTO v_submitter_org_id
-    FROM public.employee_profiles_v2 ep
+    FROM public.employee_profiles ep
     WHERE ep.employee_id = v_sheet.user_id
     LIMIT 1;
 

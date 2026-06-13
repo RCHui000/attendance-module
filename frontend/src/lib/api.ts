@@ -1,4 +1,4 @@
-import { getStoredToken, setStoredToken, clearStoredToken } from "./supabase";
+﻿import { getStoredToken, setStoredToken, clearStoredToken } from "./supabase";
 
 const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
@@ -256,7 +256,7 @@ async function currentUser(): Promise<AnyRow | null> {
   const roles = await rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`);
   let department: string;
   try {
-    const profiles = await rest<AnyRow[]>(`/employee_profiles_v2?select=org_id&employee_id=eq.${row.id}&limit=1`);
+    const profiles = await rest<AnyRow[]>(`/employee_profiles?select=org_id&employee_id=eq.${row.id}&limit=1`);
     const profile = profiles[0];
     const orgRows = profile?.org_id
       ? await rest<AnyRow[]>(`/organizations?select=org_name&id=eq.${profile.org_id}&limit=1`)
@@ -532,7 +532,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     ),
     rest<AnyRow[]>(`/overtime_entries?select=*&timesheet_id=eq.${sheet.id}&order=work_date.asc`),
     rest<AnyRow[]>(`/employees?select=name&id=eq.${sheet.user_id}&limit=1`),
-    rest<AnyRow[]>(`/employee_profiles_v2?select=organizations(org_name)&employee_id=eq.${sheet.user_id}&limit=1`),
+    rest<AnyRow[]>(`/employee_profiles?select=organizations(org_name)&employee_id=eq.${sheet.user_id}&limit=1`),
     rest<AnyRow[]>(`/approval_project_review_records_view?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,last_action_at.desc`)
       .catch(() => []),
   ]);
@@ -681,7 +681,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
     rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
-    rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
+    rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,hours"),
   ]);
   const tasks = graphPending.map(normalizedApprovalTask);
@@ -855,7 +855,7 @@ async function projectDetail(projectId: string, startDate: string, endDate: stri
     rest<AnyRow[]>(`/timesheet_entries?select=id,timesheet_id,work_date,hours&project_id=eq.${projectId}&work_date=gte.${startDate}&work_date=lte.${endDate}`),
     rest<AnyRow[]>("/timesheets?select=id,user_id,status"),
     rest<AnyRow[]>("/employees?select=id,name"),
-    rest<AnyRow[]>("/employee_profiles_v2?select=employee_id,organizations(org_name)"),
+    rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name)"),
   ]);
   const sheetMap = new Map(allSheets.map((s: AnyRow) => [Number(s.id), s]));
   const userMap = new Map(allUsers.map((u: AnyRow) => [Number(u.id), u]));
@@ -1020,7 +1020,7 @@ async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promis
     seen.add(roleKey);
     if (!employeeOrgMap.has(userId)) {
       const profile = (await rest<AnyRow[]>(
-        `/employee_profiles_v2?select=org_id&employee_id=eq.${userId}&limit=1`,
+        `/employee_profiles?select=org_id&employee_id=eq.${userId}&limit=1`,
       ).catch(() => []))[0];
       employeeOrgMap.set(userId, profile?.org_id ? Number(profile.org_id) : null);
     }
@@ -1216,7 +1216,7 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
   const canEditRoles = await currentUserCanAccessResource("permission_config", "write");
   const contractType = body.contractType || body.contract_type || "labor";
   await rest(`/employees?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ name, employee_no: body.employeeNo || body.employee_no || `QS${String(id).padStart(6, "0")}`, is_active: (body.status || "active") !== "terminated" }) });
-  await rest("/employee_profiles_v2?on_conflict=employee_id", {
+  await rest("/employee_profiles?on_conflict=employee_id", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates" },
     body: JSON.stringify([{
@@ -1335,7 +1335,7 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/permissions/save") return savePermissionConfig(body) as T;
   if (url.pathname === "/api/employees/delete") {
     await rest(`/employees?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify({ is_active: false }) });
-    await rest(`/employee_profiles_v2?employee_id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify({ employment_status: "terminated" }) });
+    await rest(`/employee_profiles?employee_id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify({ employment_status: "terminated" }) });
     return { ok: true, employees: await listEmployees() } as T;
   }
   if (url.pathname === "/api/overtime/action") return overtimeAction(body) as T;

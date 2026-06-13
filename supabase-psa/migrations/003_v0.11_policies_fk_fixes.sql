@@ -1,4 +1,4 @@
--- V0.11 Fixes: Missing RLS policies + FK constraints + view security
+﻿-- V0.11 Fixes: Missing RLS policies + FK constraints + view security
 -- Run after 001_v0.11_schema.sql and 002_v0.11_rls.sql
 
 BEGIN;
@@ -67,24 +67,24 @@ CREATE POLICY "Admin manage orgs" ON organizations
                 WHERE e.auth_user_id = auth.uid() AND ur.role = 'admin')
     );
 
--- employee_profiles_v2: self-read, manager-read, admin-all
-CREATE POLICY "Self read own profile v2" ON employee_profiles_v2
+-- employee_profiles: self-read, manager-read, admin-all
+CREATE POLICY "Self read own profile" ON employee_profiles
     FOR SELECT USING (
         EXISTS (SELECT 1 FROM employees e
                 WHERE e.auth_user_id = auth.uid()
-                  AND e.id = employee_profiles_v2.employee_id)
+                  AND e.id = employee_profiles.employee_id)
     );
 
-CREATE POLICY "Manager read org profiles v2" ON employee_profiles_v2
+CREATE POLICY "Manager read org profiles" ON employee_profiles
     FOR SELECT USING (
         EXISTS (SELECT 1 FROM employees me
-                JOIN employee_profiles_v2 my_ep ON my_ep.employee_id = me.id
+                JOIN employee_profiles my_ep ON my_ep.employee_id = me.id
                 WHERE me.auth_user_id = auth.uid()
-                  AND my_ep.employee_id = employee_profiles_v2.employee_id
-                  AND employee_profiles_v2.manager_user_id = me.id)
+                  AND my_ep.employee_id = employee_profiles.employee_id
+                  AND employee_profiles.manager_user_id = me.id)
     );
 
-CREATE POLICY "Admin all profiles v2" ON employee_profiles_v2
+CREATE POLICY "Admin all profiles" ON employee_profiles
     FOR ALL USING (
         EXISTS (SELECT 1 FROM user_roles ur
                 JOIN employees e ON e.id = ur.employee_id
@@ -185,7 +185,7 @@ SELECT
     e.is_active
 FROM employees e
 LEFT JOIN profiles p ON p.auth_user_id = e.auth_user_id
-LEFT JOIN employee_profiles_v2 ep ON ep.employee_id = e.id
+LEFT JOIN employee_profiles ep ON ep.employee_id = e.id
 LEFT JOIN organizations o ON o.id = ep.org_id
 LEFT JOIN employee_contracts ec ON ec.employee_id = e.id AND ec.is_current = TRUE
 LEFT JOIN employee_salary_profiles esp ON esp.employee_id = e.id AND esp.is_current = TRUE;
@@ -226,8 +226,8 @@ ALTER TABLE approval_logs
 ALTER TABLE projects
     ADD CONSTRAINT fk_projects_owner FOREIGN KEY (project_owner_id) REFERENCES employees(id);
 
--- employee_profiles_v2
-ALTER TABLE employee_profiles_v2
+-- employee_profiles
+ALTER TABLE employee_profiles
     ADD CONSTRAINT fk_epv2_manager FOREIGN KEY (manager_user_id) REFERENCES employees(id);
 
 -- user_roles

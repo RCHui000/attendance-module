@@ -1,4 +1,4 @@
-begin;
+﻿begin;
 
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant select on all tables in schema public to anon;
@@ -62,9 +62,9 @@ create policy "Authenticated read organizations"
   to authenticated
   using (true);
 
-drop policy if exists "Self read profile v2" on public.employee_profiles_v2;
-create policy "Self read profile v2"
-  on public.employee_profiles_v2
+drop policy if exists "Self read profile" on public.employee_profiles;
+create policy "Self read profile"
+  on public.employee_profiles
   for select
   to authenticated
   using (employee_id = public.current_employee_id());

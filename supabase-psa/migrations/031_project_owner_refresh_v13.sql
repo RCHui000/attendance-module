@@ -1,4 +1,4 @@
--- V0.13: Refresh pending project review routes by project.
+﻿-- V0.13: Refresh pending project review routes by project.
 
 BEGIN;
 
@@ -32,7 +32,7 @@ BEGIN
          last_action_by = v_actor_id,
          last_action_at = now()
     FROM public.timesheets t
-    JOIN public.employee_profiles_v2 ep ON ep.employee_id = t.user_id
+    JOIN public.employee_profiles ep ON ep.employee_id = t.user_id
     JOIN LATERAL public.psa_resolve_project_review_assignee(p_project_id, t.user_id, ep.org_id) route ON true
    WHERE r.timesheet_id = t.id
      AND r.project_id = p_project_id

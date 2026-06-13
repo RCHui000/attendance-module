@@ -1,4 +1,4 @@
--- V0.15: configurable platform RBAC. Approval Graph identities remain independent.
+﻿-- V0.15: configurable platform RBAC. Approval Graph identities remain independent.
 
 CREATE TABLE IF NOT EXISTS public.permission_roles (
   role_key TEXT PRIMARY KEY,
@@ -170,12 +170,12 @@ CREATE POLICY "RBAC write employees" ON public.employees
   FOR ALL USING (public.current_user_can_access_resource('system_management', 'write'))
   WITH CHECK (public.current_user_can_access_resource('system_management', 'write'));
 
-DROP POLICY IF EXISTS "RBAC read profiles v2" ON public.employee_profiles_v2;
-CREATE POLICY "RBAC read profiles v2" ON public.employee_profiles_v2
+DROP POLICY IF EXISTS "RBAC read profiles" ON public.employee_profiles;
+CREATE POLICY "RBAC read profiles" ON public.employee_profiles
   FOR SELECT USING (public.current_user_can_access_resource('system_management', 'read'));
 
-DROP POLICY IF EXISTS "RBAC write profiles v2" ON public.employee_profiles_v2;
-CREATE POLICY "RBAC write profiles v2" ON public.employee_profiles_v2
+DROP POLICY IF EXISTS "RBAC write profiles" ON public.employee_profiles;
+CREATE POLICY "RBAC write profiles" ON public.employee_profiles
   FOR ALL USING (public.current_user_can_access_resource('system_management', 'write'))
   WITH CHECK (public.current_user_can_access_resource('system_management', 'write'));
 

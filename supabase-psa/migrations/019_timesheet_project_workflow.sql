@@ -1,4 +1,4 @@
--- V0.12.4: Route weekly timesheet approvals by project, then department summary.
+﻿-- V0.12.4: Route weekly timesheet approvals by project, then department summary.
 
 BEGIN;
 
@@ -37,7 +37,7 @@ AS $$
   ),
   employee_profile AS (
     SELECT ep.manager_user_id, ep.org_id
-    FROM public.employee_profiles_v2 ep
+    FROM public.employee_profiles ep
     JOIN sheet s ON s.user_id = ep.employee_id
     LIMIT 1
   ),

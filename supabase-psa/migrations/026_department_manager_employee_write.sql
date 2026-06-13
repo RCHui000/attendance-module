@@ -1,4 +1,4 @@
--- Allow department managers to maintain employee details for employees in
+﻿-- Allow department managers to maintain employee details for employees in
 -- organizations they own. System role changes remain admin-only.
 
 BEGIN;
@@ -53,7 +53,7 @@ AS $$
   SELECT public.current_user_has_role('admin')
     OR EXISTS (
       SELECT 1
-      FROM public.employee_profiles_v2 ep
+      FROM public.employee_profiles ep
       WHERE ep.employee_id = target_employee_id
         AND ep.org_id IS NOT NULL
         AND public.current_user_manages_org(ep.org_id)
@@ -70,9 +70,9 @@ CREATE POLICY "Department manager update employees"
   USING (public.current_user_can_manage_employee(id))
   WITH CHECK (public.current_user_can_manage_employee(id));
 
-DROP POLICY IF EXISTS "Department manager update profiles v2" ON public.employee_profiles_v2;
-CREATE POLICY "Department manager update profiles v2"
-  ON public.employee_profiles_v2
+DROP POLICY IF EXISTS "Department manager update profiles" ON public.employee_profiles;
+CREATE POLICY "Department manager update profiles"
+  ON public.employee_profiles
   FOR UPDATE TO authenticated
   USING (public.current_user_can_manage_employee(employee_id))
   WITH CHECK (

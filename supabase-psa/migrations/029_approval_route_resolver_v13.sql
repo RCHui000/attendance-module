@@ -1,4 +1,4 @@
--- V0.13: Resolve project review assignees by project + submitter department.
+﻿-- V0.13: Resolve project review assignees by project + submitter department.
 
 BEGIN;
 
@@ -20,7 +20,7 @@ AS $$
   WITH RECURSIVE submitter_org AS (
     SELECT COALESCE(
       NULLIF(p_submitter_org_id, 0),
-      NULLIF((SELECT ep.org_id FROM public.employee_profiles_v2 ep WHERE ep.employee_id = p_submitter_user_id LIMIT 1), 0)
+      NULLIF((SELECT ep.org_id FROM public.employee_profiles ep WHERE ep.employee_id = p_submitter_user_id LIMIT 1), 0)
     ) AS org_id
   ),
   org_chain AS (
@@ -114,7 +114,7 @@ AS $$
   WITH sheet AS (
     SELECT t.id, t.user_id, ep.org_id
     FROM public.timesheets t
-    LEFT JOIN public.employee_profiles_v2 ep ON ep.employee_id = t.user_id
+    LEFT JOIN public.employee_profiles ep ON ep.employee_id = t.user_id
     WHERE t.id = p_timesheet_id
   ),
   project_scopes AS (

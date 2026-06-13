@@ -1,4 +1,4 @@
--- V0.14.10: Normalize organization tree to actual two-department structure.
+﻿-- V0.14.10: Normalize organization tree to actual two-department structure.
 
 BEGIN;
 
@@ -100,7 +100,7 @@ BEGIN
         END
       ELSE NULL
     END
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   JOIN public.employees e ON e.id = ep.employee_id
   JOIN public.organizations o ON o.id = ep.org_id
   WHERE o.org_code IN ('COMP', 'D009', 'D002', 'D008')
@@ -111,7 +111,7 @@ BEGIN
   -- Correct partially-applied earlier runs or legacy imports by employee code.
   INSERT INTO org_profile_targets(employee_id, target_org_id, target_specialty)
   SELECT ep.employee_id, v_pm_design, NULL
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   JOIN public.employees e ON e.id = ep.employee_id
   WHERE e.employee_no LIKE 'DES%'
      OR e.employee_no LIKE 'DS%'
@@ -121,7 +121,7 @@ BEGIN
 
   INSERT INTO org_profile_targets(employee_id, target_org_id, target_specialty)
   SELECT ep.employee_id, v_pm_manage, NULL
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   JOIN public.employees e ON e.id = ep.employee_id
   WHERE e.employee_no = 'HR001'
      OR e.id = 20
@@ -141,7 +141,7 @@ BEGIN
       WHEN ep.position_name LIKE '%土建%' THEN 'civil'
       ELSE ep.cost_specialty
     END
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   JOIN public.employees e ON e.id = ep.employee_id
   WHERE e.employee_no LIKE 'QS%'
     AND e.id <> 20
@@ -149,7 +149,7 @@ BEGIN
   SET target_org_id = EXCLUDED.target_org_id,
       target_specialty = EXCLUDED.target_specialty;
 
-  UPDATE public.employee_profiles_v2 ep
+  UPDATE public.employee_profiles ep
   SET org_id = t.target_org_id,
       cost_specialty = t.target_specialty
   FROM org_profile_targets t

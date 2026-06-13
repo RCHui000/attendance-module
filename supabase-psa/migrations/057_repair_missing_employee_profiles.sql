@@ -1,8 +1,8 @@
--- V0.15: repair employees that were created before profile-v2 writes succeeded.
+﻿-- V0.15: repair employees that were created before profile writes succeeded.
 
 BEGIN;
 
-INSERT INTO public.employee_profiles_v2 (
+INSERT INTO public.employee_profiles (
   employee_id,
   org_id,
   position_name,
@@ -22,7 +22,7 @@ SELECT
 FROM public.employees e
 WHERE NOT EXISTS (
   SELECT 1
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   WHERE ep.employee_id = e.id
 );
 

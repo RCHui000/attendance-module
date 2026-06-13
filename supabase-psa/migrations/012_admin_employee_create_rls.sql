@@ -1,9 +1,9 @@
--- V0.12: allow browser-admin employee creation through PostgREST.
+﻿-- V0.12: allow browser-admin employee creation through PostgREST.
 
 BEGIN;
 
-DROP POLICY IF EXISTS "Admin all profiles v2" ON employee_profiles_v2;
-CREATE POLICY "Admin all profiles v2" ON employee_profiles_v2
+DROP POLICY IF EXISTS "Admin all profiles" ON employee_profiles;
+CREATE POLICY "Admin all profiles" ON employee_profiles
   FOR ALL TO authenticated
   USING (current_user_has_role('admin'))
   WITH CHECK (current_user_has_role('admin'));

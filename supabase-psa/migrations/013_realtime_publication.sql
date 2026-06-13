@@ -1,4 +1,4 @@
--- V0.12.2: enable Supabase Realtime publication for LAN testing.
+﻿-- V0.12.2: enable Supabase Realtime publication for LAN testing.
 
 BEGIN;
 
@@ -17,7 +17,7 @@ ALTER TABLE overtime_entries REPLICA IDENTITY FULL;
 ALTER TABLE workflow_tasks REPLICA IDENTITY FULL;
 ALTER TABLE projects REPLICA IDENTITY FULL;
 ALTER TABLE employees REPLICA IDENTITY FULL;
-ALTER TABLE employee_profiles_v2 REPLICA IDENTITY FULL;
+ALTER TABLE employee_profiles REPLICA IDENTITY FULL;
 ALTER TABLE organizations REPLICA IDENTITY FULL;
 ALTER TABLE user_roles REPLICA IDENTITY FULL;
 
@@ -32,7 +32,7 @@ BEGIN
     'workflow_tasks',
     'projects',
     'employees',
-    'employee_profiles_v2',
+    'employee_profiles',
     'organizations',
     'user_roles'
   ]

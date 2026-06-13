@@ -1,4 +1,4 @@
--- V0.15: make rejection roll back prior approvals and grant HR full org visibility.
+﻿-- V0.15: make rejection roll back prior approvals and grant HR full org visibility.
 
 BEGIN;
 
@@ -148,9 +148,9 @@ CREATE POLICY "HR read all employees"
   TO authenticated
   USING (public.current_user_has_role('hr'));
 
-DROP POLICY IF EXISTS "HR read all profiles v2" ON public.employee_profiles_v2;
-CREATE POLICY "HR read all profiles v2"
-  ON public.employee_profiles_v2
+DROP POLICY IF EXISTS "HR read all profiles" ON public.employee_profiles;
+CREATE POLICY "HR read all profiles"
+  ON public.employee_profiles
   FOR SELECT
   TO authenticated
   USING (public.current_user_has_role('hr'));

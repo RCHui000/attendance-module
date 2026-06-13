@@ -1,4 +1,4 @@
--- V0.15: route timesheet project approvals by submitter department and specialty.
+﻿-- V0.15: route timesheet project approvals by submitter department and specialty.
 
 BEGIN;
 
@@ -18,7 +18,7 @@ AS $$
       o.org_code,
       parent.org_code AS parent_org_code
     FROM public.timesheets t
-    LEFT JOIN public.employee_profiles_v2 ep ON ep.employee_id = t.user_id
+    LEFT JOIN public.employee_profiles ep ON ep.employee_id = t.user_id
     LEFT JOIN public.organizations o ON o.id = ep.org_id
     LEFT JOIN public.organizations parent ON parent.id = o.parent_id
     WHERE t.id = p_timesheet_id
@@ -200,7 +200,7 @@ DECLARE
   v_to_id bigint;
 BEGIN
   SELECT ep.org_id INTO v_creator_org
-  FROM public.employee_profiles_v2 ep
+  FROM public.employee_profiles ep
   WHERE ep.employee_id = v_creator
   LIMIT 1;
 

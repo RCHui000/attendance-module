@@ -1,4 +1,4 @@
-# Employees And Organizations Module
+﻿# Employees And Organizations Module
 
 This module manages employees, current HR profiles, platform roles, salary/contract fields, the configurable organization tree, and resource-level permissions.
 
@@ -32,7 +32,7 @@ This module manages employees, current HR profiles, platform roles, salary/contr
 
 - `employees`: core employee row and auth link.
 - `profiles`: login name and GoTrue identity mapping.
-- `employee_profiles_v2`: organization, position, cost specialty, status, manager.
+- `employee_profiles`: organization, position, cost specialty, status, manager.
 - `employee_contracts`: contract type and date range.
 - `employee_salary_profiles`: monthly salary or service daily wage.
 - `user_roles`: platform role assignment, one of `employee`, `lead`, `manager`, `director`, `admin`.
@@ -49,7 +49,7 @@ This module manages employees, current HR profiles, platform roles, salary/contr
 - Organization selectors render departments as a tree and store only the selected organization id.
 - Employees under the top-level `成本合约` line use a constrained position selector only when their platform role is `employee`: `土建` or `机电`.
 - Cost contract department heads and approval participants do not need a cost specialty unless they also act as execution/project-owner employees.
-- The constrained cost position is stored as `employee_profiles_v2.cost_specialty`: `civil` for 土建 and `mep` for 机电.
+- The constrained cost position is stored as `employee_profiles.cost_specialty`: `civil` for 土建 and `mep` for 机电.
 - Future approval routing can use `cost_specialty` for the first cost-review route to each discipline's cost project owner.
 
 ## Permission Notes

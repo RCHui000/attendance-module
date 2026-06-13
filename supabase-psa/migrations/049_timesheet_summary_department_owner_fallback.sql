@@ -1,4 +1,4 @@
--- V0.15: use project-level department owners for timesheet summary when org managers are not configured.
+﻿-- V0.15: use project-level department owners for timesheet summary when org managers are not configured.
 
 BEGIN;
 
@@ -17,7 +17,7 @@ AS $$
   WITH RECURSIVE doc AS (
     SELECT bd.*, ep.org_id, ep.cost_specialty, o.org_code, parent.org_code AS parent_org_code
     FROM public.business_documents bd
-    LEFT JOIN public.employee_profiles_v2 ep ON ep.employee_id = bd.creator_user_id
+    LEFT JOIN public.employee_profiles ep ON ep.employee_id = bd.creator_user_id
     LEFT JOIN public.organizations o ON o.id = ep.org_id
     LEFT JOIN public.organizations parent ON parent.id = o.parent_id
     WHERE bd.id = p_document_id

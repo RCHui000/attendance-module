@@ -1,9 +1,9 @@
--- V0.15: stabilize RBAC writes and keep login identity resolution readable.
+﻿-- V0.15: stabilize RBAC writes and keep login identity resolution readable.
 
 GRANT USAGE ON SCHEMA auth TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated, anon;
 GRANT SELECT ON public.employees TO authenticated, anon;
-GRANT SELECT ON public.employee_profiles_v2 TO authenticated, anon;
+GRANT SELECT ON public.employee_profiles TO authenticated, anon;
 GRANT SELECT ON public.organizations TO authenticated, anon;
 
 DROP POLICY IF EXISTS "Self read employee by auth uid" ON public.employees;

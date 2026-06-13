@@ -533,6 +533,7 @@ BI 当前围绕所选周期做项目、部门、人员三视角分析。
 | 054 | `054_fix_gotrue_search_path_shadow_views.sql` | 修复 GoTrue search_path 下 public shadow view 导致的 NAS 登录 500 |
 | 055 | `055_permission_rpc_and_login_rls.sql` | 补齐登录身份读取 RLS、权限保存 RPC、`role_permissions` 写入策略与 PostgREST schema reload |
 | 056 | `056_profiles_rbac_write.sql` | 将登录资料表 `profiles` 纳入系统管理 RBAC 读写，修复新增员工/董事时 RLS 拦截 |
+| 057 | `057_repair_missing_employee_profiles.sql` | 补齐历史员工缺失的 `employee_profiles_v2` 档案行，修复编辑部门时 PATCH 命中 0 行但前端提示成功 |
 
 迁移原则：
 

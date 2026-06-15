@@ -1,13 +1,8 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
 import { formatWorkdays, MAX_REGULAR_WEEK_WORKDAYS } from "@/utils/validation";
@@ -159,6 +154,13 @@ function ProjectPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const [popupStyle, setPopupStyle] = useState({
+    top: 0,
+    left: 0,
+    width: 320,
+  });
   const selected = projects.find((project) => project.id === value);
   const normalizedQuery = query.trim().toLowerCase();
   const filteredProjects = useMemo(() => {
@@ -169,10 +171,33 @@ function ProjectPicker({
     });
   }, [normalizedQuery, projects]);
 
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (nextOpen) setQuery("");
+  const updatePopupPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 8;
+    const width = Math.max(rect.width, 320);
+    const left = Math.min(
+      Math.max(rect.left, viewportPadding),
+      window.innerWidth - width - viewportPadding,
+    );
+    setPopupStyle({
+      top: rect.bottom + 4,
+      left,
+      width,
+    });
   }, []);
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      if (nextOpen) {
+        setQuery("");
+        requestAnimationFrame(updatePopupPosition);
+      }
+    },
+    [updatePopupPosition],
+  );
 
   const handleSelect = useCallback(
     (projectId: number) => {
@@ -182,15 +207,119 @@ function ProjectPicker({
     [onChange],
   );
 
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        popupRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    updatePopupPosition();
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePopupPosition);
+    window.addEventListener("scroll", updatePopupPosition, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePopupPosition);
+      window.removeEventListener("scroll", updatePopupPosition, true);
+    };
+  }, [open, updatePopupPosition]);
+
+  const popup = open
+    ? createPortal(
+        <div
+          ref={popupRef}
+          className="fixed z-50 rounded-lg border border-border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          style={{
+            top: popupStyle.top,
+            left: popupStyle.left,
+            width: popupStyle.width,
+          }}
+        >
+          <div className="border-b border-border p-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索项目编号或名称"
+                className="h-8 pl-8 text-sm"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto p-1" role="listbox">
+            {filteredProjects.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                没有匹配项目
+              </div>
+            ) : (
+              filteredProjects.map((project) => {
+                const active = project.id === value;
+                return (
+                  <button
+                    key={project.id}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                      active && "bg-primary/10 text-primary",
+                    )}
+                    title={`${project.code} - ${project.name}`}
+                    onClick={() => handleSelect(project.id)}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
+                        {project.code}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {project.name}
+                      </span>
+                    </span>
+                    <Check
+                      className={cn(
+                        "size-4 shrink-0",
+                        active ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
+
   return (
     <>
       <Button
+        ref={triggerRef}
         type="button"
         variant="outline"
         className="h-8 flex-1 min-w-0 justify-between px-2 text-left font-normal"
         disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         title={selected ? `${selected.code} - ${selected.name}` : "选择项目"}
-        onClick={() => handleOpenChange(true)}
+        onClick={() => handleOpenChange(!open)}
       >
         <span
           className={cn(
@@ -202,68 +331,7 @@ function ProjectPicker({
         </span>
         <ChevronDown className="size-4 text-muted-foreground" />
       </Button>
-
-      <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent side="right" className="w-[420px] sm:max-w-[420px] gap-0 p-0">
-          <SheetHeader className="border-b border-border px-5 py-4">
-            <SheetTitle className="text-lg">选择项目</SheetTitle>
-          </SheetHeader>
-
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="border-b border-border p-4">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索项目编号或名称"
-                  className="h-9 pl-8"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              {filteredProjects.length === 0 ? (
-                <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                  没有匹配项目
-                </div>
-              ) : (
-                filteredProjects.map((project) => {
-                  const active = project.id === value;
-                  return (
-                    <button
-                      key={project.id}
-                      type="button"
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
-                        active && "bg-primary/10 text-primary",
-                      )}
-                      title={`${project.code} - ${project.name}`}
-                      onClick={() => handleSelect(project.id)}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">
-                          {project.code}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {project.name}
-                        </span>
-                      </span>
-                      <Check
-                        className={cn(
-                          "size-4 shrink-0",
-                          active ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+      {popup}
     </>
   );
 }

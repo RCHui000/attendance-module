@@ -12,7 +12,7 @@
   "frontend": {
     "build_version": "V0.15.3",
     "notes": [
-      "The weekly timesheet project field now opens a searchable right-side drawer instead of a long plain select list.",
+      "The weekly timesheet project field now uses an inline searchable combobox dropdown instead of a long plain select list.",
       "Project search matches both project code and project name while keeping project selection required.",
       "Project-block status badges now display readable Chinese labels for draft, pending, approved, summary pending, and rejected states."
     ]

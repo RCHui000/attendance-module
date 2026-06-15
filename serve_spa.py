@@ -95,6 +95,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
             name = (body.get("name") or "").strip()
             if not name:
                 self._json_error(400, "Employee name is required"); return
+            if not (body.get("employeeNo") or body.get("employee_no")) and (body.get("orgId") or body.get("org_id")):
+                body["employeeNo"] = self._next_employee_no(body.get("orgId") or body.get("org_id"), auth_header[7:])
             if not (body.get("loginName") or body.get("login_name")) and not (body.get("employeeNo") or body.get("employee_no")):
                 next_eid = self._next_employee_id(auth_header[7:])
                 body["_employee_id"] = next_eid
@@ -177,6 +179,41 @@ class SpaHandler(SimpleHTTPRequestHandler):
         existing = self._rest_get("/employees?select=id&order=id.desc&limit=1", bearer_token)
         return int(existing[0]["id"]) + 1 if existing else 1
 
+    def _current_year_suffix(self) -> str:
+        return time.strftime("%y")
+
+    def _number_prefix(self, value: str | None) -> str:
+        return re.sub(r"[^A-Za-z0-9]+", "", str(value or "")).upper()
+
+    def _next_code(self, rows: list, field: str, prefix: str) -> str:
+        clean_prefix = self._number_prefix(prefix)
+        if not clean_prefix:
+            return ""
+        year = self._current_year_suffix()
+        base = f"{clean_prefix}{year}"
+        pattern = re.compile(rf"^{re.escape(base)}(\d{{3}})$", re.IGNORECASE)
+        max_seq = 0
+        for row in rows:
+            match = pattern.match(str(row.get(field) or ""))
+            if match:
+                max_seq = max(max_seq, int(match.group(1)))
+        return f"{base}{str(max_seq + 1).zfill(3)}"
+
+    def _next_employee_no(self, org_id: str | int | None, bearer_token: str) -> str:
+        if not org_id:
+            return ""
+        org_rows = self._rest_get(
+            f"/organizations?select=org_code,org_name&id=eq.{self._q(str(org_id))}&limit=1",
+            bearer_token,
+        )
+        org = org_rows[0] if org_rows else {}
+        prefix = self._number_prefix(org.get("org_code")) or self._number_prefix(org.get("org_name")) or f"D{str(org_id).zfill(3)}"
+        rows = self._rest_get(
+            f"/employees?select=employee_no&employee_no=like.{self._q(prefix + self._current_year_suffix() + '%')}",
+            bearer_token,
+        )
+        return self._next_code(rows, "employee_no", prefix)
+
     def _jwt_sub(self, token_str: str) -> str | None:
         try:
             parts = token_str.split(".")
@@ -230,7 +267,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         body["_employee_id"] = eid
 
         # employees
-        self._rest_post("/employees", [{"id": eid, "employee_no": body.get("employeeNo") or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}], bearer_token)
+        employee_no = body.get("employeeNo") or body.get("employee_no")
+        if not employee_no and (body.get("orgId") or body.get("org_id")):
+            employee_no = self._next_employee_no(body.get("orgId") or body.get("org_id"), bearer_token)
+        self._rest_post("/employees", [{"id": eid, "employee_no": employee_no or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}], bearer_token)
         # profiles
         self._rest_post("/profiles", [{"login_name": login_name, "auth_email": email, "auth_user_id": body["auth_user_id"], "display_name": name, "is_active": True, "must_change_password": True}], bearer_token)
         # profiles

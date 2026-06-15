@@ -238,6 +238,55 @@ function inferProjectBusinessType(code?: string | null): "PM" | "CC" | "PMCC" | 
   return null;
 }
 
+function currentYearSuffix(): string {
+  return String(new Date().getFullYear()).slice(-2);
+}
+
+function normalizeNumberPrefix(value?: string | null): string {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function nextNumberFromRows(rows: AnyRow[], field: string, prefix: string): string {
+  const normalizedPrefix = normalizeNumberPrefix(prefix);
+  if (!normalizedPrefix) return "";
+  const year = currentYearSuffix();
+  const base = `${normalizedPrefix}${year}`;
+  const pattern = new RegExp(`^${base}(\\d{3})$`, "i");
+  const maxSeq = rows.reduce((max, row) => {
+    const match = String(row[field] || "").toUpperCase().match(pattern);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `${base}${String(maxSeq + 1).padStart(3, "0")}`;
+}
+
+async function nextProjectCode(businessType?: string | null): Promise<string> {
+  const prefix = normalizeNumberPrefix(businessType || "");
+  if (!prefix) return "";
+  const rows = await rest<AnyRow[]>(
+    `/projects?select=code&code=like.${encodeURIComponent(`${prefix}${currentYearSuffix()}%`)}`,
+  );
+  return nextNumberFromRows(rows, "code", prefix);
+}
+
+async function nextEmployeeNo(orgId?: number | null): Promise<string> {
+  if (!orgId) return "";
+  const orgRows = await rest<AnyRow[]>(
+    `/organizations?select=org_code,org_name&id=eq.${orgId}&limit=1`,
+  );
+  const org = orgRows[0];
+  const prefix =
+    normalizeNumberPrefix(org?.org_code) ||
+    normalizeNumberPrefix(org?.org_name) ||
+    `D${String(orgId).padStart(3, "0")}`;
+  const rows = await rest<AnyRow[]>(
+    `/employees?select=employee_no&employee_no=like.${encodeURIComponent(`${prefix}${currentYearSuffix()}%`)}`,
+  );
+  return nextNumberFromRows(rows, "employee_no", prefix);
+}
+
 function employeeDailyRate(emp?: AnyRow | null): number {
   if (!emp) return 0;
   if (emp.contract_type === "service") return Number(emp.daily_wage || 0);
@@ -1173,11 +1222,13 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
   const existingProject = projectId
     ? await rest<AnyRow[]>(`/projects?select=id,project_owner_id&id=eq.${projectId}&limit=1`)
     : [];
+  const businessType = body.businessType || body.business_type || inferProjectBusinessType(body.code);
+  const code = String(body.code || "").trim() || (!projectId ? await nextProjectCode(businessType) : "");
   const row = {
-    code: body.code,
+    code,
     name: body.name,
     signed_date: body.signedDate || body.signed_date || null,
-    business_type: body.businessType || body.business_type || inferProjectBusinessType(body.code),
+    business_type: businessType || inferProjectBusinessType(code),
     contract_amount: Number(body.contractAmount || body.contract_amount || 0),
     received_amount: Number(body.receivedAmount || body.received_amount || 0),
     owner_org_id: body.ownerOrgId || body.owner_org_id || null,
@@ -1246,6 +1297,9 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
 
   // New employee: single atomic endpoint
   if (!body.id) {
+    if (!(body.employeeNo || body.employee_no) && (body.orgId || body.org_id)) {
+      body.employeeNo = await nextEmployeeNo(Number(body.orgId || body.org_id));
+    }
     const token = getStoredToken();
     const resp = await fetch("/api/create-employee-with-login", {
       method: "POST",
@@ -1338,6 +1392,12 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/employees") return listEmployees() as T;
   if (url.pathname === "/api/permissions") return permissionConfig() as T;
   if (url.pathname === "/api/projects") return projects() as T;
+  if (url.pathname === "/api/numbering/employee") {
+    return { code: await nextEmployeeNo(Number(url.searchParams.get("orgId") || 0)) } as T;
+  }
+  if (url.pathname === "/api/numbering/project") {
+    return { code: await nextProjectCode(url.searchParams.get("businessType") || "") } as T;
+  }
   if (url.pathname === "/api/approval-templates") return approvalTemplates() as T;
   if (url.pathname === "/api/timesheet") return getTimesheet(url.searchParams.get("weekStart") || todayMonday()) as T;
   if (url.pathname === "/api/timesheet-detail") return getTimesheetDetail(Number(url.searchParams.get("timesheetId") || 0)) as T;

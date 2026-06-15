@@ -16,6 +16,7 @@ import {
   useSaveEmployee,
   useDeleteEmployee,
 } from "@/hooks/useEmployees";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -121,6 +122,7 @@ export default function EmployeesPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editData, setEditData] = useState<EmployeeEditData | null>(null);
+  const [autoEmployeeNo, setAutoEmployeeNo] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     name: string;
@@ -265,6 +267,7 @@ export default function EmployeesPage() {
     const orgId = visibleOrgs.find((o) => o.org_type !== "company")?.id;
     setSelectedId(null);
     setEditingId(0);
+    setAutoEmployeeNo(null);
     setEditData({
       ...EMPTY_EDIT_DATA,
       orgId: orgId ? String(orgId) : "",
@@ -274,7 +277,30 @@ export default function EmployeesPage() {
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
     setEditData(null);
+    setAutoEmployeeNo(null);
   }, []);
+
+  useEffect(() => {
+    if (editingId !== 0 || !editData?.orgId) return;
+    if (editData.employeeNo && editData.employeeNo !== autoEmployeeNo) return;
+
+    let cancelled = false;
+    api<{ code: string }>(`/api/numbering/employee?orgId=${encodeURIComponent(editData.orgId)}`)
+      .then((result) => {
+        if (cancelled || !result.code) return;
+        setAutoEmployeeNo(result.code);
+        setEditData((prev) => {
+          if (!prev || prev.id !== 0) return prev;
+          if (prev.employeeNo && prev.employeeNo !== autoEmployeeNo) return prev;
+          return { ...prev, employeeNo: result.code };
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autoEmployeeNo, editData?.employeeNo, editData?.orgId, editingId]);
 
   const handleSave = useCallback(async () => {
     if (!editData) return;
@@ -336,6 +362,7 @@ export default function EmployeesPage() {
       }
       setEditingId(null);
       setEditData(null);
+      setAutoEmployeeNo(null);
       setSelectedId(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存失败");
@@ -465,7 +492,13 @@ export default function EmployeesPage() {
                     sortDirection={sortDirection}
                     onSort={handleSort}
                     onEditChange={(update) =>
-                      setEditData((prev) => (prev ? { ...prev, ...update } : prev))
+                      setEditData((prev) => {
+                        if (!prev) return prev;
+                        if (editingId === 0 && update.employeeNo !== undefined) {
+                          setAutoEmployeeNo(null);
+                        }
+                        return { ...prev, ...update };
+                      })
                     }
                     onSave={handleSave}
                     onCancelEdit={handleCancelEdit}

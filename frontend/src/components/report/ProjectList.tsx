@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useProjectBase, useSaveProject, useDeleteProject } from "@/hooks/useReport";
 import { useEmployees, useOrganizations } from "@/hooks/useEmployees";
+import { api } from "@/lib/api";
 import { formatMoney } from "@/utils/dates";
 import { cn } from "@/lib/utils";
 import { descendantOrgIds } from "@/utils/orgTree";
@@ -173,6 +174,7 @@ export function ProjectList() {
   const deleteProject = useDeleteProject();
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [editData, setEditData] = useState<EditData>(emptyEditData);
+  const [autoProjectCode, setAutoProjectCode] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectBase | null>(null);
   const [projectSearch, setProjectSearch] = useState("");
 
@@ -224,6 +226,7 @@ export function ProjectList() {
     const roles: Record<string, string> = {};
     for (const role of type ? rolesByServiceType[type] : []) roles[role] = roleValue(project, role);
     setSelectedId(project.id);
+    setAutoProjectCode(null);
     setEditData({
       id: project.id,
       code: project.code,
@@ -238,17 +241,46 @@ export function ProjectList() {
 
   const startNew = () => {
     setSelectedId("new");
+    setAutoProjectCode(null);
     setEditData(emptyEditData);
   };
 
   const update = (patch: Partial<EditData>) => setEditData((data) => ({ ...data, ...patch }));
+  const updateCode = (code: string) => {
+    setAutoProjectCode(null);
+    update({ code, businessType: editData.businessType || inferBusinessType(code) });
+  };
+  const updateBusinessType = (value: string | null) => {
+    update({ businessType: value === NONE ? "" : (value as ProjectBusinessType) });
+  };
   const updateRole = (role: ProjectRoleKey, value: string) =>
     setEditData((data) => ({ ...data, roles: { ...data.roles, [role]: value === NONE ? "" : value } }));
 
+  useEffect(() => {
+    if (selectedId !== "new" || !editData.businessType) return;
+    if (editData.code && editData.code !== autoProjectCode) return;
+
+    let cancelled = false;
+    api<{ code: string }>(`/api/numbering/project?businessType=${encodeURIComponent(editData.businessType)}`)
+      .then((result) => {
+        if (cancelled || !result.code) return;
+        setAutoProjectCode(result.code);
+        setEditData((data) => {
+          if (data.code && data.code !== autoProjectCode) return data;
+          return { ...data, code: result.code };
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autoProjectCode, editData.businessType, editData.code, selectedId]);
+
   const handleSave = () => {
-    if (!editData.code.trim()) return toast.error("合同编码不能为空");
     if (!editData.name.trim()) return toast.error("项目名称不能为空");
     if (!businessType) return toast.error("请选择服务类型");
+    if (selectedId !== "new" && !editData.code.trim()) return toast.error("合同编码不能为空");
 
     const projectRoles = visibleRoles
       .map((roleKey) => ({
@@ -283,6 +315,7 @@ export function ProjectList() {
         onSuccess: () => {
           toast.success(selectedId === "new" ? "项目已创建" : "项目已更新");
           setSelectedId(null);
+          setAutoProjectCode(null);
           setEditData(emptyEditData);
         },
         onError: (error) => toast.error(error instanceof Error ? error.message : "保存失败"),
@@ -297,6 +330,7 @@ export function ProjectList() {
         toast.success("项目已删除");
         if (selectedId === deleteTarget.id) {
           setSelectedId(null);
+          setAutoProjectCode(null);
           setEditData(emptyEditData);
         }
       },
@@ -396,16 +430,13 @@ export function ProjectList() {
                 <span className="text-xs font-medium text-muted-foreground">合同编码</span>
                 <Input
                   value={editData.code}
-                  onChange={(event) => {
-                    const code = event.target.value;
-                    update({ code, businessType: editData.businessType || inferBusinessType(code) });
-                  }}
+                  onChange={(event) => updateCode(event.target.value)}
                   placeholder="PM26001"
                 />
               </label>
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">服务类型</span>
-                <Select value={businessType || NONE} onValueChange={(value) => update({ businessType: value === NONE ? "" : (value as ProjectBusinessType) })}>
+                <Select value={businessType || NONE} onValueChange={updateBusinessType}>
                   <SelectTrigger>
                     <SelectValue placeholder="选择服务类型" />
                   </SelectTrigger>

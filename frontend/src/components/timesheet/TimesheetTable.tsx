@@ -278,8 +278,8 @@ function ProjectPicker({
                     role="option"
                     aria-selected={active}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
-                      active && "bg-primary/10 text-primary",
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-[#eef6ff] focus-visible:bg-[#eef6ff] focus-visible:ring-2 focus-visible:ring-ring",
+                      active && "bg-[#dbeafe] text-[#1e3a8a]",
                     )}
                     title={`${project.code} - ${project.name}`}
                     onClick={() => handleSelect(project.id)}
@@ -288,9 +288,14 @@ function ProjectPicker({
                       <span className="block truncate font-medium">
                         {project.code}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {project.name}
-                      </span>
+                        <span
+                          className={cn(
+                            "block truncate text-xs text-muted-foreground",
+                            active && "text-[#1e40af]",
+                          )}
+                        >
+                          {project.name}
+                        </span>
                     </span>
                     <Check
                       className={cn(

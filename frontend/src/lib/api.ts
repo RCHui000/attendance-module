@@ -738,19 +738,21 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
       throw new Error(`Approved project row ${projectId} cannot be removed`);
     }
   }
-  await rest(`/overtime_entries?timesheet_id=eq.${sheet.id}`, { method: "DELETE" });
-  const overtime = (body.overtime || [])
-    .filter((entry: AnyRow) => Number(entry.hours || 0) > 0 || entry.reason)
-    .map((entry: AnyRow, index: number) => ({
-      id: Date.now() + 1000 + index,
-      timesheet_id: sheet.id,
-      work_date: entry.workDate,
-      overtime_hours: Number(entry.hours || 0),
-      reason: entry.reason || "",
-      status: "pending",
-    }));
-  if (overtime.length) {
-    await rest("/overtime_entries", { method: "POST", body: JSON.stringify(overtime) });
+  if (!canEditSubmittedRevision) {
+    await rest(`/overtime_entries?timesheet_id=eq.${sheet.id}`, { method: "DELETE" });
+    const overtime = (body.overtime || [])
+      .filter((entry: AnyRow) => Number(entry.hours || 0) > 0 || entry.reason)
+      .map((entry: AnyRow, index: number) => ({
+        id: Date.now() + 1000 + index,
+        timesheet_id: sheet.id,
+        work_date: entry.workDate,
+        overtime_hours: Number(entry.hours || 0),
+        reason: entry.reason || "",
+        status: "pending",
+      }));
+    if (overtime.length) {
+      await rest("/overtime_entries", { method: "POST", body: JSON.stringify(overtime) });
+    }
   }
   return { ok: true, timesheet: await getTimesheet(body.weekStart) };
 }

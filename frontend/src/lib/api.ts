@@ -1119,8 +1119,9 @@ async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promis
   for (const role of roles) {
     const roleKey = String(role.role_key || role.roleKey || "");
     const userId = Number(role.user_id || role.userId || role.employee_id || role.employeeId || 0);
-    if (!roleKeys.includes(roleKey) || !userId || seen.has(roleKey)) continue;
-    seen.add(roleKey);
+    const dedupeKey = `${roleKey}:${userId}`;
+    if (!roleKeys.includes(roleKey) || !userId || seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
     if (!employeeOrgMap.has(userId)) {
       const profile = (await rest<AnyRow[]>(
         `/employee_profiles?select=org_id&employee_id=eq.${userId}&limit=1`,
@@ -1135,7 +1136,7 @@ async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promis
       org_id: employeeOrgMap.get(userId),
       status: "active",
     };
-    const existing = current.find((item) => String(item.role_key) === roleKey);
+    const existing = current.find((item) => String(item.role_key) === roleKey && Number(item.user_id || item.employee_id) === userId);
     if (existing?.id) {
       activeIds.add(Number(existing.id));
       await rest(`/project_roles?id=eq.${existing.id}`, {

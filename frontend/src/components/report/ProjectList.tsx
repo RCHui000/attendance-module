@@ -116,7 +116,7 @@ type EditData = {
   businessType: ProjectBusinessType | "";
   contractAmount: string;
   receivedAmount: string;
-  roles: Record<string, string>;
+  roles: Record<string, string[]>;
 };
 
 const emptyEditData: EditData = {
@@ -137,15 +137,15 @@ function inferBusinessType(code: string): ProjectBusinessType | "" {
   return "";
 }
 
-function roleValue(project: ProjectBase | null, roleKey: ProjectRoleKey) {
+function roleValues(project: ProjectBase | null, roleKey: ProjectRoleKey) {
   const roles = project?.project_roles || [];
-  const direct = roles.find((role) => role.role_key === roleKey);
-  if (direct?.user_id) return String(direct.user_id);
+  const direct = roles.filter((role) => role.role_key === roleKey && role.user_id).map((role) => String(role.user_id));
+  if (direct.length) return direct;
   if (roleKey === "cc_civil_project_owner" || roleKey === "cc_mep_project_owner") {
-    const legacy = roles.find((role) => role.role_key === "cc_project_owner");
-    if (legacy?.user_id) return String(legacy.user_id);
+    const legacy = roles.filter((role) => role.role_key === "cc_project_owner" && role.user_id).map((role) => String(role.user_id));
+    if (legacy.length) return legacy;
   }
-  return "";
+  return [];
 }
 
 function serviceBadgeClass(type: ProjectBusinessType | "") {
@@ -158,9 +158,14 @@ function serviceBadgeClass(type: ProjectBusinessType | "") {
 function projectSummary(project: ProjectBase) {
   const businessType = project.business_type || inferBusinessType(project.code);
   const roles = businessType ? rolesByServiceType[businessType] : [];
-  const names = new Map((project.project_roles || []).map((role) => [role.role_key, role.user_name || "未配置"]));
+  const names = new Map<string, string[]>();
+  for (const role of project.project_roles || []) {
+    const list = names.get(role.role_key) || [];
+    list.push(role.user_name || "未配置");
+    names.set(role.role_key, list);
+  }
   return roles
-    .map((role) => names.get(role) || (role === "cc_civil_project_owner" || role === "cc_mep_project_owner" ? names.get("cc_project_owner") : "未配置"))
+    .flatMap((role) => names.get(role) || (role === "cc_civil_project_owner" || role === "cc_mep_project_owner" ? names.get("cc_project_owner") || [] : ["未配置"]))
     .filter(Boolean)
     .slice(0, 3)
     .join(" / ");
@@ -205,15 +210,15 @@ export function ProjectList() {
 
   const roleCandidates = (role: ProjectRoleKey) => {
     const scope = roleOrgScope(role, orgs);
-    const selected = editData.roles[role];
+    const selected = editData.roles[role] || [];
     const candidates = employees
       .filter((employee) => employeeMatchesRole(employee, role, scope))
       .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
-    const selectedEmployee = selected ? employeeById.get(selected) : undefined;
-    if (selectedEmployee && !candidates.some((employee) => employee.id === selectedEmployee.id)) {
-      return [selectedEmployee, ...candidates];
-    }
-    return candidates;
+    const selectedEmployees = selected
+      .map((id) => employeeById.get(id))
+      .filter((employee): employee is Employee => Boolean(employee))
+      .filter((employee) => !candidates.some((candidate) => candidate.id === employee.id));
+    return [...selectedEmployees, ...candidates];
   };
 
   const employeeLabel = (employee?: Employee) => {
@@ -223,8 +228,8 @@ export function ProjectList() {
 
   const selectProject = (project: ProjectBase) => {
     const type = project.business_type || inferBusinessType(project.code);
-    const roles: Record<string, string> = {};
-    for (const role of type ? rolesByServiceType[type] : []) roles[role] = roleValue(project, role);
+    const roles: Record<string, string[]> = {};
+    for (const role of type ? rolesByServiceType[type] : []) roles[role] = roleValues(project, role);
     setSelectedId(project.id);
     setAutoProjectCode(null);
     setEditData({
@@ -253,8 +258,19 @@ export function ProjectList() {
   const updateBusinessType = (value: string | null) => {
     update({ businessType: value === NONE ? "" : (value as ProjectBusinessType) });
   };
-  const updateRole = (role: ProjectRoleKey, value: string) =>
-    setEditData((data) => ({ ...data, roles: { ...data.roles, [role]: value === NONE ? "" : value } }));
+  const updateRole = (role: ProjectRoleKey, index: number, value: string) =>
+    setEditData((data) => {
+      const values = [...(data.roles[role] || [])];
+      if (value === NONE) values.splice(index, 1);
+      else values[index] = value;
+      const nextValues = Array.from(new Set(values.filter(Boolean)));
+      return { ...data, roles: { ...data.roles, [role]: nextValues } };
+    });
+  const addRoleAssignee = (role: ProjectRoleKey) =>
+    setEditData((data) => {
+      const current = data.roles[role] || [];
+      return { ...data, roles: { ...data.roles, [role]: current.length ? [...current, ""] : ["", ""] } };
+    });
 
   useEffect(() => {
     if (selectedId !== "new" || !editData.businessType) return;
@@ -283,14 +299,14 @@ export function ProjectList() {
     if (selectedId !== "new" && !editData.code.trim()) return toast.error("合同编码不能为空");
 
     const projectRoles = visibleRoles
-      .map((roleKey) => ({
+      .flatMap((roleKey) => (editData.roles[roleKey] || []).map((userId) => ({
         role_key: roleKey,
-        user_id: Number(editData.roles[roleKey] || 0),
-      }))
+        user_id: Number(userId || 0),
+      })))
       .filter((role) => role.user_id);
     const ccFallbackOwner =
-      Number(editData.roles.cc_civil_project_owner || 0) ||
-      Number(editData.roles.cc_mep_project_owner || 0);
+      Number(editData.roles.cc_civil_project_owner?.[0] || 0) ||
+      Number(editData.roles.cc_mep_project_owner?.[0] || 0);
     if (ccFallbackOwner && businessType !== "PM") {
       projectRoles.push({ role_key: "cc_project_owner", user_id: ccFallbackOwner });
     }
@@ -305,9 +321,9 @@ export function ProjectList() {
         contractAmount: Number(editData.contractAmount || 0),
         receivedAmount: Number(editData.receivedAmount || 0),
         projectOwnerId:
-          Number(editData.roles.pm_project_owner || 0) ||
-          Number(editData.roles.cc_civil_project_owner || 0) ||
-          Number(editData.roles.cc_mep_project_owner || 0) ||
+          Number(editData.roles.pm_project_owner?.[0] || 0) ||
+          Number(editData.roles.cc_civil_project_owner?.[0] || 0) ||
+          Number(editData.roles.cc_mep_project_owner?.[0] || 0) ||
           undefined,
         projectRoles,
       },
@@ -460,22 +476,30 @@ export function ProjectList() {
               <div className="mb-2 text-sm font-semibold">负责人配置</div>
               <div className="grid grid-cols-2 gap-3">
                 {visibleRoles.map((role) => (
-                  <label key={role} className="space-y-1 text-sm">
-                    <span className="text-xs font-medium text-muted-foreground">{roleLabels[role]}</span>
-                    <Select value={editData.roles[role] || NONE} onValueChange={(value) => updateRole(role, value || NONE)}>
-                      <SelectTrigger>
-                        {editData.roles[role] ? employeeLabel(employeeById.get(editData.roles[role])) : <SelectValue placeholder={roleLabels[role]} />}
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE}>未配置</SelectItem>
-                        {roleCandidates(role).map((employee) => (
-                          <SelectItem key={employee.id} value={String(employee.id)}>
-                            {employeeLabel(employee)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </label>
+                  <div key={role} className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">{roleLabels[role]}</span>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => addRoleAssignee(role)}>
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        添加负责人
+                      </Button>
+                    </div>
+                    {(editData.roles[role]?.length ? editData.roles[role] : [""]).map((userId, index) => (
+                      <Select key={`${role}-${index}`} value={userId || NONE} onValueChange={(value) => updateRole(role, index, value || NONE)}>
+                        <SelectTrigger>
+                          {userId ? employeeLabel(employeeById.get(userId)) : <SelectValue placeholder={roleLabels[role]} />}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>未配置</SelectItem>
+                          {roleCandidates(role).map((employee) => (
+                            <SelectItem key={employee.id} value={String(employee.id)}>
+                              {employeeLabel(employee)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>

@@ -74,11 +74,10 @@ function assertTimesheetHoursWithinLimits(entries: AnyRow[]): void {
 
 function authHeaders(json = true): Record<string, string> {
   const token = getStoredToken();
-  const bearer = token || ANON_KEY;
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
     ...(ANON_KEY ? { apikey: ANON_KEY } : {}),
-    ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
@@ -101,6 +100,12 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!response.ok) {
     const message = data?.message || data?.hint || data?.details || (text && text !== "{}" ? text : "");
+    if (
+      response.status === 401 ||
+      /JWSInvalidSignature|JWSError|invalid signature|invalid jwt|JWT/i.test(message)
+    ) {
+      clearStoredToken();
+    }
     throw new Error(message || `Supabase request failed (${response.status})`);
   }
   return data as T;

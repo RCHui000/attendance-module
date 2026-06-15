@@ -22,7 +22,7 @@ type AnyRow = Record<string, any>;
 
 function authHeaders(): Record<string, string> {
   return {
-    ...(ANON_KEY ? { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } : {}),
+    ...(ANON_KEY ? { apikey: ANON_KEY } : {}),
   };
 }
 
@@ -103,6 +103,7 @@ async function resolveLoginEmail(login: string): Promise<string> {
 }
 
 export async function signInWithLogin(login: string, password: string): Promise<string> {
+  clearStoredToken();
   const email = await resolveLoginEmail(login);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(error.message || "Invalid login credentials");

@@ -689,6 +689,17 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
         .filter((review) => review.status === "project_approved" || review.result_action === "approve")
         .map((review) => Number(review.project_id)),
   );
+  const projectRevisions = (body.projectRevisions || body.project_revisions || [])
+    .map((revision: AnyRow) => ({
+      oldProjectId: Number(revision.oldProjectId || revision.old_project_id || 0),
+      newProjectId: Number(revision.newProjectId || revision.new_project_id || 0),
+    }))
+    .filter((revision: AnyRow) => revision.oldProjectId && revision.newProjectId && revision.oldProjectId !== revision.newProjectId);
+  for (const revision of projectRevisions) {
+    if (lockedProjectIds.has(revision.newProjectId)) {
+      throw new Error("Cannot merge a rejected project block into an approved or pending project block");
+    }
+  }
   await rest(`/timesheets?id=eq.${sheet.id}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
@@ -731,6 +742,18 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
   assertTimesheetHoursWithinLimits([...preservedEntries, ...entries]);
   if (entries.length) {
     await rest("/timesheet_entries", { method: "POST", body: JSON.stringify(entries) });
+  }
+  if (canEditSubmittedRevision && projectRevisions.length) {
+    await rest("/rpc/psa_sync_timesheet_project_revisions", {
+      method: "POST",
+      body: JSON.stringify({
+        p_timesheet_id: Number(sheet.id),
+        p_revisions: projectRevisions.map((revision: AnyRow) => ({
+          old_project_id: revision.oldProjectId,
+          new_project_id: revision.newProjectId,
+        })),
+      }),
+    });
   }
   const preservedProjects = new Set(existingEntries.map((entry) => Number(entry.project_id)));
   for (const projectId of lockedProjectIds) {

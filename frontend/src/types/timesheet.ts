@@ -43,6 +43,7 @@ export interface OvertimeEntry {
 
 export interface TimesheetRow {
   projectId: number;
+  originalProjectId?: number;
   percents: Record<string, number>; // "YYYY-MM-DD" -> percent 0-100
   descriptions: Record<string, string>;
   approvalStatus?: "draft" | "pending" | "approved" | "rejected" | "summary_pending";
@@ -70,6 +71,7 @@ export interface SaveTimesheetPayload {
   remark: string;
   entries: SaveEntry[];
   overtime: SaveOvertime[];
+  projectRevisions?: SaveProjectRevision[];
 }
 
 export interface SaveEntry {
@@ -83,4 +85,9 @@ export interface SaveOvertime {
   workDate: string;
   hours: number;
   reason: string;
+}
+
+export interface SaveProjectRevision {
+  oldProjectId: number;
+  newProjectId: number;
 }

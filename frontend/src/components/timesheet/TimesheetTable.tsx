@@ -432,7 +432,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                 row.approvalStatus === "summary_pending" ||
                 row.approvalStatus === "pending" ||
                 (status === "submitted" && row.approvalStatus !== "rejected");
-              const projectLocked = rowLocked || status === "submitted";
+              const canRemoveRow = !rowLocked && status !== "submitted";
               return (
                 <tr key={ri} className="border-b border-border/50 hover:bg-row-hover">
                   <td className="sticky left-0 bg-white p-1.5 z-[5]">
@@ -441,10 +441,10 @@ export const TimesheetTable = memo(function TimesheetTable({
                       <ProjectPicker
                         projects={projects}
                         value={row.projectId}
-                        disabled={projectLocked}
+                        disabled={rowLocked}
                         onChange={(projectId) => onUpdateProject(ri, projectId)}
                       />
-                      {!projectLocked && (
+                      {canRemoveRow && (
                         <Button
                           size="sm"
                           variant="ghost"

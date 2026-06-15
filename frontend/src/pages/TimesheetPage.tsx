@@ -152,12 +152,20 @@ export default function TimesheetPage() {
         hours: store.overtime[d]?.hours || 0,
         reason: store.overtime[d]?.reason || "",
       }));
+    const projectRevisions = store.rows
+      .filter((row) => row.approvalStatus === "rejected")
+      .map((row) => ({
+        oldProjectId: Number(row.originalProjectId || row.projectId || 0),
+        newProjectId: Number(row.projectId || 0),
+      }))
+      .filter((revision) => revision.oldProjectId && revision.newProjectId && revision.oldProjectId !== revision.newProjectId);
 
     return {
       weekStart: currentWeek,
       remark: store.remark,
       entries,
       overtime,
+      projectRevisions,
     };
   };
 

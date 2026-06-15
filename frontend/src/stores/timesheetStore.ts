@@ -30,6 +30,7 @@ interface TimesheetState {
 
 const createEmptyRow = (): TimesheetRow => ({
   projectId: 0,
+  originalProjectId: 0,
   percents: {},
   descriptions: {},
 });
@@ -49,6 +50,7 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
         const projectStatus = statusMap.get(Number(e.project_id));
         projectMap.set(e.project_id, {
           projectId: e.project_id,
+          originalProjectId: e.project_id,
           percents: {},
           descriptions: {},
           approvalStatus: projectStatus?.status || "draft",
@@ -68,6 +70,7 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
       if (projectStatus.status !== "rejected") continue;
       projectMap.set(projectId, {
         projectId,
+        originalProjectId: projectId,
         percents: {},
         descriptions: {},
         approvalStatus: projectStatus.status,
@@ -132,7 +135,7 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
 
   updateProject: (rowIndex, projectId) => {
     const rows = [...get().rows];
-    rows[rowIndex] = { ...rows[rowIndex], projectId };
+    rows[rowIndex] = { ...rows[rowIndex], projectId, originalProjectId: rows[rowIndex].originalProjectId || rows[rowIndex].projectId };
     set({ rows, isDirty: true });
   },
 

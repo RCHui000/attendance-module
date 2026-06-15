@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { ReactElement } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { APP_NAME } from "@/lib/constants";
 import { useAuthStore } from "@/stores/authStore";
@@ -12,6 +13,18 @@ import ReportPage from "@/pages/ReportPage";
 import EmployeesPage from "@/pages/EmployeesPage";
 import LeavePage from "@/pages/LeavePage";
 import AppsPage from "@/pages/AppsPage";
+
+function PermissionRoute({
+  resource,
+  children,
+}: {
+  resource: string;
+  children: ReactElement;
+}) {
+  const { canAccess } = useAuthStore();
+  if (!canAccess(resource)) return <Navigate to="/" replace />;
+  return children;
+}
 
 function LoadingScreen() {
   return (
@@ -36,13 +49,13 @@ function AuthenticatedApp() {
     <AppLayout>
       <Routes>
         <Route index element={<Navigate to={defaultRoute} replace />} />
-        <Route path="timesheet" element={<TimesheetPage />} />
-        <Route path="leave" element={<LeavePage />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="review" element={<ReviewPage />} />
-        <Route path="report" element={<ReportPage />} />
-        <Route path="employees" element={<EmployeesPage />} />
-        <Route path="apps" element={<AppsPage />} />
+        <Route path="timesheet" element={<PermissionRoute resource="timesheet"><TimesheetPage /></PermissionRoute>} />
+        <Route path="leave" element={<PermissionRoute resource="leave"><LeavePage /></PermissionRoute>} />
+        <Route path="dashboard" element={<PermissionRoute resource="dashboard"><DashboardPage /></PermissionRoute>} />
+        <Route path="review" element={<PermissionRoute resource="review"><ReviewPage /></PermissionRoute>} />
+        <Route path="report" element={<PermissionRoute resource="report"><ReportPage /></PermissionRoute>} />
+        <Route path="employees" element={<PermissionRoute resource="system_management"><EmployeesPage /></PermissionRoute>} />
+        <Route path="apps" element={<PermissionRoute resource="apps"><AppsPage /></PermissionRoute>} />
       </Routes>
     </AppLayout>
   );

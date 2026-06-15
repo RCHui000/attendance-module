@@ -1,0 +1,29 @@
+{
+  "version": "V0.15.3",
+  "released_at": "2026-06-15",
+  "base_version": "V0.15.2-Beta1",
+  "summary": "Weekly timesheet usability release with searchable project selection and clearer project-block status labels.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema or RLS migration is included in this release."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.15.3",
+    "notes": [
+      "The weekly timesheet project field now opens a searchable right-side drawer instead of a long plain select list.",
+      "Project search matches both project code and project name while keeping project selection required.",
+      "Project-block status badges now display readable Chinese labels for draft, pending, approved, summary pending, and rejected states."
+    ]
+  },
+  "deployment": {
+    "nas": "Build frontend with VITE_APP_VERSION=V0.15.3 and rebuild attendance-module with IMAGE_TAG=V0.15.3.",
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.15.3 and rebuild approval-app with APP_IMAGE_TAG=V0.15.3."
+  },
+  "verification": [
+    "Run npm --prefix frontend run build.",
+    "Verify cloud and NAS containers are rebuilt with V0.15.3.",
+    "Verify the timesheet project picker can search by project code or project name."
+  ]
+}

@@ -1,20 +1,29 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
 import { formatWorkdays, MAX_REGULAR_WEEK_WORKDAYS } from "@/utils/validation";
 import type { TimesheetRow, OvertimeStore, TimesheetStatus } from "@/types/timesheet";
 import type { ProjectBrief } from "@/types/auth";
-import { CheckCircle2, Circle, Clock3, Plus, X, XCircle } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Circle,
+  Clock3,
+  Plus,
+  Search,
+  X,
+  XCircle,
+} from "lucide-react";
 
 interface TimesheetTableProps {
   rows: TimesheetRow[];
@@ -137,6 +146,128 @@ function RowApprovalStatus({
   );
 }
 
+function ProjectPicker({
+  projects,
+  value,
+  disabled,
+  onChange,
+}: {
+  projects: ProjectBrief[];
+  value?: number | null;
+  disabled: boolean;
+  onChange: (projectId: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = projects.find((project) => project.id === value);
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredProjects = useMemo(() => {
+    if (!normalizedQuery) return projects;
+    return projects.filter((project) => {
+      const haystack = `${project.code} ${project.name}`.toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [normalizedQuery, projects]);
+
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) setQuery("");
+  }, []);
+
+  const handleSelect = useCallback(
+    (projectId: number) => {
+      onChange(projectId);
+      setOpen(false);
+    },
+    [onChange],
+  );
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-8 flex-1 min-w-0 justify-between px-2 text-left font-normal"
+        disabled={disabled}
+        title={selected ? `${selected.code} - ${selected.name}` : "选择项目"}
+        onClick={() => handleOpenChange(true)}
+      >
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            !selected && "text-muted-foreground",
+          )}
+        >
+          {selected ? `${selected.code} - ${selected.name}` : "选择项目"}
+        </span>
+        <ChevronDown className="size-4 text-muted-foreground" />
+      </Button>
+
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="right" className="w-[420px] sm:max-w-[420px] gap-0 p-0">
+          <SheetHeader className="border-b border-border px-5 py-4">
+            <SheetTitle className="text-lg">选择项目</SheetTitle>
+          </SheetHeader>
+
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="border-b border-border p-4">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索项目编号或名称"
+                  className="h-9 pl-8"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {filteredProjects.length === 0 ? (
+                <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  没有匹配项目
+                </div>
+              ) : (
+                filteredProjects.map((project) => {
+                  const active = project.id === value;
+                  return (
+                    <button
+                      key={project.id}
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                        active && "bg-primary/10 text-primary",
+                      )}
+                      title={`${project.code} - ${project.name}`}
+                      onClick={() => handleSelect(project.id)}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">
+                          {project.code}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {project.name}
+                        </span>
+                      </span>
+                      <Check
+                        className={cn(
+                          "size-4 shrink-0",
+                          active ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
 function DayHeader({ day, index }: { day: string; index: number }) {
   const date = new Date(day);
   const dayOfWeek = date.getDay();
@@ -233,33 +364,12 @@ export const TimesheetTable = memo(function TimesheetTable({
                   <td className="sticky left-0 bg-white p-1.5 z-[5]">
                     <div className="flex items-center gap-1">
                       <RowApprovalStatus status={row.approvalStatus} />
-                      <Select
-                        value={row.projectId ? String(row.projectId) : ""}
-                        onValueChange={(v) =>
-                          onUpdateProject(ri, Number(v))
-                        }
+                      <ProjectPicker
+                        projects={projects}
+                        value={row.projectId}
                         disabled={rowLocked}
-                      >
-                        <SelectTrigger className="h-8 text-sm flex-1 min-w-0">
-                          <SelectValue placeholder="选择项目">
-                            {(() => {
-                              const sel = projects.find(
-                                (p) => p.id === row.projectId,
-                              );
-                              return sel
-                                ? `${sel.code} - ${sel.name}`
-                                : null;
-                            })()}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {projects.map((p) => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              {p.code} - {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onChange={(projectId) => onUpdateProject(ri, projectId)}
+                      />
                       {!rowLocked && (
                         <Button
                           size="sm"
@@ -315,7 +425,6 @@ export const TimesheetTable = memo(function TimesheetTable({
               );
             })}
 
-            {/* Daily Totals Row */}
             <tr className="border-t-2 border-border bg-[#fafafa]">
               <td className="sticky left-0 bg-[#fafafa] p-1.5 text-sm font-bold text-muted-foreground z-[5]">
                 每日合计
@@ -348,7 +457,6 @@ export const TimesheetTable = memo(function TimesheetTable({
               <td />
             </tr>
 
-            {/* Overtime Row */}
             <tr className="border-b border-border/50">
               <td className="sticky left-0 bg-white p-1.5 text-sm font-bold text-warning z-[5]">
                 加班 OT（预留）
@@ -366,7 +474,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                       onUpdateOvertime(day, parseFloat(e.target.value) || 0);
                     }}
                     disabled
-                    title="OT 功能预留，当前公司按普通出勤工日统计"
+                    title="OT 功能预留，当前公司按普通出勤工时统计"
                     placeholder="0"
                   />
                 </td>

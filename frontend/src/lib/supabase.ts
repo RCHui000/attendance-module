@@ -18,16 +18,26 @@ export const supabase = createClient(SUPABASE_URL, ANON_KEY, {
   },
 });
 
-type AnyRow = Record<string, any>;
+type LoginResolution = {
+  auth_email?: string;
+  auth_user_id?: string;
+  is_active?: boolean;
+  employment_status?: string;
+};
 
-function authHeaders(): Record<string, string> {
+function anonHeaders(): Record<string, string> {
   return {
+    "Content-Type": "application/json",
     ...(ANON_KEY ? { apikey: ANON_KEY } : {}),
   };
 }
 
-async function restGet<T = AnyRow[]>(path: string): Promise<T> {
-  const response = await fetch(`${REST_URL}${path}`, { headers: authHeaders() });
+async function rpc<T>(name: string, body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`${REST_URL}/rpc/${name}`, {
+    method: "POST",
+    headers: anonHeaders(),
+    body: JSON.stringify(body),
+  });
   const text = await response.text();
   if (!response.ok) {
     let message = text;
@@ -37,14 +47,18 @@ async function restGet<T = AnyRow[]>(path: string): Promise<T> {
     } catch {
       // Keep upstream text as the error message.
     }
-    throw new Error(message || `Supabase request failed (${response.status})`);
+    throw new Error(message || `Supabase RPC failed (${response.status})`);
   }
-  return (text ? JSON.parse(text) : []) as T;
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 function syntheticEmail(login: string): string {
   const local = login.replace(/[^A-Za-z0-9._+-]+/g, "").replace(/^\.+|\.+$/g, "").toLowerCase();
   return `${local || login}@psa.local`;
+}
+
+function isEmail(value: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
 }
 
 function isTerminated(status: unknown): boolean {
@@ -53,53 +67,21 @@ function isTerminated(status: unknown): boolean {
   );
 }
 
-async function assertEmployeeLoginEnabled(authUserId: string): Promise<void> {
-  const employees = await restGet<AnyRow[]>(
-    `/employees?select=id,is_active&auth_user_id=eq.${encodeURIComponent(authUserId)}&limit=1`,
-  );
-  const employee = employees[0];
-  if (!employee) throw new Error("账户未关联员工，请联系管理员");
-  if (employee.is_active === false) throw new Error("账户已停用，请联系管理员");
-
-  const profiles = await restGet<AnyRow[]>(
-    `/employee_profiles?select=employment_status&employee_id=eq.${encodeURIComponent(employee.id)}&limit=1`,
-  ).catch(() => []);
-  if (isTerminated(profiles[0]?.employment_status)) {
-    throw new Error("离职人员账户已关闭，请联系管理员");
-  }
-}
-
 async function resolveLoginEmail(login: string): Promise<string> {
   const value = login.trim();
-  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) return value.toLowerCase();
+  if (!value) throw new Error("请输入登录名");
 
-  for (const field of ["login_name", "display_name"]) {
-    const rows = await restGet<AnyRow[]>(
-      `/profiles?select=auth_email,auth_user_id,is_active&${field}=eq.${encodeURIComponent(value)}&limit=1`,
-    );
-    const profile = rows[0];
-    if (profile?.auth_email) {
-      if (profile.is_active === false) throw new Error("账户已停用，请联系管理员");
-      if (profile.auth_user_id) await assertEmployeeLoginEnabled(profile.auth_user_id);
-      return profile.auth_email;
-    }
+  const rows = await rpc<LoginResolution[]>("psa_resolve_login_email", { p_login: value }).catch(() => []);
+  const resolved = rows[0];
+  if (resolved?.auth_email) {
+    if (resolved.is_active === false) throw new Error("账户已停用，请联系管理员");
+    if (isTerminated(resolved.employment_status)) throw new Error("离职人员账户已关闭，请联系管理员");
+    return resolved.auth_email;
   }
 
-  const employees = await restGet<AnyRow[]>(
-    `/employees?select=id,is_active,auth_user_id&or=(name.eq.${encodeURIComponent(value)},employee_no.eq.${encodeURIComponent(value)})&limit=1`,
-  );
-  const employee = employees[0];
-  if (employee?.auth_user_id) {
-    if (employee.is_active === false) throw new Error("账户已停用，请联系管理员");
-    await assertEmployeeLoginEnabled(employee.auth_user_id);
-    const profiles = await restGet<AnyRow[]>(
-      `/profiles?select=auth_email,is_active&auth_user_id=eq.${encodeURIComponent(employee.auth_user_id)}&limit=1`,
-    );
-    if (profiles[0]?.is_active === false) throw new Error("账户已停用，请联系管理员");
-    if (profiles[0]?.auth_email) return profiles[0].auth_email;
-  }
-
-  return syntheticEmail(value);
+  if (isEmail(value)) return value.toLowerCase();
+  if (/^[A-Za-z0-9._+-]+$/.test(value)) return syntheticEmail(value);
+  throw new Error("未找到该登录账号，请使用工号、登录名或邮箱登录");
 }
 
 export async function signInWithLogin(login: string, password: string): Promise<string> {

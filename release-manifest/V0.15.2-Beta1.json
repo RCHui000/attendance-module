@@ -1,0 +1,34 @@
+{
+  "version": "V0.15.2 Beta1",
+  "released_at": "2026-06-15",
+  "base_version": "V0.15.2",
+  "summary": "Beta release on top of cloud V0.15.2 that restores Supabase Auth SDK login and closes login access for inactive or terminated employees.",
+  "frontend": {
+    "build_version": "V0.15.2 Beta1",
+    "notes": [
+      "Login now uses the self-hosted Supabase Auth client via signInWithPassword.",
+      "Login-name, display-name, employee-name, and employee-number aliases are resolved to the linked GoTrue email before Supabase Auth login.",
+      "Existing sessions for inactive or terminated employees are treated as unauthenticated during bootstrap."
+    ]
+  },
+  "backend": {
+    "new_migrations": [
+      "063_user_roles_login_read_grant.sql"
+    ],
+    "notes": [
+      "The application proxy supports Supabase SDK paths /auth/v1 and /rest/v1 while preserving existing /auth and /rest compatibility.",
+      "Password token requests proxied through /auth/v1/token are blocked when the linked profile, employee, or employment profile is inactive or terminated.",
+      "Authenticated bootstrap requests can read the current user's user_roles rows through PostgREST."
+    ]
+  },
+  "deployment": {
+    "nas": "Build frontend with VITE_APP_VERSION=\"V0.15.2 Beta1\" and rebuild attendance-module with IMAGE_TAG=V0.15.2-Beta1.",
+    "cloud": "Build frontend with VITE_APP_VERSION=\"V0.15.2 Beta1\" and rebuild approval-app with APP_IMAGE_TAG=V0.15.2-Beta1 after NAS validation."
+  },
+  "verification": [
+    "Run TypeScript build with VITE_APP_VERSION=\"V0.15.2 Beta1\".",
+    "Run python -m py_compile serve_spa.py.",
+    "Verify NAS application container is healthy after rebuild.",
+    "Verify /api/login is no longer served and /auth/v1/settings remains available."
+  ]
+}

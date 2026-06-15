@@ -7,7 +7,7 @@
 | File | Responsibility |
 | --- | --- |
 | `api.ts` | Main API router, PostgREST helper, RPC calls, aggregation logic. |
-| `supabase.ts` | Access-token storage helpers. |
+| `supabase.ts` | Self-hosted Supabase client, login alias resolution, and access-token storage helpers. |
 | `constants.ts` | App constants, role text, status text, holiday calendar. |
 | `utils.ts` | UI utility helpers such as class merging. |
 
@@ -23,7 +23,6 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 
 | Route | Method | Body / Params | Returns | Notes |
 | --- | --- | --- | --- | --- |
-| `/api/login` | POST | `{ login, password }` | `{ ok, token }` | Uses server login endpoint and stores token. |
 | `/api/logout` | POST | none | `{ ok }` | Clears local token only. |
 | `/api/password/change` | POST | `{ login?, oldPassword, newPassword }` | `{ ok }` | Proxies to controlled server endpoint. |
 | `/api/me` | GET | none | `{ user }` | Resolves JWT to employee and role. |

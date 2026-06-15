@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/stores/appStore";
-import { setStoredToken, clearStoredToken } from "@/lib/supabase";
-import type { CurrentUser, BootstrapData, PermissionAccess, PermissionMap } from "@/types/auth";
+import { clearStoredToken, signInWithLogin, signOutFromSupabase } from "@/lib/supabase";
+import type { CurrentUser, BootstrapData, PermissionAccess, PermissionMap, SidebarOrderMap } from "@/types/auth";
 
 interface AuthState {
   user: CurrentUser | null;
@@ -10,6 +10,8 @@ interface AuthState {
   isAdmin: boolean;
   canReview: boolean;
   permissions: PermissionMap;
+  sidebarOrder: SidebarOrderMap;
+  setSidebarOrder: (sidebarOrder: SidebarOrderMap) => void;
   canAccess: (resourceKey: string, minAccess?: PermissionAccess) => boolean;
   isLoading: boolean;
   login: (login: string, password: string) => Promise<void>;
@@ -42,6 +44,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAdmin: false,
   canReview: false,
   permissions: {},
+  sidebarOrder: {},
+  setSidebarOrder: (sidebarOrder) =>
+    set((state) => ({
+      sidebarOrder,
+      user: state.user ? { ...state.user, sidebarOrder } : state.user,
+    })),
   isLoading: true,
   canAccess: (resourceKey: string, minAccess: PermissionAccess = "read"): boolean => {
     const state = get();
@@ -50,18 +58,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (login: string, password: string) => {
-    const data = await api<{ ok: boolean; token: string }>("/api/login", {
-      method: "POST",
-      body: JSON.stringify({ login, password }),
-    });
-    if (data.token) {
-      setStoredToken(data.token);
-    }
+    await signInWithLogin(login, password);
     window.location.reload();
   },
 
   logout: async () => {
     try {
+      await signOutFromSupabase();
       await api("/api/logout", { method: "POST" });
     } catch {
       // Local logout should proceed even if the server session is already gone.
@@ -73,16 +76,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   checkSession: async () => {
     try {
       const data = await api<BootstrapData>("/api/bootstrap");
-      const user = data.currentUser ? { ...data.currentUser, permissions: data.permissions || {} } : null;
+      const sidebarOrder = data.sidebarOrder || data.currentUser?.sidebarOrder || {};
+      const user = data.currentUser ? { ...data.currentUser, permissions: data.permissions || {}, sidebarOrder } : null;
       const { isAdmin, canReview } = computePermissions(user);
-      set({ user, isAuthenticated: !!user, isAdmin, canReview, permissions: data.permissions || {}, isLoading: false });
+      set({ user, isAuthenticated: !!user, isAdmin, canReview, permissions: data.permissions || {}, sidebarOrder, isLoading: false });
 
       // Set the correct Monday from the server
       if (data.currentWeek) {
         useAppStore.getState().setCurrentWeek(data.currentWeek);
       }
     } catch {
-      set({ user: null, isAuthenticated: false, isAdmin: false, canReview: false, permissions: {}, isLoading: false });
+      set({ user: null, isAuthenticated: false, isAdmin: false, canReview: false, permissions: {}, sidebarOrder: {}, isLoading: false });
     }
   },
 

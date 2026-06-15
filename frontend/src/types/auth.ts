@@ -1,6 +1,7 @@
 export type PlatformRole = "employee" | "lead" | "manager" | "director" | "admin";
 export type PermissionAccess = "none" | "read" | "write";
 export type PermissionMap = Record<string, PermissionAccess>;
+export type SidebarOrderMap = Record<string, number>;
 
 export interface CurrentUser {
   id: number;
@@ -9,6 +10,7 @@ export interface CurrentUser {
   department: string;
   is_active: number;
   permissions?: PermissionMap;
+  sidebarOrder?: SidebarOrderMap;
 }
 
 export interface UserBrief {
@@ -21,6 +23,7 @@ export interface UserBrief {
 export interface BootstrapData {
   currentUser: CurrentUser | null;
   permissions: PermissionMap;
+  sidebarOrder?: SidebarOrderMap;
   users: UserBrief[];
   projects: ProjectBrief[];
   currentWeek: string;

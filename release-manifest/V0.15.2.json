@@ -1,0 +1,39 @@
+{
+  "version": "V0.15.2",
+  "released_at": "2026-06-15",
+  "base_version": "V0.15.1",
+  "summary": "Usability and RBAC stabilization release for weekly timesheets, sidebar permissions, and PM project role syncing.",
+  "database": {
+    "new_migrations": [
+      "059_role_sidebar_order.sql",
+      "060_fix_system_management_sidebar_resource.sql",
+      "061_sync_pm_project_roles_to_platform_roles.sql",
+      "062_fix_pm_role_sync_ambiguity_and_backfill.sql"
+    ],
+    "notes": [
+      "Role-specific sidebar order is stored on existing role_permissions rows; no new table is required.",
+      "System management is restored as a sidebar resource while permission configuration remains a separate employee-organization resource.",
+      "PM project owner assignments sync platform role lead; PM department owner assignments sync platform role manager.",
+      "The PM role sync RPC avoids ambiguous employee_id references and backfills existing project role assignments."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.15.2",
+    "notes": [
+      "My weekly timesheet opens with an initial project row and adds a new project block automatically when the week reaches six workdays.",
+      "Admin permission configuration supports drag sorting of sidebar entries per role.",
+      "Sidebar default order is dashboard, approval center, weekly timesheet, leave request, project list, employee and organization, app center.",
+      "Employee and organization top-level duplicate headings were removed to move the main content upward."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.15.2 and app image tag approval-app:V0.15.2."
+  },
+  "verification": [
+    "Run TypeScript build before packaging.",
+    "Build frontend with VITE_APP_VERSION=V0.15.2.",
+    "Apply migrations 059-062 on cloud PostgreSQL.",
+    "Verify approval-app and approval-nginx are healthy.",
+    "Verify the cloud homepage returns HTTP 200."
+  ]
+}

@@ -26,7 +26,7 @@ This module manages employees, current HR profiles, platform roles, salary/contr
 | `useSaveOrganization` | `/api/organizations/save` | POST | Create/update organization. |
 | `useDeleteOrganization` | `/api/organizations/delete` | POST | Soft delete organization. |
 | `usePermissionConfig` | `/api/permissions` | GET | Load platform roles, resources, and role-resource access levels. |
-| `useSavePermissionConfig` | `/api/permissions/save` | POST | Save one role's resource access level. |
+| `useSavePermissionConfig` | `/api/permissions/save` | POST | Save one role's resource access level or sidebar ordering. |
 
 ## Data Model
 
@@ -38,7 +38,7 @@ This module manages employees, current HR profiles, platform roles, salary/contr
 - `user_roles`: platform role assignment, one of `employee`, `lead`, `manager`, `director`, `admin`.
 - `permission_roles`: configurable role labels and ordering.
 - `permission_resources`: configurable resource catalog for sidebar and employee-org subpages.
-- `role_permissions`: per-role access level: `none`, `read`, or `write`.
+- `role_permissions`: per-role access level: `none`, `read`, or `write`; sidebar resources also store per-role `sidebar_order`.
 - `organizations`: multi-level tree node and department manager.
 
 ## Organization And Specialty Rules
@@ -57,6 +57,9 @@ This module manages employees, current HR profiles, platform roles, salary/contr
 - Platform permissions are independent from approval participants. Project owners and department owners are configured through organization/project data and Approval Graph assignees, not through `user_roles`.
 - `system_management` controls the employee/organization system-management tab.
 - `permission_config` controls the role permission matrix tab.
+- `system_management` controls the `员工与组织` sidebar entry and the system-management tab behind that entry.
+- `permission_config` is the only permission shown under `员工与组织架构` in the permission matrix. Roles with it can see the permission-config tab after entering the page.
+- The `侧边栏` permission list can be dragged to persist role-specific sidebar order without adding a separate ordering table.
 - `review` controls approval-center entry; actual approval actions still require the current employee to be assigned in `approval_node_assignees`.
 - GoTrue signup is disabled; new accounts go through `/api/create-employee-with-login`.
 - Deletes are soft deletes to preserve historical timesheets and approvals.

@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { APP_VERSION, roleText } from "@/lib/constants";
+import { roleText } from "@/lib/constants";
 import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { OrganizationPanel } from "@/components/employees/OrganizationPanel";
@@ -388,16 +388,6 @@ export default function EmployeesPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-start justify-between gap-3 max-[640px]:flex-col">
-        <span aria-hidden="true" />
-        <Badge
-          variant="outline"
-          className="h-7 rounded-pill border-border bg-white px-3 text-xs font-bold text-muted-foreground"
-        >
-          版本 {APP_VERSION}
-        </Badge>
-      </div>
-
       <Tabs defaultValue={canReadSystem ? "system" : "permissions"} className="gap-4">
         <TabsList>
           {canReadSystem && <TabsTrigger value="system">系统管理</TabsTrigger>}

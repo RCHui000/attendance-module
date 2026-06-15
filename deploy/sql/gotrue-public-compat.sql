@@ -19,19 +19,6 @@ BEGIN
     FROM information_schema.tables
     WHERE table_schema = 'auth'
       AND table_type = 'BASE TABLE'
-      AND table_name NOT IN (
-        'users',
-        'sessions',
-        'refresh_tokens',
-        'mfa_amr_claims',
-        'mfa_factors',
-        'mfa_challenges',
-        'one_time_tokens',
-        'saml_providers',
-        'saml_relay_states',
-        'sso_domains',
-        'flow_state'
-      )
       AND NOT EXISTS (
         SELECT 1
         FROM information_schema.tables p

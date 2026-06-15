@@ -1,4 +1,4 @@
-﻿import { getStoredToken, setStoredToken, clearStoredToken } from "./supabase";
+import { getStoredToken, clearStoredToken } from "./supabase";
 
 const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
@@ -253,11 +253,17 @@ async function currentUser(): Promise<AnyRow | null> {
   );
   const row = rows[0];
   if (!row) return null;
+  if (row.is_active === false) return null;
+
+  let department = "";
+  const profile = (await rest<AnyRow[]>(
+    `/employee_profiles?select=org_id,employment_status&employee_id=eq.${row.id}&limit=1`,
+  ).catch(() => []))[0];
+  const employmentStatus = String(profile?.employment_status || "active").toLowerCase();
+  if (["terminated", "inactive", "resigned", "离职", "已离职"].includes(employmentStatus)) return null;
+
   const roles = await rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`);
-  let department: string;
   try {
-    const profiles = await rest<AnyRow[]>(`/employee_profiles?select=org_id&employee_id=eq.${row.id}&limit=1`);
-    const profile = profiles[0];
     const orgRows = profile?.org_id
       ? await rest<AnyRow[]>(`/organizations?select=org_name&id=eq.${profile.org_id}&limit=1`)
       : [];
@@ -267,6 +273,7 @@ async function currentUser(): Promise<AnyRow | null> {
   }
   const roleRow = roles[0];
   const permissions = roleRow?.role ? await currentUserPermissions(roleRow.role) : {};
+  const sidebarOrder = roleRow?.role ? await currentUserSidebarOrder(roleRow.role) : {};
   return {
     id: Number(row.id),
     name: row.name,
@@ -274,6 +281,7 @@ async function currentUser(): Promise<AnyRow | null> {
     department,
     is_active: row.is_active ? 1 : 0,
     permissions,
+    sidebarOrder,
   };
 }
 
@@ -282,6 +290,24 @@ async function currentUserPermissions(role: string): Promise<Record<string, stri
     `/role_permissions?select=resource_key,access_level&role_key=eq.${encodeURIComponent(role)}`,
   ).catch(() => []);
   return Object.fromEntries(rows.map((row) => [String(row.resource_key), String(row.access_level || "none")]));
+}
+
+async function currentUserSidebarOrder(role: string): Promise<Record<string, number>> {
+  const [permissions, resources] = await Promise.all([
+    rest<AnyRow[]>(
+      `/role_permissions?select=resource_key,sidebar_order&role_key=eq.${encodeURIComponent(role)}`,
+    ).catch(() => []),
+    rest<AnyRow[]>(
+      "/permission_resources?select=resource_key,sort_order&resource_group=eq.sidebar&is_active=eq.true",
+    ).catch(() => []),
+  ]);
+  const fallbackOrder = new Map(resources.map((resource) => [String(resource.resource_key), Number(resource.sort_order || 0)]));
+  return Object.fromEntries(permissions
+    .filter((row) => fallbackOrder.has(String(row.resource_key)))
+    .map((row) => [
+      String(row.resource_key),
+      Number(row.sidebar_order ?? fallbackOrder.get(String(row.resource_key)) ?? 0),
+    ]));
 }
 
 async function isAdmin(): Promise<boolean> {
@@ -371,6 +397,7 @@ async function permissionConfig(): Promise<AnyRow> {
       role_key: permission.role_key,
       resource_key: permission.resource_key,
       access_level: permission.access_level || "none",
+      sidebar_order: Number(permission.sidebar_order ?? 0),
     })),
   };
 }
@@ -381,17 +408,33 @@ async function savePermissionConfig(body: AnyRow): Promise<AnyRow> {
   if (!roleKey) throw new Error("Role key is required");
   for (const item of updates) {
     const resourceKey = String(item.resourceKey || item.resource_key || "");
+    const hasAccessLevel = item.accessLevel != null || item.access_level != null;
     const accessLevel = String(item.accessLevel || item.access_level || "none");
-    if (!resourceKey || !["none", "read", "write"].includes(accessLevel)) continue;
+    const hasSidebarOrder = item.sidebarOrder != null || item.sidebar_order != null;
+    const sidebarOrder = Number(item.sidebarOrder ?? item.sidebar_order ?? 0);
+    if (!resourceKey) continue;
     try {
-      await rest("/rpc/psa_save_role_permission", {
-        method: "POST",
-        body: JSON.stringify({
-          p_role_key: roleKey,
-          p_resource_key: resourceKey,
-          p_access_level: accessLevel,
-        }),
-      });
+      if (hasAccessLevel) {
+        if (!["none", "read", "write"].includes(accessLevel)) continue;
+        await rest("/rpc/psa_save_role_permission", {
+          method: "POST",
+          body: JSON.stringify({
+            p_role_key: roleKey,
+            p_resource_key: resourceKey,
+            p_access_level: accessLevel,
+          }),
+        });
+      }
+      if (hasSidebarOrder) {
+        await rest("/rpc/psa_save_role_sidebar_order", {
+          method: "POST",
+          body: JSON.stringify({
+            p_role_key: roleKey,
+            p_resource_key: resourceKey,
+            p_sidebar_order: sidebarOrder,
+          }),
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown permission save error";
       throw new Error(`Permission save failed for ${roleKey}/${resourceKey}: ${message}`);
@@ -1258,19 +1301,6 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
 async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   const url = new URL(path, window.location.origin);
   const body = payload(options);
-  if (url.pathname === "/api/login") {
-    const resp = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login: body.login, password: body.password }),
-    });
-    const data = await resp.json();
-    if (!resp.ok || !data.ok) {
-      throw new Error(data.message || "Invalid login credentials");
-    }
-    setStoredToken(data.token);
-    return { ok: true, token: data.token } as T;
-  }
   if (url.pathname === "/api/logout") {
     clearStoredToken();
     return { ok: true } as T;
@@ -1297,7 +1327,7 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/bootstrap") {
     const user = await currentUser();
     const projectRows = user ? await projects().catch(() => []) : [];
-    return { currentUser: user, permissions: user?.permissions || {}, users: [], projects: projectRows, currentWeek: todayMonday(), dbRecommendation: "Supabase PostgREST" } as T;
+    return { currentUser: user, permissions: user?.permissions || {}, sidebarOrder: user?.sidebarOrder || {}, users: [], projects: projectRows, currentWeek: todayMonday(), dbRecommendation: "Supabase PostgREST" } as T;
   }
   if (url.pathname === "/api/organizations") return organizations() as T;
   if (url.pathname === "/api/employees") return listEmployees() as T;

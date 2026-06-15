@@ -43,6 +43,7 @@ export interface RolePermission {
   role_key: PlatformRole;
   resource_key: string;
   access_level: "none" | "read" | "write";
+  sidebar_order?: number;
 }
 
 export interface PermissionConfig {

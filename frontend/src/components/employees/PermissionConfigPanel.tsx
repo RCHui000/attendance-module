@@ -1,11 +1,18 @@
 import { useMemo, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { GripVertical, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermissionConfig, useSavePermissionConfig } from "@/hooks/useEmployees";
+import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import type { PermissionAccess } from "@/types/auth";
+import type { PermissionResource } from "@/types/employee";
 import { toast } from "sonner";
+
+type PermissionListItem = PermissionResource & {
+  displayGroup: "sidebar" | "employee_org";
+  displayName?: string;
+};
 
 const accessText: Record<PermissionAccess, string> = {
   none: "不可见",
@@ -38,9 +45,11 @@ interface PermissionConfigPanelProps {
 export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) {
   const { data, isLoading, isError } = usePermissionConfig();
   const saveConfig = useSavePermissionConfig();
+  const { user, sidebarOrder, setSidebarOrder } = useAuthStore();
   const roles = data?.roles || [];
   const resources = data?.resources || [];
   const [selectedRole, setSelectedRole] = useState("");
+  const [draggingResourceKey, setDraggingResourceKey] = useState<string | null>(null);
   const activeRole = selectedRole || roles[0]?.role_key || "";
 
   const matrix = useMemo(() => {
@@ -51,14 +60,43 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
     return map;
   }, [data?.permissions]);
 
+  const permissionDetails = useMemo(() => {
+    const map = new Map<string, { accessLevel: PermissionAccess; sidebarOrder: number }>();
+    for (const permission of data?.permissions || []) {
+      map.set(`${permission.role_key}:${permission.resource_key}`, {
+        accessLevel: permission.access_level,
+        sidebarOrder: Number(permission.sidebar_order || 0),
+      });
+    }
+    return map;
+  }, [data?.permissions]);
+
+  const sidebarResources = useMemo(
+    () =>
+      resources
+        .filter((resource) => resource.resource_group === "sidebar")
+        .sort((a, b) => sidebarSortOrder(activeRole, a, permissionDetails) - sidebarSortOrder(activeRole, b, permissionDetails)),
+    [activeRole, permissionDetails, resources],
+  );
+
   const groupedResources = useMemo(() => {
-    const groups = new Map<string, typeof resources>();
-    for (const resource of resources) {
-      const group = resource.resource_group === "employee_org" ? "员工与组织" : "侧边栏";
+    const employeeOrgResources: PermissionListItem[] = [
+      ...resources
+        .filter((resource) => resource.resource_group === "employee_org")
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((resource) => ({ ...resource, displayGroup: "employee_org" as const })),
+    ];
+    const orderedResources: PermissionListItem[] = [
+      ...employeeOrgResources,
+      ...sidebarResources.map((resource) => ({ ...resource, displayGroup: "sidebar" as const })),
+    ];
+    const groups = new Map<string, typeof orderedResources>();
+    for (const resource of orderedResources) {
+      const group = resource.displayGroup === "employee_org" ? "员工与组织架构" : "侧边栏";
       groups.set(group, [...(groups.get(group) || []), resource]);
     }
     return Array.from(groups.entries());
-  }, [resources]);
+  }, [resources, sidebarResources]);
 
   const setAccess = async (resourceKey: string, accessLevel: PermissionAccess) => {
     if (!canWrite || !activeRole || saveConfig.isPending) return;
@@ -71,6 +109,38 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
     } catch (error) {
       toast.error(errorMessage(error));
     }
+  };
+
+  const saveSidebarOrder = async (orderedItems: PermissionResource[]) => {
+    if (!canWrite || !activeRole || saveConfig.isPending) return;
+    const permissions = orderedItems.map((resource, index) => ({
+      resourceKey: resource.resource_key,
+      sidebarOrder: (index + 1) * 10,
+    }));
+    try {
+      await saveConfig.mutateAsync({ roleKey: activeRole, permissions });
+      if (user?.role === activeRole) {
+        setSidebarOrder({
+          ...sidebarOrder,
+          ...Object.fromEntries(permissions.map((item) => [item.resourceKey, item.sidebarOrder])),
+        });
+      }
+      toast.success("侧边栏排序已保存");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+
+  const moveSidebarResource = (targetResourceKey: string) => {
+    if (!draggingResourceKey || draggingResourceKey === targetResourceKey) return;
+    const fromIndex = sidebarResources.findIndex((resource) => resource.resource_key === draggingResourceKey);
+    const toIndex = sidebarResources.findIndex((resource) => resource.resource_key === targetResourceKey);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...sidebarResources];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setDraggingResourceKey(null);
+    void saveSidebarOrder(next);
   };
 
   if (isLoading) return <div className="py-10 text-sm text-muted-foreground">加载权限配置中…</div>;
@@ -120,13 +190,36 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
               <div className="grid gap-2">
                 {items.map((resource) => {
                   const value = matrix.get(`${activeRole}:${resource.resource_key}`) || "none";
+                  const isSidebarResource = resource.displayGroup === "sidebar";
+                  const canDrag = canWrite && isSidebarResource && !saveConfig.isPending;
                   return (
                     <div
-                      key={resource.resource_key}
-                      className="grid grid-cols-[1fr_120px_140px] items-center gap-3 rounded-md border border-border px-3 py-2 max-[720px]:grid-cols-1"
+                      key={`${resource.displayGroup}:${resource.resource_key}`}
+                      draggable={canDrag}
+                      onDragStart={() => canDrag && setDraggingResourceKey(resource.resource_key)}
+                      onDragOver={(event) => {
+                        if (canDrag && draggingResourceKey) event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (canDrag) moveSidebarResource(resource.resource_key);
+                      }}
+                      onDragEnd={() => setDraggingResourceKey(null)}
+                      className={cn(
+                        "grid grid-cols-[32px_1fr_120px_140px] items-center gap-3 rounded-md border border-border px-3 py-2 max-[720px]:grid-cols-1",
+                        canDrag && "cursor-grab",
+                        draggingResourceKey === resource.resource_key && "border-primary bg-primary/5 opacity-70",
+                      )}
                     >
+                      <div className="flex items-center justify-center text-muted-foreground">
+                        {isSidebarResource ? (
+                          <GripVertical className={cn("size-4", !canDrag && "opacity-40")} aria-hidden="true" />
+                        ) : (
+                          <span className="text-xs">-</span>
+                        )}
+                      </div>
                       <div>
-                        <div className="text-sm font-medium">{resource.resource_name}</div>
+                        <div className="text-sm font-medium">{resource.displayName || resource.resource_name}</div>
                         <div className="text-xs text-muted-foreground">{resource.resource_key}</div>
                       </div>
                       <Badge variant="outline" className={cn("w-fit rounded-pill", accessTone[value])}>
@@ -161,4 +254,12 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
       </section>
     </div>
   );
+}
+
+function sidebarSortOrder(
+  roleKey: string,
+  resource: PermissionResource,
+  permissionDetails: Map<string, { accessLevel: PermissionAccess; sidebarOrder: number }>,
+): number {
+  return permissionDetails.get(`${roleKey}:${resource.resource_key}`)?.sidebarOrder || resource.sort_order;
 }

@@ -6,7 +6,7 @@ Zustand stores hold local UI/session state that should not live in React Query.
 
 | File | State | Notes |
 | --- | --- | --- |
-| `authStore.ts` | Current user, auth loading state, resource permissions, login/logout/session check actions. | Uses `/api/login`, `/api/logout`, `/api/bootstrap`. |
+| `authStore.ts` | Current user, auth loading state, resource permissions, login/logout/session check actions. | Login uses Supabase Auth SDK; logout/bootstrap use `/api/logout` and `/api/bootstrap`. |
 | `appStore.ts` | Current week and UI-wide app state. | Shared by timesheet and approval views. |
 | `timesheetStore.ts` | Editable timesheet rows, OT placeholder rows, remark, dirty flag. | Initialized from server data; save payload is built in `TimesheetPage`. |
 

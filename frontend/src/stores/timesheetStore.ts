@@ -22,10 +22,17 @@ interface TimesheetState {
   updateProject: (rowIndex: number, projectId: number) => void;
   setRemark: (remark: string) => void;
   addRow: () => void;
+  ensureEmptyRow: (markDirty?: boolean) => void;
   removeRow: (rowIndex: number) => void;
   markClean: () => void;
   reset: () => void;
 }
+
+const createEmptyRow = (): TimesheetRow => ({
+  projectId: 0,
+  percents: {},
+  descriptions: {},
+});
 
 export const useTimesheetStore = create<TimesheetState>((set, get) => ({
   rows: [],
@@ -69,7 +76,12 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
       };
     }
 
-    set({ rows, overtime: overtimeRecord, remark, isDirty: false });
+    set({
+      rows: rows.length === 0 ? [createEmptyRow()] : rows,
+      overtime: overtimeRecord,
+      remark,
+      isDirty: false,
+    });
   },
 
   updatePercent: (rowIndex, day, value) => {
@@ -114,12 +126,16 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
   setRemark: (remark) => set({ remark, isDirty: true }),
 
   addRow: () => {
-    set({ rows: [...get().rows, { projectId: 0, percents: {}, descriptions: {} }], isDirty: true });
+    set({ rows: [...get().rows, createEmptyRow()], isDirty: true });
+  },
+
+  ensureEmptyRow: (markDirty = false) => {
+    set({ rows: [...get().rows, createEmptyRow()], isDirty: markDirty || get().isDirty });
   },
 
   removeRow: (rowIndex) => {
     const rows = get().rows.filter((_, i) => i !== rowIndex);
-    set({ rows: rows.length === 0 ? [{ projectId: 0, percents: {}, descriptions: {} }] : rows, isDirty: true });
+    set({ rows: rows.length === 0 ? [createEmptyRow()] : rows, isDirty: true });
   },
 
   markClean: () => set({ isDirty: false }),

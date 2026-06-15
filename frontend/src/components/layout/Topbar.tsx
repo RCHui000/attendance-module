@@ -22,16 +22,13 @@ export function Topbar() {
   const pageInfo = PAGE_TITLES[currentView] || PAGE_TITLES.timesheet;
 
   return (
-    <header className="flex items-start justify-between mb-8 max-[900px]:flex-col max-[900px]:gap-2">
+    <header className="flex items-start justify-between mb-4 max-[900px]:flex-col max-[900px]:gap-2">
       <div>
         {pageInfo.subtitle && (
           <span className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
             {pageInfo.subtitle}
           </span>
         )}
-        <h1 className="text-[32px] font-bold leading-[1.12] text-foreground mt-1">
-          {pageInfo.title}
-        </h1>
       </div>
 
       <div className="flex items-center gap-3">

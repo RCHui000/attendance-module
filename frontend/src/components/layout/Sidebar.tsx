@@ -13,23 +13,25 @@ import {
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { view: "timesheet", resource: "timesheet", label: "我的周表", icon: Calendar },
-  { view: "leave", resource: "leave", label: "请假申请", icon: CalendarX2 },
-  { view: "dashboard", resource: "dashboard", label: "数据看板", icon: LayoutDashboard },
-  { view: "review", resource: "review", label: "审批中心", icon: ClipboardCheck },
-  { view: "report", resource: "report", label: "项目列表", icon: FolderKanban },
-  { view: "employees", resource: "system_management", label: "员工与组织", icon: Users },
-  { view: "apps", resource: "apps", label: "应用中心", icon: Grid3X3 },
+  { id: "dashboard", order: 1, view: "dashboard", resource: "dashboard", label: "数据看板", icon: LayoutDashboard },
+  { id: "review", order: 2, view: "review", resource: "review", label: "审批中心", icon: ClipboardCheck },
+  { id: "timesheet", order: 3, view: "timesheet", resource: "timesheet", label: "我的周表", icon: Calendar },
+  { id: "leave", order: 4, view: "leave", resource: "leave", label: "请假申请", icon: CalendarX2 },
+  { id: "report", order: 5, view: "report", resource: "report", label: "项目列表", icon: FolderKanban },
+  { id: "employees", order: 6, view: "employees", resource: "system_management", label: "员工与组织", icon: Users },
+  { id: "apps", order: 7, view: "apps", resource: "apps", label: "应用中心", icon: Grid3X3 },
 ] as const;
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, canAccess } = useAuthStore();
+  const { user, canAccess, sidebarOrder } = useAuthStore();
 
   const currentView = location.pathname.replace("/", "") || "dashboard";
 
-  const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.resource));
+  const visibleItems = NAV_ITEMS
+    .filter((item) => canAccess(item.resource))
+    .sort((a, b) => (sidebarOrder[a.resource] || a.order) - (sidebarOrder[b.resource] || b.order));
 
   return (
     <aside className="sticky top-0 h-screen w-[232px] shrink-0 flex flex-col bg-sidebar-bg py-3 px-4 max-[900px]:w-full max-[900px]:h-auto">
@@ -57,7 +59,7 @@ export function Sidebar() {
           const Icon = item.icon;
           return (
           <button
-            key={item.view}
+            key={item.id}
             type="button"
             className={cn(
               "w-full flex items-center gap-1.5 px-3 py-2 rounded-md text-sm transition-colors duration-160",

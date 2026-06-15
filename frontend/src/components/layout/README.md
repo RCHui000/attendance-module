@@ -16,21 +16,21 @@ The layout module owns the application shell: navigation, branding, topbar conte
 
 `Sidebar.tsx` owns authenticated navigation. Current order is:
 
-1. 我的周表
-2. 请假申请
-3. 数据看板
-4. 审批中心
+1. 数据看板
+2. 审批中心
+3. 我的周表
+4. 请假申请
 5. 项目列表
 6. 员工与组织
 7. 应用中心
 
-Visibility is resolved from the platform RBAC matrix returned by `/api/bootstrap`. `Sidebar.tsx` checks these resource keys: `timesheet`, `leave`, `dashboard`, `review`, `report`, `system_management`, and `apps`. `应用中心` remains the last normal sidebar option, not a sticky footer item.
+Each item has a stable `id` and explicit numeric default `order`; rendering uses the current role's `sidebarOrder` from `/api/bootstrap` when configured, then falls back to the default order after permission filtering. Visibility is resolved from the platform RBAC matrix returned by `/api/bootstrap`. `Sidebar.tsx` checks these resource keys: `dashboard`, `review`, `timesheet`, `leave`, `report`, `system_management`, and `apps`. `应用中心` remains the last normal sidebar option, not a sticky footer item.
 
 ## API Calls
 
 | Caller | Endpoint | Method | Purpose |
 | --- | --- | --- | --- |
-| `authStore.login` | `/api/login` | POST | Login and store JWT. |
+| `authStore.login` | Supabase Auth SDK | n/a | Resolve login alias, call `signInWithPassword`, and store JWT. |
 | `authStore.logout` | `/api/logout` | POST | Clear token. |
 | password change UI | `/api/password/change` | POST | Change initial or existing password. |
 | `authStore.checkSession` | `/api/bootstrap` | GET | Resolve current user, role, resource permissions, projects, and current week. |

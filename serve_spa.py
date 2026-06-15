@@ -41,9 +41,6 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if self._proxy_supabase(): return
         super().do_HEAD()
     def do_POST(self) -> None:
-        if self.path == "/api/login":
-            self._handle_login()
-            return
         if self.path == "/api/create-employee-with-login":
             self._handle_create_employee()
             return
@@ -287,44 +284,36 @@ class SpaHandler(SimpleHTTPRequestHandler):
     def _q(s: str) -> str:
         return urllib.request.quote(str(s), safe="")
 
-    def _handle_login(self) -> None:
-        """POST /api/login {login, password}
-        Resolve login/profile/employee aliases server-side, then authenticate with GoTrue.
-        """
-        try:
-            length = int(self.headers.get("Content-Length", "0") or "0")
-            body = json.loads(self.rfile.read(length)) if length else {}
-            login = (body.get("login") or "").strip()
-            password = body.get("password") or ""
-            if not login or not password:
-                self._json_error(400, "login and password required"); return
+    def _assert_login_enabled(self, email: str) -> None:
+        profiles = self._rest_get(
+            f"/profiles?select=auth_user_id,is_active&auth_email=eq.{self._q(email)}&limit=1",
+        )
+        if not profiles:
+            return
+        profile = profiles[0]
+        if profile.get("is_active") is False:
+            raise PermissionError("账户已停用，请联系管理员")
 
-            email = self._login_to_email(login)
-            req_body = json.dumps({
-                "email": email,
-                "password": password,
-                "gotrue_meta_security": {},
-            }).encode()
-            req = urllib.request.Request(
-                f"{GOTRUE_URL}/token?grant_type=password",
-                data=req_body,
-                headers={"Content-Type": "application/json"},
-            )
-            resp = urllib.request.urlopen(req, timeout=10)
-            data = json.loads(resp.read())
+        auth_uid = profile.get("auth_user_id")
+        if not auth_uid:
+            raise PermissionError("账户未关联员工，请联系管理员")
 
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "ok": True,
-                "token": data.get("access_token"),
-            }).encode())
+        employees = self._rest_get(
+            f"/employees?select=id,is_active&auth_user_id=eq.{self._q(auth_uid)}&limit=1",
+        )
+        if not employees:
+            raise PermissionError("账户未关联员工，请联系管理员")
+        employee = employees[0]
+        if employee.get("is_active") is False:
+            raise PermissionError("账户已停用，请联系管理员")
 
-        except urllib.error.HTTPError as e:
-            self._json_error(e.code, "Invalid login credentials" if e.code == 400 else e.read().decode()[:200])
-        except Exception as e:
-            self._json_error(500, str(e))
+        employee_id = employee.get("id")
+        profile_rows = self._rest_get(
+            f"/employee_profiles?select=employment_status&employee_id=eq.{self._q(employee_id)}&limit=1",
+        )
+        employment_status = str((profile_rows[0] if profile_rows else {}).get("employment_status") or "active").strip().lower()
+        if employment_status in {"terminated", "inactive", "resigned", "离职", "已离职"}:
+            raise PermissionError("离职人员账户已关闭，请联系管理员")
 
     def _handle_change_password(self) -> None:
         """POST /api/change-password {oldPassword, newPassword}
@@ -429,8 +418,12 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"ok": False, "message": msg}).encode())
 
     def _proxy_supabase(self) -> bool:
+        if self.path.startswith("/auth/v1/"):
+            self._forward(SUPABASE_AUTH_URL, "/auth/v1"); return True
         if self.path.startswith("/auth/"):
             self._forward(SUPABASE_AUTH_URL, "/auth"); return True
+        if self.path.startswith("/rest/v1/"):
+            self._forward(SUPABASE_REST_URL, "/rest/v1"); return True
         if self.path.startswith("/rest/"):
             self._forward(SUPABASE_REST_URL, "/rest"); return True
         return False
@@ -442,6 +435,19 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if self.command not in {"GET", "HEAD", "OPTIONS"}:
             length = int(self.headers.get("Content-Length", "0") or "0")
             body = self.rfile.read(length) if length else None
+        if (
+            upstream == SUPABASE_AUTH_URL
+            and self.command == "POST"
+            and target_path.startswith("/token")
+            and "grant_type=password" in target_path
+        ):
+            try:
+                payload = json.loads(body.decode() if body else "{}")
+                email = (payload.get("email") or "").strip()
+                if email:
+                    self._assert_login_enabled(email)
+            except PermissionError as error:
+                self._json_error(403, str(error)); return
         headers = {
             key: value for key, value in self.headers.items()
             if key.lower() not in HOP_BY_HOP_HEADERS and key.lower() != "host"

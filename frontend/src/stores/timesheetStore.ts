@@ -62,6 +62,19 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
         row.descriptions[e.work_date] = e.description;
       }
     }
+    for (const projectStatus of projectStatuses || []) {
+      const projectId = Number(projectStatus.project_id);
+      if (!projectId || projectMap.has(projectId)) continue;
+      if (projectStatus.status !== "rejected") continue;
+      projectMap.set(projectId, {
+        projectId,
+        percents: {},
+        descriptions: {},
+        approvalStatus: projectStatus.status,
+        approvalRole: projectStatus.assignee_role,
+        approvedAt: projectStatus.completed_at,
+      });
+    }
     const rows = Array.from(projectMap.values());
 
     // Convert overtime array to record by date

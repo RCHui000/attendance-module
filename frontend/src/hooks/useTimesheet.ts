@@ -5,14 +5,12 @@ import type { Timesheet, SaveTimesheetPayload } from "@/types/timesheet";
 
 export function useTimesheet(
   weekStart: string,
-  options: { pauseRealtime?: boolean } = {},
 ) {
   return useQuery({
     queryKey: ["timesheet", weekStart],
     queryFn: () =>
       api<Timesheet>(`/api/timesheet?weekStart=${weekStart}`),
     enabled: !!weekStart,
-    refetchInterval: options.pauseRealtime ? false : 15_000,
   });
 }
 

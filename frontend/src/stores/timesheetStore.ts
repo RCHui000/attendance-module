@@ -23,6 +23,7 @@ interface TimesheetState {
   setRemark: (remark: string) => void;
   addRow: () => void;
   ensureEmptyRow: (markDirty?: boolean) => void;
+  ensureDraftProjectRow: () => void;
   removeRow: (rowIndex: number) => void;
   markClean: () => void;
   reset: () => void;
@@ -147,6 +148,14 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
 
   ensureEmptyRow: (markDirty = false) => {
     set({ rows: [...get().rows, createEmptyRow()], isDirty: markDirty || get().isDirty });
+  },
+
+  ensureDraftProjectRow: () => {
+    const rows = get().rows;
+    const hasDraftProjectRow = rows.some((row) => !row.projectId && !row.approvalStatus);
+    if (!hasDraftProjectRow) {
+      set({ rows: [...rows, createEmptyRow()], isDirty: get().isDirty });
+    }
   },
 
   removeRow: (rowIndex) => {

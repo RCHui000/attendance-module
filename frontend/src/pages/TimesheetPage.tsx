@@ -60,9 +60,7 @@ export default function TimesheetPage() {
   const { user } = useAuthStore();
   const store = useTimesheetStore();
 
-  const { data: timesheet, isLoading, refetch } = useTimesheet(currentWeek, {
-    pauseRealtime: store.isDirty,
-  });
+  const { data: timesheet, isLoading, refetch } = useTimesheet(currentWeek);
 
   // Fetch projects for the dropdown
   const { data: projectList } = useQuery<ProjectBrief[]>({
@@ -134,6 +132,13 @@ export default function TimesheetPage() {
   const status = timesheet?.status || "draft";
   const isLocked = ["approved", "locked", "summarized"].includes(status);
   const hasRejectedProject = store.rows.some((row) => row.approvalStatus === "rejected");
+  const shouldShowDraftProjectRow =
+    !isLocked && ["draft", "rejected", "revision_required"].includes(status);
+
+  useEffect(() => {
+    if (!timesheet || !shouldShowDraftProjectRow) return;
+    store.ensureDraftProjectRow();
+  }, [timesheet?.id, shouldShowDraftProjectRow, store.rows.length]);
 
   const handleEditComplete = useCallback(() => {
     if (isLocked) return;

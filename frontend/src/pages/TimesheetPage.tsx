@@ -21,7 +21,6 @@ import {
   buildWarnings,
   dayPercent,
   formatWorkdays,
-  FULL_ATTENDANCE_WEEK_WORKDAYS,
   hasBlockingError,
   weekWorkdays,
 } from "@/utils/validation";
@@ -104,6 +103,10 @@ export default function TimesheetPage() {
     () => weekWorkdays(store.rows, weekDays),
     [store.rows, weekDays],
   );
+  const hasPartialFilledDay = useMemo(
+    () => weekDays.some((day) => dayTotals[day] > 0 && dayTotals[day] < 100),
+    [dayTotals, weekDays],
+  );
 
   const status = timesheet?.status || "draft";
   const isLocked = ["approved", "locked", "summarized"].includes(status);
@@ -111,7 +114,7 @@ export default function TimesheetPage() {
 
   useEffect(() => {
     if (isLocked || status === "submitted") return;
-    if (weekWorkdaysVal < FULL_ATTENDANCE_WEEK_WORKDAYS) return;
+    if (!hasPartialFilledDay) return;
 
     const hasAvailableEmptyRow = store.rows.some((row) => {
       const hasWorkdays = weekDays.some((day) => (row.percents[day] || 0) > 0);
@@ -125,7 +128,7 @@ export default function TimesheetPage() {
     if (!hasAvailableEmptyRow) {
       store.ensureEmptyRow(store.isDirty);
     }
-  }, [isLocked, status, store.rows, store.isDirty, weekDays, weekWorkdaysVal]);
+  }, [hasPartialFilledDay, isLocked, status, store.rows, store.isDirty, weekDays]);
 
   const buildPayload = (): SaveTimesheetPayload => {
     const entries = store.rows.flatMap((row) =>

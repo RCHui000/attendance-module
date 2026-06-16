@@ -357,8 +357,8 @@ function ProjectPicker({
           role="combobox"
           aria-expanded={open}
           aria-haspopup="listbox"
-          title={selectedLabel || "\u8f93\u5165\u5173\u952e\u5b57\u4ee5\u641c\u7d22"}
-          placeholder="\u8f93\u5165\u5173\u952e\u5b57\u4ee5\u641c\u7d22"
+          title={selectedLabel || "<输入关键字检索>"}
+          placeholder="<输入关键字检索>"
           className="h-8 pr-8 pl-8 text-sm"
         />
         <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -443,7 +443,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                 {"\u5468\u5408\u8ba1"}
               </th>
               <th className="w-[100px] p-1.5 text-center text-xs font-bold text-muted-foreground">
-                {"\u5907\u6ce8"}
+                备注
               </th>
             </tr>
           </thead>
@@ -525,7 +525,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                         if (event.key === "Enter" || event.key === "Tab") onEditComplete();
                       }}
                       disabled={rowLocked}
-                      placeholder="\u5907\u6ce8"
+                      placeholder="备注"
                     />
                   </td>
                 </tr>

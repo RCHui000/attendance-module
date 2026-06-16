@@ -42,6 +42,15 @@ function hasWorkIntentSlot(row: TimesheetRow, weekDays: string[]): boolean {
   return row.projectId === 0 || !hasWorkdays;
 }
 
+function needsWorkIntentSlot(rows: TimesheetRow[], weekDays: string[]): boolean {
+  const partialDays = weekDays.filter((day) => {
+    const total = dayPercent(rows, day);
+    return total > 0 && total < 100;
+  });
+  if (partialDays.length === 0) return false;
+  return !rows.some((row) => hasWorkIntentSlot(row, weekDays));
+}
+
 export default function TimesheetPage() {
   const { currentWeek, setCurrentWeek } = useAppStore();
   const { user } = useAuthStore();
@@ -122,17 +131,11 @@ export default function TimesheetPage() {
   const hasRejectedProject = store.rows.some((row) => row.approvalStatus === "rejected");
 
   const handleEditComplete = useCallback(() => {
-    if (isLocked || status === "submitted") return;
+    if (isLocked) return;
+    if (status === "submitted" && !hasRejectedProject) return;
     const rows = useTimesheetStore.getState().rows;
-    const totals: Record<string, number> = {};
-    for (const day of weekDays) totals[day] = dayPercent(rows, day);
-    const hasPartialFilledDay = weekDays.some((day) => totals[day] > 0 && totals[day] < 100);
-    if (!hasPartialFilledDay) return;
-
-    const hasAvailableIntentSlot = rows.some((row) => hasWorkIntentSlot(row, weekDays));
-
-    if (!hasAvailableIntentSlot) store.ensureEmptyRow(store.isDirty);
-  }, [isLocked, status, store, store.isDirty, weekDays]);
+    if (needsWorkIntentSlot(rows, weekDays)) store.ensureEmptyRow(store.isDirty);
+  }, [hasRejectedProject, isLocked, status, store, store.isDirty, weekDays]);
 
   const buildPayload = (): SaveTimesheetPayload => {
     const entries = store.rows.flatMap((row) =>

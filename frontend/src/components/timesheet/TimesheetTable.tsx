@@ -453,13 +453,17 @@ export const TimesheetTable = memo(function TimesheetTable({
                 (s, d) => s + (row.percents[d] || 0) / 100,
                 0,
               );
+              const isIntentPlaceholder =
+                !row.approvalStatus &&
+                !row.projectId &&
+                weekDays.every((day) => (row.percents[day] || 0) === 0);
               const rowLocked =
                 isLocked ||
                 row.approvalStatus === "approved" ||
                 row.approvalStatus === "summary_pending" ||
                 row.approvalStatus === "pending" ||
-                (status === "submitted" && row.approvalStatus !== "rejected");
-              const canRemoveRow = !rowLocked && status !== "submitted";
+                (status === "submitted" && row.approvalStatus !== "rejected" && !isIntentPlaceholder);
+              const canRemoveRow = !rowLocked && (status !== "submitted" || isIntentPlaceholder);
               return (
                 <tr key={ri} className="border-b border-border/50 hover:bg-row-hover">
                   <td className="sticky left-0 bg-white p-1.5 z-[5]">

@@ -32,6 +32,7 @@ interface TimesheetTableProps {
   onUpdateOvertime: (day: string, hours: number) => void;
   onUpdateDescription: (rowIndex: number, day: string, value: string) => void;
   onUpdateProject: (rowIndex: number, projectId: number) => void;
+  onEditComplete: () => void;
   onAddRow: () => void;
   onRemoveRow: (rowIndex: number) => void;
 }
@@ -39,11 +40,13 @@ interface TimesheetTableProps {
 function PercentCell({
   value,
   onChange,
+  onCommit,
   locked,
   invalid,
 }: {
   value: number;
   onChange: (v: number) => void;
+  onCommit: () => void;
   locked: boolean;
   invalid: boolean;
 }) {
@@ -53,6 +56,12 @@ function PercentCell({
       onChange(Math.max(0, Math.min(100, v)));
     },
     [onChange],
+  );
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter" || event.key === "Tab") onCommit();
+    },
+    [onCommit],
   );
 
   return (
@@ -68,6 +77,8 @@ function PercentCell({
         )}
         value={value || ""}
         onChange={handleChange}
+        onBlur={onCommit}
+        onKeyDown={handleKeyDown}
         disabled={locked}
         placeholder="0"
       />
@@ -100,27 +111,27 @@ function RowApprovalStatus({
 }) {
   const config = {
     approved: {
-      label: "已批准",
+      label: "\u5df2\u6279\u51c6",
       icon: CheckCircle2,
       className: "text-status-approved-text bg-status-approved-bg",
     },
     summary_pending: {
-      label: "待汇总",
+      label: "\u5f85\u6c47\u603b",
       icon: CheckCircle2,
       className: "text-status-approved-text bg-status-approved-bg",
     },
     pending: {
-      label: "审批中",
+      label: "\u5ba1\u6279\u4e2d",
       icon: Clock3,
       className: "text-primary bg-primary/10",
     },
     rejected: {
-      label: "已退回",
+      label: "\u5df2\u9000\u56de",
       icon: XCircle,
       className: "text-destructive bg-destructive/10",
     },
     draft: {
-      label: "草稿",
+      label: "\u8349\u7a3f",
       icon: Circle,
       className: "text-muted-foreground bg-muted",
     },
@@ -146,15 +157,17 @@ function ProjectPicker({
   value,
   disabled,
   onChange,
+  onCommit,
 }: {
   projects: ProjectBrief[];
   value?: number | null;
   disabled: boolean;
   onChange: (projectId: number) => void;
+  onCommit: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
   const [popupStyle, setPopupStyle] = useState({
     top: 0,
@@ -162,6 +175,7 @@ function ProjectPicker({
     width: 320,
   });
   const selected = projects.find((project) => project.id === value);
+  const selectedLabel = selected ? `${selected.code} - ${selected.name}` : "";
   const normalizedQuery = query.trim().toLowerCase();
   const filteredProjects = useMemo(() => {
     if (!normalizedQuery) return projects;
@@ -172,9 +186,9 @@ function ProjectPicker({
   }, [normalizedQuery, projects]);
 
   const updatePopupPosition = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
+    const input = inputRef.current;
+    if (!input) return;
+    const rect = input.getBoundingClientRect();
     const viewportPadding = 8;
     const width = Math.max(rect.width, 320);
     const left = Math.min(
@@ -188,23 +202,31 @@ function ProjectPicker({
     });
   }, []);
 
+  const handleCommit = useCallback(() => {
+    setQuery(selectedLabel);
+    onCommit();
+  }, [onCommit, selectedLabel]);
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
       if (nextOpen) {
-        setQuery("");
+        setQuery(selectedLabel);
         requestAnimationFrame(updatePopupPosition);
       }
     },
-    [updatePopupPosition],
+    [selectedLabel, updatePopupPosition],
   );
 
   const handleSelect = useCallback(
     (projectId: number) => {
+      const project = projects.find((item) => item.id === projectId);
       onChange(projectId);
+      setQuery(project ? `${project.code} - ${project.name}` : "");
       setOpen(false);
+      requestAnimationFrame(onCommit);
     },
-    [onChange],
+    [onChange, onCommit, projects],
   );
 
   useEffect(() => {
@@ -212,17 +234,18 @@ function ProjectPicker({
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (
-        triggerRef.current?.contains(target) ||
-        popupRef.current?.contains(target)
-      ) {
+      if (inputRef.current?.contains(target) || popupRef.current?.contains(target)) {
         return;
       }
       setOpen(false);
+      handleCommit();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        setQuery(selectedLabel);
+      }
     };
 
     updatePopupPosition();
@@ -237,7 +260,7 @@ function ProjectPicker({
       window.removeEventListener("resize", updatePopupPosition);
       window.removeEventListener("scroll", updatePopupPosition, true);
     };
-  }, [open, updatePopupPosition]);
+  }, [handleCommit, open, selectedLabel, updatePopupPosition]);
 
   const popup = open
     ? createPortal(
@@ -250,23 +273,10 @@ function ProjectPicker({
             width: popupStyle.width,
           }}
         >
-          <div className="border-b border-border p-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索项目编号或名称"
-                className="h-8 pl-8 text-sm"
-                autoFocus
-              />
-            </div>
-          </div>
-
           <div className="max-h-64 overflow-y-auto p-1" role="listbox">
             {filteredProjects.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                没有匹配项目
+                {"\u6ca1\u6709\u5339\u914d\u9879\u76ee"}
               </div>
             ) : (
               filteredProjects.map((project) => {
@@ -282,20 +292,21 @@ function ProjectPicker({
                       active && "bg-[#dbeafe] text-[#1e3a8a]",
                     )}
                     title={`${project.code} - ${project.name}`}
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => handleSelect(project.id)}
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">
                         {project.code}
                       </span>
-                        <span
-                          className={cn(
-                            "block truncate text-xs text-muted-foreground",
-                            active && "text-[#1e40af]",
-                          )}
-                        >
-                          {project.name}
-                        </span>
+                      <span
+                        className={cn(
+                          "block truncate text-xs text-muted-foreground",
+                          active && "text-[#1e40af]",
+                        )}
+                      >
+                        {project.name}
+                      </span>
                     </span>
                     <Check
                       className={cn(
@@ -315,32 +326,47 @@ function ProjectPicker({
 
   return (
     <>
-      <Button
-        ref={triggerRef}
-        type="button"
-        variant="outline"
-        className="h-8 flex-1 min-w-0 justify-between px-2 text-left font-normal"
-        disabled={disabled}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        title={selected ? `${selected.code} - ${selected.name}` : "选择项目"}
-        onClick={() => handleOpenChange(!open)}
-      >
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate",
-            !selected && "text-muted-foreground",
-          )}
-        >
-          {selected ? `${selected.code} - ${selected.name}` : "选择项目"}
-        </span>
-        <ChevronDown className="size-4 text-muted-foreground" />
-      </Button>
+      <div className="relative flex-1 min-w-0">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          ref={inputRef}
+          value={open ? query : selectedLabel}
+          onFocus={() => handleOpenChange(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            if (!open) setOpen(true);
+          }}
+          onBlur={() => {
+            window.setTimeout(() => {
+              if (!popupRef.current?.matches(":hover")) handleCommit();
+            }, 0);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === "Tab") {
+              const first = filteredProjects[0];
+              if (first && open && query.trim()) {
+                event.preventDefault();
+                handleSelect(first.id);
+              } else {
+                setOpen(false);
+                handleCommit();
+              }
+            }
+          }}
+          disabled={disabled}
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          title={selectedLabel || "\u9009\u62e9\u9879\u76ee"}
+          placeholder="\u641c\u7d22\u9879\u76ee"
+          className="h-8 pr-8 pl-8 text-sm"
+        />
+        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      </div>
       {popup}
     </>
   );
 }
-
 function DayHeader({ day, index }: { day: string; index: number }) {
   const date = new Date(day);
   const dayOfWeek = date.getDay();
@@ -385,6 +411,7 @@ export const TimesheetTable = memo(function TimesheetTable({
   onUpdateOvertime,
   onUpdateDescription,
   onUpdateProject,
+  onEditComplete,
   onAddRow,
   onRemoveRow,
 }: TimesheetTableProps) {
@@ -396,14 +423,14 @@ export const TimesheetTable = memo(function TimesheetTable({
           <thead>
             <tr className="bg-table-header border-b border-border">
               <th className="sticky left-0 bg-table-header z-10 w-[260px] min-w-[240px] p-1.5 text-left text-xs font-bold text-muted-foreground">
-                项目
+                {"\u9879\u76ee"}
                 {canAddRow && (
                   <Button
                     size="sm"
                     variant="ghost"
                     className="ml-1 size-8 p-0"
                     onClick={onAddRow}
-                    title="添加项目"
+                    title="\u6dfb\u52a0\u9879\u76ee"
                   >
                     <Plus className="size-4" />
                   </Button>
@@ -413,10 +440,10 @@ export const TimesheetTable = memo(function TimesheetTable({
                 <DayHeader key={day} day={day} index={i} />
               ))}
               <th className="w-[70px] p-1.5 text-center text-xs font-bold text-muted-foreground">
-                周合计
+                {"\u5468\u5408\u8ba1"}
               </th>
               <th className="w-[100px] p-1.5 text-center text-xs font-bold text-muted-foreground">
-                备注
+                {"\u5907\u6ce8"}
               </th>
             </tr>
           </thead>
@@ -443,6 +470,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                         value={row.projectId}
                         disabled={rowLocked}
                         onChange={(projectId) => onUpdateProject(ri, projectId)}
+                        onCommit={onEditComplete}
                       />
                       {canRemoveRow && (
                         <Button
@@ -462,6 +490,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                       <PercentCell
                         value={row.percents[day] || 0}
                         onChange={(v) => onUpdatePercent(ri, day, v)}
+                        onCommit={onEditComplete}
                         locked={rowLocked}
                         invalid={dayTotals[day] > 100}
                       />
@@ -491,8 +520,12 @@ export const TimesheetTable = memo(function TimesheetTable({
                       onChange={(e) =>
                         onUpdateDescription(ri, "__row", e.target.value)
                       }
+                      onBlur={onEditComplete}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === "Tab") onEditComplete();
+                      }}
                       disabled={rowLocked}
-                      placeholder="备注"
+                      placeholder="\u5907\u6ce8"
                     />
                   </td>
                 </tr>
@@ -501,7 +534,7 @@ export const TimesheetTable = memo(function TimesheetTable({
 
             <tr className="border-t-2 border-border bg-[#fafafa]">
               <td className="sticky left-0 bg-[#fafafa] p-1.5 text-sm font-bold text-muted-foreground z-[5]">
-                每日合计
+                {"\u6bcf\u65e5\u5408\u8ba1"}
               </td>
               {weekDays.map((day) => (
                 <td key={day} className="p-1.5 text-center">
@@ -533,7 +566,7 @@ export const TimesheetTable = memo(function TimesheetTable({
 
             <tr className="border-b border-border/50">
               <td className="sticky left-0 bg-white p-1.5 text-sm font-bold text-warning z-[5]">
-                加班 OT（预留）
+                {"\u52a0\u73ed OT\uff08\u9884\u7559\uff09"}
               </td>
               {weekDays.map((day) => (
                 <td key={day} className="p-1.5">
@@ -548,7 +581,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                       onUpdateOvertime(day, parseFloat(e.target.value) || 0);
                     }}
                     disabled
-                    title="OT 功能预留，当前公司按普通出勤工时统计"
+                    title="\u52a0\u73ed\u8bb0\u5f55\u6682\u4e0d\u652f\u6301\u5728\u9879\u76ee\u5757\u4e2d\u7f16\u8f91"
                     placeholder="0"
                   />
                 </td>

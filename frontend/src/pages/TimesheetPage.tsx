@@ -103,20 +103,19 @@ export default function TimesheetPage() {
     () => weekWorkdays(store.rows, weekDays),
     [store.rows, weekDays],
   );
-  const hasPartialFilledDay = useMemo(
-    () => weekDays.some((day) => dayTotals[day] > 0 && dayTotals[day] < 100),
-    [dayTotals, weekDays],
-  );
-
   const status = timesheet?.status || "draft";
   const isLocked = ["approved", "locked", "summarized"].includes(status);
   const hasRejectedProject = store.rows.some((row) => row.approvalStatus === "rejected");
 
-  useEffect(() => {
+  const handleEditComplete = useCallback(() => {
     if (isLocked || status === "submitted") return;
+    const rows = useTimesheetStore.getState().rows;
+    const totals: Record<string, number> = {};
+    for (const day of weekDays) totals[day] = dayPercent(rows, day);
+    const hasPartialFilledDay = weekDays.some((day) => totals[day] > 0 && totals[day] < 100);
     if (!hasPartialFilledDay) return;
 
-    const hasAvailableEmptyRow = store.rows.some((row) => {
+    const hasAvailableEmptyRow = rows.some((row) => {
       const hasWorkdays = weekDays.some((day) => (row.percents[day] || 0) > 0);
       const rowLocked =
         row.approvalStatus === "approved" ||
@@ -125,10 +124,8 @@ export default function TimesheetPage() {
       return !rowLocked && row.projectId === 0 && !hasWorkdays;
     });
 
-    if (!hasAvailableEmptyRow) {
-      store.ensureEmptyRow(store.isDirty);
-    }
-  }, [hasPartialFilledDay, isLocked, status, store.rows, store.isDirty, weekDays]);
+    if (!hasAvailableEmptyRow) store.ensureEmptyRow(store.isDirty);
+  }, [isLocked, status, store, store.isDirty, weekDays]);
 
   const buildPayload = (): SaveTimesheetPayload => {
     const entries = store.rows.flatMap((row) =>
@@ -275,6 +272,7 @@ export default function TimesheetPage() {
         onUpdateOvertime={store.updateOvertime}
         onUpdateDescription={(ri, d, v) => store.updateDescription(ri, d, v)}
         onUpdateProject={store.updateProject}
+        onEditComplete={handleEditComplete}
         onAddRow={store.addRow}
         onRemoveRow={store.removeRow}
       />

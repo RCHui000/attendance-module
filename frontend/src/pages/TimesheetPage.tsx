@@ -16,7 +16,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { statusText } from "@/lib/constants";
-import { getTimesheetPeriodDays, getTimesheetPeriodEnd } from "@/utils/dates";
+import {
+  getTimesheetDisplayWeekDays,
+  getTimesheetPeriodDays,
+  getTimesheetPeriodEnd,
+} from "@/utils/dates";
 import {
   buildWarnings,
   dayPercent,
@@ -71,6 +75,7 @@ export default function TimesheetPage() {
   const submitMutation = useSubmitTimesheet();
 
   const weekDays = useMemo(() => getTimesheetPeriodDays(currentWeek), [currentWeek]);
+  const displayWeekDays = useMemo(() => getTimesheetDisplayWeekDays(currentWeek), [currentWeek]);
   const serverRevisionKey = useMemo(() => {
     if (!timesheet) return "empty";
     const projectStatuses = (timesheet.project_statuses || [])
@@ -273,7 +278,8 @@ export default function TimesheetPage() {
       <TimesheetTable
         rows={store.rows}
         overtime={store.overtime}
-        weekDays={weekDays}
+        weekDays={displayWeekDays}
+        activeDays={weekDays}
         projects={projectList || []}
         status={status}
         isLocked={isLocked}

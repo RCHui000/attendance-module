@@ -1,4 +1,6 @@
 import type { TimesheetRow, OvertimeStore } from "@/types/timesheet";
+import { holidayInfo } from "@/lib/constants";
+import { parseLocalDate } from "@/utils/dates";
 
 export const FULL_ATTENDANCE_WEEK_WORKDAYS = 6;
 export const MAX_REGULAR_WEEK_WORKDAYS = 7;
@@ -45,13 +47,23 @@ export function weekOvertime(
   return days.reduce((sum, d) => sum + (overtime[d]?.hours || 0), 0);
 }
 
+export function regularWorkdayCapacity(days: string[]): number {
+  return days.reduce((sum, day) => {
+    const info = holidayInfo[day];
+    if (info?.type === "rest") return sum;
+    if (info?.type === "work") return sum + 1;
+    return parseLocalDate(day).getDay() === 0 ? sum : sum + 1;
+  }, 0);
+}
+
 export function hasBlockingError(
   rows: TimesheetRow[],
   days: string[],
 ): boolean {
+  const maxRegularWorkdays = regularWorkdayCapacity(days);
   return (
     days.some((d) => dayPercent(rows, d) > MAX_DAILY_PERCENT) ||
-    weekWorkdays(rows, days) > MAX_REGULAR_WEEK_WORKDAYS + EPSILON
+    weekWorkdays(rows, days) > maxRegularWorkdays + EPSILON
   );
 }
 
@@ -85,14 +97,15 @@ export function buildWarnings(
   }
 
   const workdays = weekWorkdays(rows, days);
-  if (workdays > MAX_REGULAR_WEEK_WORKDAYS + EPSILON) {
+  const maxRegularWorkdays = regularWorkdayCapacity(days);
+  if (workdays > maxRegularWorkdays + EPSILON) {
     warnings.push({
-      text: `本周普通工日合计 ${formatWorkdays(workdays)}，超过 ${MAX_REGULAR_WEEK_WORKDAYS.toFixed(1)} 工日`,
+      text: `本周普通工日合计 ${formatWorkdays(workdays)}，超过 ${formatWorkdays(maxRegularWorkdays)} 工日`,
       type: "error",
     });
-  } else if (workdays < FULL_ATTENDANCE_WEEK_WORKDAYS && rows.length > 0) {
+  } else if (workdays < maxRegularWorkdays && rows.length > 0) {
     warnings.push({
-      text: `本周合计 ${formatWorkdays(workdays)} 工日，未满勤 ${FULL_ATTENDANCE_WEEK_WORKDAYS} 工日`,
+      text: `本周合计 ${formatWorkdays(workdays)} 工日，未满勤 ${formatWorkdays(maxRegularWorkdays)} 工日`,
       type: "warning",
     });
   }

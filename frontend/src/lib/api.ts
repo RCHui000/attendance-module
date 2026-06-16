@@ -1,5 +1,6 @@
 import { getStoredToken, clearStoredToken } from "./supabase";
 import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
+import { regularWorkdayCapacity } from "@/utils/validation";
 
 const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
@@ -23,7 +24,6 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 type AnyRow = Record<string, any>;
 const REPORTABLE_TIMESHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
 const MAX_TIMESHEET_DAY_HOURS = 1;
-const MAX_TIMESHEET_WEEK_HOURS = 7;
 const TIMESHEET_HOURS_EPSILON = 0.0001;
 
 function accessRank(access: string | undefined): number {
@@ -39,9 +39,10 @@ function formatApiHours(value: number): string {
     : value.toFixed(1);
 }
 
-function assertTimesheetHoursWithinLimits(entries: AnyRow[]): void {
+function assertTimesheetHoursWithinLimits(entries: AnyRow[], days: string[]): void {
   const daily = new Map<string, number>();
   let weekly = 0;
+  const maxRegularWorkdays = regularWorkdayCapacity(days);
 
   for (const entry of entries) {
     const hours = Number(entry.hours || 0);
@@ -66,9 +67,9 @@ function assertTimesheetHoursWithinLimits(entries: AnyRow[]): void {
     }
   }
 
-  if (weekly > MAX_TIMESHEET_WEEK_HOURS + TIMESHEET_HOURS_EPSILON) {
+  if (weekly > maxRegularWorkdays + TIMESHEET_HOURS_EPSILON) {
     throw new Error(
-      `本周普通工日合计 ${formatApiHours(weekly)}，超过 ${MAX_TIMESHEET_WEEK_HOURS.toFixed(1)} 工日`,
+      `本周普通工日合计 ${formatApiHours(weekly)}，超过 ${formatApiHours(maxRegularWorkdays)} 工日`,
     );
   }
 }
@@ -762,7 +763,7 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
   const preservedEntries = existingEntries.filter((entry) =>
     lockedProjectIds.has(Number(entry.project_id)),
   );
-  assertTimesheetHoursWithinLimits([...preservedEntries, ...entries]);
+  assertTimesheetHoursWithinLimits([...preservedEntries, ...entries], Array.from(allowedDays));
   if (entries.length) {
     await rest("/timesheet_entries", { method: "POST", body: JSON.stringify(entries) });
   }

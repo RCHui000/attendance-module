@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
 import { parseLocalDate } from "@/utils/dates";
-import { formatWorkdays, MAX_REGULAR_WEEK_WORKDAYS } from "@/utils/validation";
+import { formatWorkdays, regularWorkdayCapacity } from "@/utils/validation";
 import type { TimesheetRow, OvertimeStore, TimesheetStatus } from "@/types/timesheet";
 import type { ProjectBrief } from "@/types/auth";
 import {
@@ -25,6 +25,7 @@ interface TimesheetTableProps {
   rows: TimesheetRow[];
   overtime: Record<string, OvertimeStore>;
   weekDays: string[];
+  activeDays: string[];
   projects: ProjectBrief[];
   status: TimesheetStatus;
   isLocked: boolean;
@@ -368,7 +369,7 @@ function ProjectPicker({
     </>
   );
 }
-function DayHeader({ day, index }: { day: string; index: number }) {
+function DayHeader({ day, index, active }: { day: string; index: number; active: boolean }) {
   const date = parseLocalDate(day);
   const dayOfWeek = date.getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
@@ -380,22 +381,29 @@ function DayHeader({ day, index }: { day: string; index: number }) {
       <strong
         className={cn(
           "block text-sm leading-tight",
-          (isWeekend || isRest) && !isWork && "text-destructive",
-          isWork && "text-warning",
+          !active && "text-muted-foreground/45",
+          active && (isWeekend || isRest) && !isWork && "text-destructive",
+          active && isWork && "text-warning",
         )}
       >
         {dayNames[index]}
       </strong>
-      <span
-        className={cn(
-          "block text-xs text-muted-foreground leading-tight",
-          (isWeekend || isRest) && !isWork && "text-destructive",
-          isWork && "text-warning",
-        )}
-      >
-        {day.slice(5)}
-      </span>
-      <HolidayBadge day={day} />
+      {active ? (
+        <>
+          <span
+            className={cn(
+              "block text-xs text-muted-foreground leading-tight",
+              (isWeekend || isRest) && !isWork && "text-destructive",
+              isWork && "text-warning",
+            )}
+          >
+            {day.slice(5)}
+          </span>
+          <HolidayBadge day={day} />
+        </>
+      ) : (
+        <span className="block h-[18px]" aria-hidden="true" />
+      )}
     </th>
   );
 }
@@ -404,6 +412,7 @@ export const TimesheetTable = memo(function TimesheetTable({
   rows,
   overtime,
   weekDays,
+  activeDays,
   projects,
   status,
   isLocked,
@@ -417,6 +426,8 @@ export const TimesheetTable = memo(function TimesheetTable({
   onRemoveRow,
 }: TimesheetTableProps) {
   const canAddRow = !isLocked && status !== "submitted";
+  const activeDaySet = useMemo(() => new Set(activeDays), [activeDays]);
+  const maxRegularWorkdays = useMemo(() => regularWorkdayCapacity(activeDays), [activeDays]);
   return (
     <div className="rounded-lg border border-border shadow-app overflow-hidden">
       <div className="overflow-auto">
@@ -438,7 +449,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                 )}
               </th>
               {weekDays.map((day, i) => (
-                <DayHeader key={day} day={day} index={i} />
+                <DayHeader key={day} day={day} index={i} active={activeDaySet.has(day)} />
               ))}
               <th className="w-[70px] p-1.5 text-center text-xs font-bold text-muted-foreground">
                 {"\u5468\u5408\u8ba1"}
@@ -450,14 +461,14 @@ export const TimesheetTable = memo(function TimesheetTable({
           </thead>
           <tbody>
             {rows.map((row, ri) => {
-              const rowTotal = weekDays.reduce(
+              const rowTotal = activeDays.reduce(
                 (s, d) => s + (row.percents[d] || 0) / 100,
                 0,
               );
               const isIntentPlaceholder =
                 !row.approvalStatus &&
                 !row.projectId &&
-                weekDays.every((day) => (row.percents[day] || 0) === 0);
+                activeDays.every((day) => (row.percents[day] || 0) === 0);
               const rowLocked =
                 isLocked ||
                 row.approvalStatus === "approved" ||
@@ -490,17 +501,24 @@ export const TimesheetTable = memo(function TimesheetTable({
                     </div>
                   </td>
 
-                  {weekDays.map((day) => (
-                    <td key={day} className="p-1.5">
-                      <PercentCell
-                        value={row.percents[day] || 0}
-                        onChange={(v) => onUpdatePercent(ri, day, v)}
-                        onCommit={onEditComplete}
-                        locked={rowLocked}
-                        invalid={dayTotals[day] > 100}
-                      />
-                    </td>
-                  ))}
+                  {weekDays.map((day) => {
+                    const isActiveDay = activeDaySet.has(day);
+                    return (
+                      <td key={day} className="p-1.5">
+                        {isActiveDay ? (
+                          <PercentCell
+                            value={row.percents[day] || 0}
+                            onChange={(v) => onUpdatePercent(ri, day, v)}
+                            onCommit={onEditComplete}
+                            locked={rowLocked}
+                            invalid={dayTotals[day] > 100}
+                          />
+                        ) : (
+                          <div className="h-8 w-[90px]" aria-hidden="true" />
+                        )}
+                      </td>
+                    );
+                  })}
 
                   <td className="p-1.5 text-center">
                     <span
@@ -543,26 +561,28 @@ export const TimesheetTable = memo(function TimesheetTable({
               </td>
               {weekDays.map((day) => (
                 <td key={day} className="p-1.5 text-center">
-                  <span
-                    className={cn(
-                      "text-sm font-bold tabular-nums",
-                      dayTotals[day] > 100 && "text-destructive",
-                    )}
-                  >
-                    {dayTotals[day]}%
-                  </span>
+                  {activeDaySet.has(day) && (
+                    <span
+                      className={cn(
+                        "text-sm font-bold tabular-nums",
+                        dayTotals[day] > 100 && "text-destructive",
+                      )}
+                    >
+                      {dayTotals[day]}%
+                    </span>
+                  )}
                 </td>
               ))}
               <td className="p-1.5 text-center">
                 <span
                   className={cn(
                     "text-sm font-bold tabular-nums",
-                    weekDays.reduce((s, d) => s + dayTotals[d] / 100, 0) >
-                      MAX_REGULAR_WEEK_WORKDAYS && "text-destructive",
+                    activeDays.reduce((s, d) => s + dayTotals[d] / 100, 0) >
+                      maxRegularWorkdays && "text-destructive",
                   )}
                 >
                   {formatWorkdays(
-                    weekDays.reduce((s, d) => s + dayTotals[d] / 100, 0),
+                    activeDays.reduce((s, d) => s + dayTotals[d] / 100, 0),
                   )}
                 </span>
               </td>
@@ -575,25 +595,27 @@ export const TimesheetTable = memo(function TimesheetTable({
               </td>
               {weekDays.map((day) => (
                 <td key={day} className="p-1.5">
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    className="h-8 w-[72px] mx-auto text-right text-sm text-warning"
-                    value={overtime[day]?.hours || ""}
-                    onChange={(e) => {
-                      if (isLocked) return;
-                      onUpdateOvertime(day, parseFloat(e.target.value) || 0);
-                    }}
-                    disabled
-                    title="\u52a0\u73ed\u8bb0\u5f55\u6682\u4e0d\u652f\u6301\u5728\u9879\u76ee\u5757\u4e2d\u7f16\u8f91"
-                    placeholder="0"
-                  />
+                  {activeDaySet.has(day) && (
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      className="h-8 w-[72px] mx-auto text-right text-sm text-warning"
+                      value={overtime[day]?.hours || ""}
+                      onChange={(e) => {
+                        if (isLocked) return;
+                        onUpdateOvertime(day, parseFloat(e.target.value) || 0);
+                      }}
+                      disabled
+                      title="\u52a0\u73ed\u8bb0\u5f55\u6682\u4e0d\u652f\u6301\u5728\u9879\u76ee\u5757\u4e2d\u7f16\u8f91"
+                      placeholder="0"
+                    />
+                  )}
                 </td>
               ))}
               <td className="p-1.5 text-center">
                 <span className="text-sm font-bold tabular-nums text-warning">
-                  {weekDays
+                  {activeDays
                     .reduce((s, d) => s + (overtime[d]?.hours || 0), 0)
                     .toFixed(1)}
                 </span>

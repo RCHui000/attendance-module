@@ -65,6 +65,11 @@ export function getTimesheetPeriodDays(periodStart: string): string[] {
   return days;
 }
 
+/** Get the fixed Monday-Sunday display days for a timesheet period */
+export function getTimesheetDisplayWeekDays(periodStart: string): string[] {
+  return getWeekDays(mondayOfWeek(periodStart));
+}
+
 /** Get the previous month-clipped timesheet period start */
 export function previousTimesheetPeriodStart(periodStart: string): string {
   return timesheetPeriodStartOfDate(addDaysToIso(periodStart, -1));

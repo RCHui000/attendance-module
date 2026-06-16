@@ -140,7 +140,7 @@ services:
     volumes:
       - ./deploy/nginx/app.conf:/etc/nginx/conf.d/default.conf:ro
       - ${NGINX_BACKUP_DIR:-/opt/approval-app/nginx}/certbot/www:/var/www/certbot:ro
-      - ${NGINX_BACKUP_DIR:-/opt/approval-app/nginx}/letsencrypt:/etc/letsencrypt:ro
+      - ${LETSENCRYPT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
     depends_on:
       app:
         condition: service_healthy

@@ -357,8 +357,8 @@ function ProjectPicker({
           role="combobox"
           aria-expanded={open}
           aria-haspopup="listbox"
-          title={selectedLabel || "<输入关键字检索>"}
-          placeholder="<输入关键字检索>"
+          title={selectedLabel || "输入关键字检索"}
+          placeholder="输入关键字检索"
           className="h-8 pr-8 pl-8 text-sm"
         />
         <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

@@ -132,6 +132,10 @@ function ExpandedRow({
 export function DashboardTable({ projects, startDate, endDate }: DashboardTableProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  const toggleProject = (projectId: number) => {
+    setExpandedId((current) => (current === projectId ? null : projectId));
+  };
+
   if (projects.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -152,15 +156,23 @@ export function DashboardTable({ projects, startDate, endDate }: DashboardTableP
     rows.push(
       <TableRow
         key={project.id}
-        className="hover:bg-row-hover cursor-pointer transition-colors"
-        onClick={() => setExpandedId(isExpanded ? null : project.id)}
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        className="hover:bg-row-hover cursor-pointer transition-colors outline-none focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring/50"
+        onClick={() => toggleProject(project.id)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleProject(project.id);
+          }
+        }}
       >
         <TableCell className="w-7 p-0">
           <div className="flex items-center justify-center">
             {isExpanded ? (
-              <ChevronDown className="size-4 text-muted-foreground" />
+              <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
             ) : (
-              <ChevronRight className="size-4 text-muted-foreground" />
+              <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
             )}
           </div>
         </TableCell>

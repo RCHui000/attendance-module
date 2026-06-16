@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -11,10 +12,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Building2, FolderKanban, UserRound, Users } from "lucide-react";
+import { Building2, FolderKanban, Search, UserRound, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useLaborMatrix } from "@/hooks/useReport";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/utils/dates";
@@ -190,33 +192,77 @@ function MetricStrip({ rows }: { rows: LaborMatrixRow[] }) {
 
 function ObjectRail({
   items,
+  totalCount,
   perspective,
   selectedId,
+  query,
+  onQueryChange,
   onSelect,
 }: {
   items: SummaryRow[];
+  totalCount: number;
   perspective: Perspective;
   selectedId: string | null;
+  query: string;
+  onQueryChange: (query: string) => void;
   onSelect: (id: string) => void;
 }) {
   const title = perspective === "project" ? "项目对象" : perspective === "department" ? "部门对象" : "人员对象";
+  const placeholder = perspective === "project" ? "搜索项目名称或编号…" : perspective === "department" ? "搜索部门…" : "搜索人员或部门…";
 
   return (
     <Card className="rounded-lg p-4 shadow-app">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold">{title}</h3>
-          <p className="text-xs text-muted-foreground">点击对象切换左侧明细</p>
+          <p className="text-xs text-muted-foreground">搜索或选择对象切换左侧明细</p>
         </div>
-        <Badge variant="secondary">{items.length}</Badge>
+        <Badge variant="secondary">
+          {items.length}
+          {items.length !== totalCount ? ` / ${totalCount}` : ""}
+        </Badge>
+      </div>
+      <div className="relative mb-3">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          aria-label={placeholder}
+          autoComplete="off"
+          name={`dashboard-${perspective}-search`}
+          className="h-8 pl-8 pr-8 text-sm"
+          placeholder={placeholder}
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+        {query && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="absolute right-1 top-1/2 -translate-y-1/2"
+            aria-label="清空对象搜索"
+            onClick={() => onQueryChange("")}
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </Button>
+        )}
       </div>
       <div className="max-h-[720px] space-y-2 overflow-auto pr-1">
+        {items.length === 0 && (
+          <div className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+            没有匹配对象
+          </div>
+        )}
         {items.map((item, index) => (
           <button
             key={item.id}
             type="button"
+            aria-pressed={selectedId === item.id}
             className={cn(
               "w-full rounded-md border border-border bg-background px-3 py-3 text-left transition-colors hover:border-primary/40 hover:bg-row-hover",
+              "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none",
               selectedId === item.id && "border-primary/60 bg-row-selected shadow-sm",
             )}
             onClick={() => onSelect(item.id)}
@@ -315,7 +361,7 @@ function RankingBars({ items }: { items: SummaryRow[] }) {
   const chartData = items
     .slice(0, 10)
     .map((item) => ({
-      name: item.label.length > 9 ? `${item.label.slice(0, 9)}...` : item.label,
+      name: item.label.length > 9 ? `${item.label.slice(0, 9)}…` : item.label,
       工日: Number(item.totalHours.toFixed(1)),
       成本: item.laborCost,
     }))
@@ -544,7 +590,13 @@ function RankingCard({
 }
 
 export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) {
-  const [perspective, setPerspective] = useState<Perspective>("department");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const perspectiveParam = searchParams.get("perspective");
+  const perspective: Perspective =
+    perspectiveParam === "project" || perspectiveParam === "employee" || perspectiveParam === "department"
+      ? perspectiveParam
+      : "department";
+  const query = searchParams.get("q") || "";
   const [selectedByPerspective, setSelectedByPerspective] = useState<Record<Perspective, string | null>>({
     project: null,
     department: null,
@@ -553,20 +605,59 @@ export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) 
   const { data = [], isLoading, isError } = useLaborMatrix({ startDate, endDate });
 
   const summaries = useMemo(() => buildSummaries(data, perspective), [data, perspective]);
-  const selectedId = selectedByPerspective[perspective] || summaries[0]?.id || null;
+  const filteredSummaries = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return summaries;
+    return summaries.filter((item) =>
+      [item.label, item.subLabel, ...Array.from(item.departmentNames)]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalized)),
+    );
+  }, [query, summaries]);
+  const selectedParam = searchParams.get("object");
+  const storedSelectedId = selectedByPerspective[perspective];
+  const storedSelectionVisible =
+    !!storedSelectedId &&
+    (!query.trim() || filteredSummaries.some((item) => item.id === storedSelectedId));
+  const selectedId =
+    (selectedParam && summaries.some((item) => item.id === selectedParam) ? selectedParam : null) ||
+    (storedSelectionVisible ? storedSelectedId : null) ||
+    filteredSummaries[0]?.id ||
+    summaries[0]?.id ||
+    null;
   const selected = summaries.find((item) => item.id === selectedId);
+
+  const updateBiParams = (updates: Partial<Record<"perspective" | "object" | "q", string>>) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      });
+      return next;
+    });
+  };
 
   const handleSelect = (id: string) => {
     setSelectedByPerspective((current) => ({
       ...current,
       [perspective]: id,
     }));
+    updateBiParams({ object: id });
+  };
+
+  const handlePerspectiveChange = (nextPerspective: Perspective) => {
+    updateBiParams({ perspective: nextPerspective, object: "", q: "" });
+  };
+
+  const handleQueryChange = (nextQuery: string) => {
+    updateBiParams({ q: nextQuery, object: "" });
   };
 
   if (isLoading) {
     return (
       <div className="flex h-[360px] items-center justify-center text-sm text-muted-foreground">
-        加载投入矩阵...
+        加载投入矩阵…
       </div>
     );
   }
@@ -595,10 +686,11 @@ export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) 
             <Button
               key={item.value}
               type="button"
+              aria-pressed={perspective === item.value}
               variant={perspective === item.value ? "secondary" : "ghost"}
               size="sm"
               className="h-8 gap-1.5"
-              onClick={() => setPerspective(item.value)}
+              onClick={() => handlePerspectiveChange(item.value)}
             >
               {item.icon}
               {item.label}
@@ -646,9 +738,12 @@ export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) 
         )}
 
         <ObjectRail
-          items={summaries}
+          items={filteredSummaries}
+          totalCount={summaries.length}
           perspective={perspective}
           selectedId={selectedId}
+          query={query}
+          onQueryChange={handleQueryChange}
           onSelect={handleSelect}
         />
       </div>

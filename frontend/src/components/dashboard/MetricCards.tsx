@@ -84,7 +84,7 @@ export function MetricCards({ dashboard }: MetricCardsProps) {
     },
     {
       label: "活跃项目",
-      value: String(dashboard.totalPeople || 0),
+      value: String(dashboard.projects.length || 0),
       icon: <FolderKanban className="size-4" />,
     },
   ];

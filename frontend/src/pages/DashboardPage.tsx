@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDashboard } from "@/hooks/useProjects";
 import { MetricCards } from "@/components/dashboard/MetricCards";
 import { DashboardTable } from "@/components/dashboard/DashboardTable";
@@ -26,12 +27,38 @@ const TAB_OPTIONS: { value: DashboardTab; label: string; icon: React.ReactNode }
 
 export default function DashboardPage() {
   const now = new Date();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const periodParam = searchParams.get("period");
+  const yearParam = Number(searchParams.get("year"));
+  const monthParam = Number(searchParams.get("month"));
+  const quarterParam = Number(searchParams.get("quarter"));
+  const tabParam = searchParams.get("tab");
 
-  const [periodType, setPeriodType] = useState<PeriodType>("year");
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [quarter, setQuarter] = useState(Math.floor(now.getMonth() / 3) + 1);
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const periodType: PeriodType =
+    periodParam === "month" || periodParam === "quarter" || periodParam === "year"
+      ? periodParam
+      : "year";
+  const year = Number.isInteger(yearParam) && yearParam > 2000 ? yearParam : now.getFullYear();
+  const month = Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12 ? monthParam : now.getMonth() + 1;
+  const quarter =
+    Number.isInteger(quarterParam) && quarterParam >= 1 && quarterParam <= 4
+      ? quarterParam
+      : Math.floor(now.getMonth() / 3) + 1;
+  const activeTab: DashboardTab = tabParam === "analytics" ? "analytics" : "overview";
+
+  const updateDashboardParams = useCallback(
+    (updates: Partial<Record<"period" | "year" | "month" | "quarter" | "tab", string>>) => {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        Object.entries(updates).forEach(([key, value]) => {
+          if (value) next.set(key, value);
+          else next.delete(key);
+        });
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
 
   const dates = useMemo(
     () => computePeriodDates(periodType, year, month, quarter),
@@ -88,12 +115,12 @@ export default function DashboardPage() {
               aria-selected={activeTab === tab.value}
               className={cn(
                 "inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-colors",
-                "hover:text-foreground",
+                "hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none",
                 activeTab === tab.value
                   ? "bg-muted text-foreground shadow-sm"
                   : "text-muted-foreground",
               )}
-              onClick={() => setActiveTab(tab.value)}
+              onClick={() => updateDashboardParams({ tab: tab.value })}
             >
               {tab.icon}
               {tab.label}
@@ -108,10 +135,10 @@ export default function DashboardPage() {
             year={year}
             month={month}
             quarter={quarter}
-            onPeriodTypeChange={(t) => setPeriodType(t)}
-            onYearChange={setYear}
-            onMonthChange={setMonth}
-            onQuarterChange={setQuarter}
+            onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
+            onYearChange={(value) => updateDashboardParams({ year: String(value) })}
+            onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
+            onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
           />
           <span className="text-xs tabular-nums text-muted-foreground">
             {dates.startDate} ~ {dates.endDate}

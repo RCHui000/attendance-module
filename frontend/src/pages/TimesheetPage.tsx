@@ -25,8 +25,22 @@ import {
   weekWorkdays,
 } from "@/utils/validation";
 import type { ProjectBrief } from "@/types/auth";
-import type { SaveTimesheetPayload } from "@/types/timesheet";
+import type { SaveTimesheetPayload, TimesheetRow } from "@/types/timesheet";
 import { toast } from "sonner";
+
+function isRowWriteLocked(row: TimesheetRow): boolean {
+  return (
+    row.approvalStatus === "approved" ||
+    row.approvalStatus === "summary_pending" ||
+    row.approvalStatus === "pending"
+  );
+}
+
+function hasWorkIntentSlot(row: TimesheetRow, weekDays: string[]): boolean {
+  if (isRowWriteLocked(row)) return false;
+  const hasWorkdays = weekDays.some((day) => (row.percents[day] || 0) > 0);
+  return row.projectId === 0 || !hasWorkdays;
+}
 
 export default function TimesheetPage() {
   const { currentWeek, setCurrentWeek } = useAppStore();
@@ -115,16 +129,9 @@ export default function TimesheetPage() {
     const hasPartialFilledDay = weekDays.some((day) => totals[day] > 0 && totals[day] < 100);
     if (!hasPartialFilledDay) return;
 
-    const hasAvailableEmptyRow = rows.some((row) => {
-      const hasWorkdays = weekDays.some((day) => (row.percents[day] || 0) > 0);
-      const rowLocked =
-        row.approvalStatus === "approved" ||
-        row.approvalStatus === "summary_pending" ||
-        row.approvalStatus === "pending";
-      return !rowLocked && row.projectId === 0 && !hasWorkdays;
-    });
+    const hasAvailableIntentSlot = rows.some((row) => hasWorkIntentSlot(row, weekDays));
 
-    if (!hasAvailableEmptyRow) store.ensureEmptyRow(store.isDirty);
+    if (!hasAvailableIntentSlot) store.ensureEmptyRow(store.isDirty);
   }, [isLocked, status, store, store.isDirty, weekDays]);
 
   const buildPayload = (): SaveTimesheetPayload => {

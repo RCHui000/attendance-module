@@ -185,6 +185,38 @@ class SpaHandler(SimpleHTTPRequestHandler):
     def _number_prefix(self, value: str | None) -> str:
         return re.sub(r"[^A-Za-z0-9]+", "", str(value or "")).upper()
 
+    def _employee_number_prefix(self, org: dict) -> str:
+        code = self._number_prefix(org.get("org_code"))
+        name = str(org.get("org_name") or "")
+        code_prefixes = {
+            "CC": "QS",
+            "COMP": "QS",
+            "PM": "PM",
+            "PMMANAGE": "PM",
+            "PMPROJECT": "PM",
+            "PMDESIGN": "DES",
+            "D009": "DES",
+            "D016": "HR",
+            "D008": "HR",
+            "D017": "DIR",
+            "PMCOST": "CM",
+        }
+        if code in code_prefixes:
+            return code_prefixes[code]
+        if "\u6210\u672c\u62db\u91c7" in name:
+            return "CM"
+        if "\u9020\u4ef7" in name or "\u6210\u672c\u5408\u7ea6" in name:
+            return "QS"
+        if "\u8bbe\u8ba1" in name:
+            return "DES"
+        if "\u4eba\u4e8b" in name:
+            return "HR"
+        if "\u8463\u4e8b" in name:
+            return "DIR"
+        if code.startswith("PM") or "\u9879\u76ee\u7ba1\u7406" in name or "\u5de5\u7a0b\u7ba1\u7406" in name:
+            return "PM"
+        return code or self._number_prefix(name)
+
     def _next_code(self, rows: list, field: str, prefix: str) -> str:
         clean_prefix = self._number_prefix(prefix)
         if not clean_prefix:
@@ -207,7 +239,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             bearer_token,
         )
         org = org_rows[0] if org_rows else {}
-        prefix = self._number_prefix(org.get("org_code")) or self._number_prefix(org.get("org_name")) or f"D{str(org_id).zfill(3)}"
+        prefix = self._employee_number_prefix(org) or f"D{str(org_id).zfill(3)}"
         rows = self._rest_get(
             f"/employees?select=employee_no&employee_no=like.{self._q(prefix + self._current_year_suffix() + '%')}",
             bearer_token,

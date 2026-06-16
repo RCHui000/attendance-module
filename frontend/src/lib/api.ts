@@ -249,6 +249,33 @@ function normalizeNumberPrefix(value?: string | null): string {
     .replace(/[^A-Z0-9]/g, "");
 }
 
+const EMPLOYEE_NUMBER_PREFIX_BY_ORG_CODE: Record<string, string> = {
+  CC: "QS",
+  COMP: "QS",
+  PM: "PM",
+  PMMANAGE: "PM",
+  PMPROJECT: "PM",
+  PMDESIGN: "DES",
+  D009: "DES",
+  D016: "HR",
+  D008: "HR",
+  D017: "DIR",
+  PMCOST: "CM",
+};
+
+function employeeNumberPrefix(org?: AnyRow | null): string {
+  const code = normalizeNumberPrefix(org?.org_code);
+  const name = String(org?.org_name || "");
+  if (code && EMPLOYEE_NUMBER_PREFIX_BY_ORG_CODE[code]) return EMPLOYEE_NUMBER_PREFIX_BY_ORG_CODE[code];
+  if (name.includes("\u6210\u672c\u62db\u91c7")) return "CM";
+  if (name.includes("\u9020\u4ef7") || name.includes("\u6210\u672c\u5408\u7ea6")) return "QS";
+  if (name.includes("\u8bbe\u8ba1")) return "DES";
+  if (name.includes("\u4eba\u4e8b")) return "HR";
+  if (name.includes("\u8463\u4e8b")) return "DIR";
+  if (code.startsWith("PM") || name.includes("\u9879\u76ee\u7ba1\u7406") || name.includes("\u5de5\u7a0b\u7ba1\u7406")) return "PM";
+  return code || normalizeNumberPrefix(name);
+}
+
 function nextNumberFromRows(rows: AnyRow[], field: string, prefix: string): string {
   const normalizedPrefix = normalizeNumberPrefix(prefix);
   if (!normalizedPrefix) return "";
@@ -277,10 +304,7 @@ async function nextEmployeeNo(orgId?: number | null): Promise<string> {
     `/organizations?select=org_code,org_name&id=eq.${orgId}&limit=1`,
   );
   const org = orgRows[0];
-  const prefix =
-    normalizeNumberPrefix(org?.org_code) ||
-    normalizeNumberPrefix(org?.org_name) ||
-    `D${String(orgId).padStart(3, "0")}`;
+  const prefix = employeeNumberPrefix(org) || `D${String(orgId).padStart(3, "0")}`;
   const rows = await rest<AnyRow[]>(
     `/employees?select=employee_no&employee_no=like.${encodeURIComponent(`${prefix}${currentYearSuffix()}%`)}`,
   );

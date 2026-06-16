@@ -357,8 +357,8 @@ function ProjectPicker({
           role="combobox"
           aria-expanded={open}
           aria-haspopup="listbox"
-          title={selectedLabel || "\u9009\u62e9\u9879\u76ee"}
-          placeholder="\u641c\u7d22\u9879\u76ee"
+          title={selectedLabel || "\u8f93\u5165\u5173\u952e\u5b57\u4ee5\u641c\u7d22"}
+          placeholder="\u8f93\u5165\u5173\u952e\u5b57\u4ee5\u641c\u7d22"
           className="h-8 pr-8 pl-8 text-sm"
         />
         <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

@@ -39,7 +39,7 @@ function isRowWriteLocked(row: TimesheetRow): boolean {
 function hasWorkIntentSlot(row: TimesheetRow, weekDays: string[]): boolean {
   if (isRowWriteLocked(row)) return false;
   const hasWorkdays = weekDays.some((day) => (row.percents[day] || 0) > 0);
-  return row.projectId === 0 || !hasWorkdays;
+  return !hasWorkdays;
 }
 
 function needsWorkIntentSlot(rows: TimesheetRow[], weekDays: string[]): boolean {

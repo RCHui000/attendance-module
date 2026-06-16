@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
+import { parseLocalDate } from "@/utils/dates";
 import { formatWorkdays, MAX_REGULAR_WEEK_WORKDAYS } from "@/utils/validation";
 import type { TimesheetRow, OvertimeStore, TimesheetStatus } from "@/types/timesheet";
 import type { ProjectBrief } from "@/types/auth";
@@ -368,7 +369,7 @@ function ProjectPicker({
   );
 }
 function DayHeader({ day, index }: { day: string; index: number }) {
-  const date = new Date(day);
+  const date = parseLocalDate(day);
   const dayOfWeek = date.getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
   const isRest = holidayInfo[day]?.type === "rest";

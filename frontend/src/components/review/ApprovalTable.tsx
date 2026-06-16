@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getTimesheetPeriodEnd } from "@/utils/dates";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -184,11 +185,7 @@ export function ApprovalTable({
                       const rows: React.ReactNode[] = [];
                       for (const [week, items] of grouped) {
                         // Week divider
-                        const weekEnd = (() => {
-                          const d = new Date(week);
-                          d.setDate(d.getDate() + 6);
-                          return d.toISOString().slice(0, 10);
-                        })();
+                        const weekEnd = getTimesheetPeriodEnd(week);
                         rows.push(
                           <TableRow key={`week-divider-${week}`} className="bg-table-header hover:bg-table-header">
                             <TableCell colSpan={7} className="py-1.5 px-3">

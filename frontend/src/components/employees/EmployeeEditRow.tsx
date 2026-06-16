@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Employee, Organization } from "@/types/employee";
+import { isoDate } from "@/utils/dates";
 import { flattenOrgTree, isCostOrganization, orgOptionLabel } from "@/utils/orgTree";
 
 interface EmployeeEditData {
@@ -313,7 +314,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
       <td className="p-1.5 text-sm text-muted-foreground text-right tabular-nums">
         {data.hireDate ? (
           (() => {
-            const total = calculateMonths(data.hireDate, new Date().toISOString().slice(0, 10));
+            const total = calculateMonths(data.hireDate, isoDate(new Date()));
             return total < 12 ? `${total}个月` : `${Math.floor(total / 12)}年`;
           })()
         ) : (

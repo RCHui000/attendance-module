@@ -1,4 +1,5 @@
 import { getStoredToken, clearStoredToken } from "./supabase";
+import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
 
 const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
@@ -129,19 +130,11 @@ function decodeJwt(): AnyRow | null {
 }
 
 function todayMonday(): string {
-  const date = new Date();
-  const day = date.getDay() || 7;
-  date.setDate(date.getDate() - day + 1);
-  return date.toISOString().slice(0, 10);
+  return timesheetPeriodStartOfDate(isoDate(new Date()));
 }
 
 function weekDays(weekStart: string): string[] {
-  const start = new Date(`${weekStart}T00:00:00`);
-  return Array.from({ length: 7 }, (_, i) => {
-    const day = new Date(start);
-    day.setDate(start.getDate() + i);
-    return day.toISOString().slice(0, 10);
-  });
+  return getTimesheetPeriodDays(weekStart);
 }
 
 function projectStatusFromReviews(reviews: AnyRow[], sheetStatus = ""): AnyRow[] {
@@ -595,17 +588,18 @@ async function projects(): Promise<AnyRow[]> {
 }
 
 async function getTimesheet(weekStart: string): Promise<AnyRow> {
+  const periodStart = timesheetPeriodStartOfDate(weekStart);
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated");
   let sheet = (await rest<AnyRow[]>(
-    `/timesheets?select=*&user_id=eq.${user.id}&week_start_date=eq.${weekStart}&limit=1`,
+    `/timesheets?select=*&user_id=eq.${user.id}&week_start_date=eq.${periodStart}&limit=1`,
   ))[0];
   if (!sheet) {
     const id = await nextId("timesheets");
     sheet = (await rest<AnyRow[]>("/timesheets", {
       method: "POST",
       headers: { Prefer: "return=representation" },
-      body: JSON.stringify([{ id, user_id: user.id, week_start_date: weekStart }]),
+      body: JSON.stringify([{ id, user_id: user.id, week_start_date: periodStart }]),
     }))[0];
   }
   const [entries, overtime, reviews] = await Promise.all([
@@ -621,7 +615,7 @@ async function getTimesheet(weekStart: string): Promise<AnyRow> {
   const entryProjectIds = [...new Set(entries.map((entry) => Number(entry.project_id)).filter(Boolean))];
   return {
     ...sheet,
-    days: weekDays(weekStart),
+    days: weekDays(sheet.week_start_date),
     entries: entries.map((entry) => ({
       ...entry,
       project_code: entry.projects?.code,
@@ -760,6 +754,11 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
       hours: entry.hours,
       description: entry.description || "",
     }));
+  const allowedDays = new Set(weekDays(sheet.week_start_date));
+  const outOfPeriodEntry = entries.find((entry) => !allowedDays.has(String(entry.work_date)));
+  if (outOfPeriodEntry) {
+    throw new Error(`${outOfPeriodEntry.work_date} 不属于当前周表期间`);
+  }
   const preservedEntries = existingEntries.filter((entry) =>
     lockedProjectIds.has(Number(entry.project_id)),
   );
@@ -801,7 +800,7 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
       await rest("/overtime_entries", { method: "POST", body: JSON.stringify(overtime) });
     }
   }
-  return { ok: true, timesheet: await getTimesheet(body.weekStart) };
+  return { ok: true, timesheet: await getTimesheet(sheet.week_start_date) };
 }
 
 async function timesheetAction(body: AnyRow): Promise<AnyRow> {

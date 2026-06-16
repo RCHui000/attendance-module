@@ -1,6 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { mondayOfWeek, addDaysToIso } from "@/utils/dates";
+import {
+  nextTimesheetPeriodStart,
+  previousTimesheetPeriodStart,
+  timesheetPeriodStartOfDate,
+} from "@/utils/dates";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface WeekNavigatorProps {
@@ -9,13 +13,13 @@ interface WeekNavigatorProps {
 }
 
 export function WeekNavigator({ currentWeek, onWeekChange }: WeekNavigatorProps) {
-  const goPrev = () => onWeekChange(addDaysToIso(currentWeek, -7));
-  const goNext = () => onWeekChange(addDaysToIso(currentWeek, 7));
+  const goPrev = () => onWeekChange(previousTimesheetPeriodStart(currentWeek));
+  const goNext = () => onWeekChange(nextTimesheetPeriodStart(currentWeek));
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value) {
-      onWeekChange(mondayOfWeek(value));
+      onWeekChange(timesheetPeriodStartOfDate(value));
     }
   };
 
@@ -36,7 +40,7 @@ export function WeekNavigator({ currentWeek, onWeekChange }: WeekNavigatorProps)
         className="h-[38px] w-36 text-sm"
         value={currentWeek}
         onChange={handleDateChange}
-        title="选择任意日期，系统会自动定位到所在周周一"
+        title="选择任意日期，系统会自动定位到所在月内周表期间"
       />
 
       <Button

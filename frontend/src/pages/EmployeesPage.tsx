@@ -29,6 +29,7 @@ import { ReminderFloat } from "@/components/employees/ReminderFloat";
 import { PermissionConfigPanel } from "@/components/employees/PermissionConfigPanel";
 import { useAuthStore } from "@/stores/authStore";
 import { flattenOrgTree, isCostOrganization } from "@/utils/orgTree";
+import { isoDate } from "@/utils/dates";
 import type { EmployeeEditData } from "@/components/employees/EmployeeEditRow";
 import type { Employee } from "@/types/employee";
 import { toast } from "sonner";
@@ -57,7 +58,7 @@ const EMPTY_EDIT_DATA: EmployeeEditData = {
   contractType: "labor",
   monthlySalary: "",
   dailyWage: "",
-  hireDate: new Date().toISOString().slice(0, 10),
+  hireDate: isoDate(new Date()),
   contractMonths: "12",
   managerUserId: "",
   status: "active",

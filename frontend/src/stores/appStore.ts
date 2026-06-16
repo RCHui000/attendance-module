@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { mondayOfWeek } from "@/utils/dates";
+import { isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
 
 export type ViewType = "timesheet" | "leave" | "dashboard" | "review" | "report" | "employees" | "apps";
 
@@ -75,6 +75,6 @@ export const useAppStore = create<AppState>((set) => ({
   editingProjectId: null,
   setEditingProjectId: (id) => set({ editingProjectId: id }),
 
-  currentWeek: mondayOfWeek(new Date().toISOString().slice(0, 10)),
+  currentWeek: timesheetPeriodStartOfDate(isoDate(new Date())),
   setCurrentWeek: (week) => set({ currentWeek: week }),
 }));

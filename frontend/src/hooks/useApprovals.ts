@@ -14,7 +14,6 @@ export function useApprovalTasks(weekStart: string) {
     queryFn: () =>
       api<ApprovalTasks>(`/api/approvals/tasks?weekStart=${weekStart}`),
     enabled: !!weekStart,
-    refetchInterval: 10_000,
   });
 }
 

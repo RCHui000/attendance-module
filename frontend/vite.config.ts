@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -16,11 +16,11 @@ function gitValue(command: string): string {
   }
 }
 
-function appVersion(): string {
+function appVersion(env: Record<string, string | undefined> = process.env): string {
   const explicit =
-    process.env.VITE_APP_VERSION ||
-    process.env.APP_IMAGE_TAG ||
-    process.env.IMAGE_TAG;
+    env.VITE_APP_VERSION ||
+    env.APP_IMAGE_TAG ||
+    env.IMAGE_TAG;
   if (explicit) return explicit;
 
   const exactTag = gitValue("git describe --tags --exact-match --match V*");
@@ -32,17 +32,21 @@ function appVersion(): string {
   return shortSha ? `dev+${shortSha}` : "dev";
 }
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  define: {
-    "import.meta.env.VITE_APP_VERSION": JSON.stringify(appVersion()),
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, __dirname, "");
+
+  return {
+    plugins: [react(), tailwindcss()],
+    define: {
+      "import.meta.env.VITE_APP_VERSION": JSON.stringify(appVersion(env)),
     },
-  },
-  server: {
-    port: 5173,
-  },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+    server: {
+      port: 5173,
+    },
+  };
 });

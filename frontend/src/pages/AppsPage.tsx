@@ -80,6 +80,11 @@ function AppCard({ app }: { app: AppCenterItem }) {
       <div className="pointer-events-none absolute inset-x-3 top-3 h-10 rounded-full bg-primary/5 blur-xl opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-active:opacity-100" />
       <div className="relative flex size-14 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_12px_24px_rgba(17,24,39,0.18)] transition duration-150 group-hover:scale-105 group-active:scale-90 sm:size-16">
         <Icon className="size-7 sm:size-8" aria-hidden="true" />
+        {app.is_internal && (
+          <span className="absolute -right-1.5 -bottom-1 inline-flex h-5 min-w-9 items-center justify-center rounded-[5px] border border-foreground/15 bg-white px-1.5 text-[10px] font-semibold leading-none text-foreground shadow-[0_2px_6px_rgba(15,23,42,0.18)]">
+            内网
+          </span>
+        )}
       </div>
       <div className="relative max-w-full truncate text-center text-[13px] font-semibold leading-5">
         {app.name}

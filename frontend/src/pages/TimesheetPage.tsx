@@ -137,8 +137,8 @@ export default function TimesheetPage() {
 
   useEffect(() => {
     if (!timesheet || !shouldShowDraftProjectRow) return;
-    store.ensureDraftProjectRow();
-  }, [timesheet?.id, shouldShowDraftProjectRow, store]);
+    useTimesheetStore.getState().ensureDraftProjectRow();
+  }, [serverRevisionKey, shouldShowDraftProjectRow, timesheet]);
 
   const handleEditComplete = useCallback((context?: { day?: string }) => {
     if (isLocked) return;

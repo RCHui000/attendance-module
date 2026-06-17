@@ -2,19 +2,15 @@ import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/stores/authStore";
+import { cn } from "@/lib/utils";
 import { LogOut } from "lucide-react";
+import { PAGE_TITLES } from "./navItems";
 
-const PAGE_TITLES: Record<string, string> = {
-  timesheet: "我的周表",
-  leave: "请假申请",
-  dashboard: "数据看板",
-  review: "审批中心",
-  report: "项目列表",
-  employees: "员工与组织",
-  apps: "应用中心",
+type TopbarProps = {
+  mobile?: boolean;
 };
 
-export function Topbar() {
+export function Topbar({ mobile = false }: TopbarProps) {
   const location = useLocation();
   const { user, logout } = useAuthStore();
 
@@ -22,29 +18,43 @@ export function Topbar() {
   const pageTitle = PAGE_TITLES[currentView] || PAGE_TITLES.timesheet;
 
   return (
-    <header className="mb-4 flex items-center justify-between gap-3 max-[900px]:items-start">
-      <h1 className="text-xl font-semibold leading-tight text-foreground">
+    <header
+      className={cn(
+        "mb-4 flex items-center justify-between gap-3",
+        mobile && "mb-3",
+      )}
+    >
+      <h1
+        className={cn(
+          "font-semibold leading-tight text-foreground",
+          mobile ? "min-w-0 truncate text-lg" : "text-xl",
+        )}
+      >
         {pageTitle}
       </h1>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className={cn("flex shrink-0 items-center", mobile ? "gap-1.5" : "gap-3")}>
         {user && (
           <Badge
             variant="outline"
-            className="h-7 rounded-pill border-border bg-white px-3 text-xs font-bold"
+            className={cn(
+              "rounded-pill border-border bg-white text-xs font-bold",
+              mobile ? "h-7 max-w-24 px-2" : "h-7 px-3",
+            )}
           >
-            {user.name}
+            <span className="truncate">{user.name}</span>
           </Badge>
         )}
 
         <Button
           variant="outline"
-          size="sm"
-          className="h-8"
+          size={mobile ? "icon-sm" : "sm"}
+          className={cn(!mobile && "h-8")}
           onClick={logout}
+          aria-label={mobile ? "退出" : undefined}
         >
-          <LogOut className="mr-1 size-3.5" />
-          退出
+          <LogOut className={cn("size-3.5", !mobile && "mr-1")} />
+          {!mobile && "退出"}
         </Button>
       </div>
     </header>

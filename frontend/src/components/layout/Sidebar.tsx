@@ -2,25 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { APP_NAME, APP_VERSION } from "@/lib/constants";
 import { useAuthStore } from "@/stores/authStore";
-import {
-  LayoutDashboard,
-  ClipboardCheck,
-  Calendar,
-  FolderKanban,
-  Users,
-  CalendarX2,
-  Grid3X3,
-} from "lucide-react";
-
-const NAV_ITEMS = [
-  { id: "dashboard", order: 1, view: "dashboard", resource: "dashboard", label: "数据看板", icon: LayoutDashboard },
-  { id: "review", order: 2, view: "review", resource: "review", label: "审批中心", icon: ClipboardCheck },
-  { id: "timesheet", order: 3, view: "timesheet", resource: "timesheet", label: "我的周表", icon: Calendar },
-  { id: "leave", order: 4, view: "leave", resource: "leave", label: "请假申请", icon: CalendarX2 },
-  { id: "report", order: 5, view: "report", resource: "report", label: "项目列表", icon: FolderKanban },
-  { id: "employees", order: 6, view: "employees", resource: "system_management", label: "员工与组织", icon: Users },
-  { id: "apps", order: 7, view: "apps", resource: "apps", label: "应用中心", icon: Grid3X3 },
-] as const;
+import { NAV_ITEMS } from "./navItems";
 
 export function Sidebar() {
   const location = useLocation();

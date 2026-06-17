@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useLaborMatrix } from "@/hooks/useReport";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/utils/dates";
 import type { LaborMatrixRow } from "@/types/project";
@@ -46,11 +47,12 @@ const UNKNOWN_DEPARTMENT = "未分配部门";
 const PERSPECTIVES: Array<{
   value: Perspective;
   label: string;
+  mobileLabel: string;
   icon: React.ReactNode;
 }> = [
-  { value: "project", label: "项目视角", icon: <FolderKanban className="size-4" /> },
-  { value: "department", label: "部门视角", icon: <Building2 className="size-4" /> },
-  { value: "employee", label: "人员视角", icon: <UserRound className="size-4" /> },
+  { value: "project", label: "项目视角", mobileLabel: "项目", icon: <FolderKanban className="size-4" /> },
+  { value: "department", label: "部门视角", mobileLabel: "部门", icon: <Building2 className="size-4" /> },
+  { value: "employee", label: "人员视角", mobileLabel: "人员", icon: <UserRound className="size-4" /> },
 ];
 
 const CHART_COLORS = [
@@ -589,7 +591,178 @@ function RankingCard({
   );
 }
 
+function MobileSummaryList({
+  items,
+  selectedId,
+  onSelect,
+}: {
+  items: SummaryRow[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const topItems = items.slice(0, 10);
+  const maxHours = Math.max(...topItems.map((item) => item.totalHours || 0), 1);
+
+  if (topItems.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+        没有匹配对象
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2.5">
+      {topItems.map((item, index) => (
+        <button
+          key={item.id}
+          type="button"
+          aria-pressed={selectedId === item.id}
+          className={cn(
+            "w-full rounded-lg border border-border bg-card p-3 text-left shadow-app transition-colors",
+            "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none",
+            selectedId === item.id && "border-primary/60 bg-row-selected",
+          )}
+          onClick={() => onSelect(item.id)}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground tabular-nums">
+                  #{index + 1}
+                </span>
+                <span className="truncate text-sm font-semibold">{item.label}</span>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {item.subLabel || "明细对象"}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-sm font-bold tabular-nums">{item.totalHours.toFixed(1)}</p>
+              <p className="text-[11px] text-muted-foreground">工日</p>
+            </div>
+          </div>
+
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${Math.max(((item.totalHours || 0) / maxHours) * 100, 4)}%` }}
+            />
+          </div>
+
+          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+            <span>{item.projectIds.size} 项目</span>
+            <span>{item.employeeIds.size} 人</span>
+            <span className="min-w-0 truncate text-right">{formatMoney(item.laborCost)}</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MobileBiPerspective({
+  startDate,
+  endDate,
+  data,
+  perspective,
+  query,
+  summaries,
+  filteredSummaries,
+  selectedId,
+  selected,
+  onPerspectiveChange,
+  onQueryChange,
+  onSelect,
+}: {
+  startDate: string;
+  endDate: string;
+  data: LaborMatrixRow[];
+  perspective: Perspective;
+  query: string;
+  summaries: SummaryRow[];
+  filteredSummaries: SummaryRow[];
+  selectedId: string | null;
+  selected?: SummaryRow;
+  onPerspectiveChange: (perspective: Perspective) => void;
+  onQueryChange: (query: string) => void;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-card p-1">
+        {PERSPECTIVES.map((item) => (
+          <Button
+            key={item.value}
+            type="button"
+            aria-pressed={perspective === item.value}
+            variant={perspective === item.value ? "secondary" : "ghost"}
+            size="sm"
+            className="h-9 min-w-0 gap-1 px-2"
+            onClick={() => onPerspectiveChange(item.value)}
+          >
+            {item.icon}
+            <span className="truncate">{item.mobileLabel}</span>
+          </Button>
+        ))}
+      </div>
+
+      <p className="text-xs text-muted-foreground tabular-nums">
+        {startDate} ~ {endDate}
+      </p>
+
+      <MetricStrip rows={data} />
+
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          aria-label="搜索分析对象"
+          autoComplete="off"
+          name={`mobile-dashboard-${perspective}-search`}
+          className="h-9 pl-8 pr-8 text-sm"
+          placeholder={perspective === "project" ? "搜索项目" : perspective === "department" ? "搜索部门" : "搜索人员"}
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+        {query && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="absolute right-1 top-1/2 -translate-y-1/2"
+            aria-label="清空搜索"
+            onClick={() => onQueryChange("")}
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </Button>
+        )}
+      </div>
+
+      <section className="space-y-2.5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Top 对象</h3>
+          <span className="text-xs text-muted-foreground">
+            {filteredSummaries.length}
+            {filteredSummaries.length !== summaries.length ? ` / ${summaries.length}` : ""}
+          </span>
+        </div>
+        <MobileSummaryList
+          items={filteredSummaries}
+          selectedId={selectedId}
+          onSelect={onSelect}
+        />
+      </section>
+
+      <DetailPanel selected={selected} perspective={perspective} />
+    </div>
+  );
+}
+
 export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) {
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const perspectiveParam = searchParams.get("perspective");
   const perspective: Perspective =
@@ -678,6 +851,25 @@ export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) 
     );
   }
 
+  if (isMobile) {
+    return (
+      <MobileBiPerspective
+        startDate={startDate}
+        endDate={endDate}
+        data={data}
+        perspective={perspective}
+        query={query}
+        summaries={summaries}
+        filteredSummaries={filteredSummaries}
+        selectedId={selectedId}
+        selected={selected}
+        onPerspectiveChange={handlePerspectiveChange}
+        onQueryChange={handleQueryChange}
+        onSelect={handleSelect}
+      />
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -704,9 +896,9 @@ export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) 
 
       <MetricStrip rows={data} />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         {perspective === "project" ? (
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <RankingCard
               title="项目投入占比"
               hint={`按项目工日汇总，当前成本合计 ${compactNumber(
@@ -718,7 +910,7 @@ export function BiPerspectiveTab({ startDate, endDate }: BiPerspectiveTabProps) 
             <DetailPanel selected={selected} perspective={perspective} />
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <DetailPanel selected={selected} perspective={perspective} />
             <RankingCard
               title={perspective === "department" ? "部门投入排行" : "人员项目投入排行"}

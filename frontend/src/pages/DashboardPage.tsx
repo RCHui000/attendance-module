@@ -1,9 +1,11 @@
-import { useState, useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDashboard } from "@/hooks/useProjects";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { MetricCards } from "@/components/dashboard/MetricCards";
 import { DashboardTable } from "@/components/dashboard/DashboardTable";
 import { BiPerspectiveTab } from "@/components/dashboard/BiPerspectiveTab";
+import { DashboardMobile } from "@/pages/dashboard/DashboardMobile";
 import {
   PeriodFilter,
   computePeriodDates,
@@ -27,6 +29,7 @@ const TAB_OPTIONS: { value: DashboardTab; label: string; icon: React.ReactNode }
 
 export default function DashboardPage() {
   const now = new Date();
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const periodParam = searchParams.get("period");
   const yearParam = Number(searchParams.get("year"));
@@ -99,7 +102,8 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* Tab row: tabs on left, PeriodFilter + actions on right */}
+      {/* Tab row: desktop tabs on left, PeriodFilter + actions on right */}
+      {!isMobile && (
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         {/* Tabs */}
         <nav
@@ -153,6 +157,7 @@ export default function DashboardPage() {
           </Button>
         </div>
       </div>
+      )}
 
       {/* Loading / Error */}
       {isLoading && (
@@ -169,6 +174,22 @@ export default function DashboardPage() {
       {/* Data loaded */}
       {data && (
         <div role="tabpanel" className="animate-fade-in">
+          {isMobile ? (
+            <DashboardMobile
+              data={data}
+              dates={dates}
+              periodType={periodType}
+              year={year}
+              month={month}
+              quarter={quarter}
+              onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
+              onYearChange={(value) => updateDashboardParams({ year: String(value) })}
+              onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
+              onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
+              onRefresh={() => refetch()}
+            />
+          ) : (
+          <>
           {/* ---- Overview Tab ---- */}
           {activeTab === "overview" && (
             <section aria-label="总览" className="space-y-5">
@@ -230,6 +251,8 @@ export default function DashboardPage() {
                 endDate={dates.endDate}
               />
             </section>
+          )}
+          </>
           )}
         </div>
       )}

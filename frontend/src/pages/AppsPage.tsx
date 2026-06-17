@@ -30,7 +30,6 @@ import {
   Boxes,
   BriefcaseBusiness,
   Check,
-  ExternalLink,
   Pencil,
   Plus,
   RadioTower,
@@ -67,41 +66,31 @@ function visibleTags(app: AppCenterItem) {
 
 function AppCard({ app }: { app: AppCenterItem }) {
   const Icon = iconFor(app.icon_key);
-  const tags = visibleTags(app);
 
   return (
     <a
       href={app.url}
       target="_blank"
       rel="noreferrer"
-      className="group flex min-h-[148px] flex-col justify-between rounded-lg bg-card p-4 text-card-foreground shadow-app ring-1 ring-foreground/10 transition hover:-translate-y-0.5 hover:ring-primary/35 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+      className="group relative grid aspect-square min-h-[132px] place-items-center overflow-hidden rounded-lg bg-card text-card-foreground shadow-app ring-1 ring-foreground/10 transition duration-150 ease-out hover:-translate-y-1 hover:shadow-float hover:ring-primary/25 active:translate-y-0 active:scale-[0.96] active:shadow-app focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none sm:min-h-[148px]"
       aria-label={`打开${app.name}`}
+      title={app.description || app.name}
     >
-      <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-5" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start justify-between gap-2">
-            <h3 className="truncate text-sm font-semibold">{app.name}</h3>
-            <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground transition group-hover:text-primary" />
+      <div className="pointer-events-none absolute inset-0 bg-primary/[0.03] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-active:opacity-100" />
+      <div className="pointer-events-none absolute inset-x-5 top-5 h-16 rounded-full bg-primary/5 blur-2xl opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-active:opacity-100" />
+      <div className="relative flex h-full w-full flex-col items-center justify-between p-4">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_14px_28px_rgba(17,24,39,0.18)] transition duration-150 group-hover:scale-105 group-active:scale-90 sm:size-20">
+            <Icon className="size-8 sm:size-10" aria-hidden="true" />
           </div>
-          {app.description && (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-              {app.description}
-            </p>
-          )}
+        </div>
+        <div className="flex min-h-10 w-full items-center justify-center border-t border-border/70 pt-3">
+          <div className="max-w-full truncate text-center text-sm font-semibold leading-5">
+            {app.name}
+          </div>
         </div>
       </div>
-      {tags.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {tags.slice(0, 3).map((tag) => (
-            <Badge key={tag} variant="secondary" className="h-6 rounded-md px-2 text-[11px]">
-              {tag}
-            </Badge>
-          ))}
-        </div>
-      )}
+      <span className="pointer-events-none absolute inset-0 rounded-lg ring-0 ring-primary/0 transition group-active:ring-[10px] group-active:ring-primary/10" />
     </a>
   );
 }
@@ -332,7 +321,7 @@ export default function AppsPage() {
         </div>
       )}
       {activeApps.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
           {activeApps.map((app) => (
             <AppCard key={app.id} app={app} />
           ))}

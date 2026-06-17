@@ -11,7 +11,8 @@ type SyncModule =
   | "dashboard"
   | "employees"
   | "organizations"
-  | "projects";
+  | "projects"
+  | "apps";
 
 const REALTIME_URL =
   import.meta.env.VITE_SUPABASE_REALTIME_URL ||
@@ -38,6 +39,7 @@ const TABLE_MODULES: Record<string, SyncModule[]> = {
   employee_profiles: ["employees", "organizations", "approvals", "dashboard"],
   organizations: ["organizations", "employees", "dashboard"],
   user_roles: ["employees", "organizations", "approvals"],
+  app_center_items: ["apps"],
 };
 
 function invalidateModules(
@@ -52,6 +54,7 @@ function invalidateModules(
   if (modules.includes("organizations")) queryClient.invalidateQueries({ queryKey: ["organizations"] });
   if (modules.includes("projects")) queryClient.invalidateQueries({ queryKey: ["projects"] });
   if (modules.includes("projects")) queryClient.invalidateQueries({ queryKey: ["project-base"] });
+  if (modules.includes("apps")) queryClient.invalidateQueries({ queryKey: ["app-center"] });
 }
 
 export function publishLocalSync(modules: string[]): void {

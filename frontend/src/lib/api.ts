@@ -515,6 +515,94 @@ async function savePermissionConfig(body: AnyRow): Promise<AnyRow> {
   return { ok: true, ...(await permissionConfig()) };
 }
 
+function normalizeAppCenterItem(row: AnyRow): AnyRow {
+  return {
+    id: Number(row.id),
+    app_key: String(row.app_key || ""),
+    name: String(row.name || ""),
+    description: String(row.description || ""),
+    url: String(row.url || ""),
+    icon_key: String(row.icon_key || "app"),
+    tags: Array.isArray(row.tags) ? row.tags.map(String).filter(Boolean) : [],
+    is_internal: row.is_internal === true,
+    is_active: row.is_active !== false,
+    sort_order: Number(row.sort_order || 0),
+    created_at: row.created_at || "",
+    updated_at: row.updated_at || "",
+  };
+}
+
+function appKeyFromName(name: string): string {
+  const ascii = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return ascii || `app-${Date.now()}`;
+}
+
+async function appCenterItems(): Promise<AnyRow[]> {
+  if (!(await currentUserCanAccessResource("apps", "read"))) {
+    throw new Error("应用中心访问权限不足");
+  }
+  const canWrite = await currentUserCanAccessResource("apps", "write");
+  const activeFilter = canWrite ? "" : "&is_active=eq.true";
+  const rows = await rest<AnyRow[]>(
+    `/app_center_items?select=*&order=sort_order.asc,name.asc${activeFilter}`,
+  );
+  return rows.map(normalizeAppCenterItem);
+}
+
+async function saveAppCenterItem(body: AnyRow): Promise<AnyRow> {
+  if (!(await currentUserCanAccessResource("apps", "write"))) {
+    throw new Error("应用中心维护权限不足");
+  }
+
+  const id = Number(body.id || 0);
+  const name = String(body.name || "").trim();
+  const url = String(body.url || "").trim();
+  if (!name) throw new Error("应用名称不能为空");
+  if (!/^https?:\/\//i.test(url)) throw new Error("应用地址需要以 http:// 或 https:// 开头");
+
+  const tags = Array.isArray(body.tags)
+    ? body.tags.map((tag: unknown) => String(tag).trim()).filter(Boolean)
+    : [];
+  const row = {
+    app_key: String(body.app_key || "").trim() || appKeyFromName(name),
+    name,
+    description: String(body.description || "").trim(),
+    url,
+    icon_key: String(body.icon_key || "app").trim() || "app",
+    tags,
+    is_internal: body.is_internal === true,
+    is_active: body.is_active !== false,
+    sort_order: Number(body.sort_order ?? 100),
+  };
+
+  if (id > 0) {
+    await rest(`/app_center_items?id=eq.${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(row),
+    });
+  } else {
+    await rest("/app_center_items", {
+      method: "POST",
+      body: JSON.stringify(row),
+    });
+  }
+  return { ok: true, apps: await appCenterItems() };
+}
+
+async function deleteAppCenterItem(body: AnyRow): Promise<AnyRow> {
+  if (!(await currentUserCanAccessResource("apps", "write"))) {
+    throw new Error("应用中心维护权限不足");
+  }
+  const id = Number(body.id || 0);
+  if (!id) throw new Error("应用 ID 不能为空");
+  await rest(`/app_center_items?id=eq.${id}`, { method: "DELETE" });
+  return { ok: true, apps: await appCenterItems() };
+}
+
 async function projects(): Promise<AnyRow[]> {
   const [rows, orgs, employees, labor, sheets, departmentOwners, projectRoles] = await Promise.all([
     rest<AnyRow[]>("/projects?select=*&status=neq.deleted&order=code.asc"),
@@ -1441,6 +1529,7 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/organizations") return organizations() as T;
   if (url.pathname === "/api/employees") return listEmployees() as T;
   if (url.pathname === "/api/permissions") return permissionConfig() as T;
+  if (url.pathname === "/api/apps") return appCenterItems() as T;
   if (url.pathname === "/api/projects") return projects() as T;
   if (url.pathname === "/api/numbering/employee") {
     return { code: await nextEmployeeNo(Number(url.searchParams.get("orgId") || 0)) } as T;
@@ -1482,6 +1571,8 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
     await rest(`/organizations?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify({ status: "deleted" }) });
     return { ok: true, organizations: await organizations() } as T;
   }
+  if (url.pathname === "/api/apps/save") return saveAppCenterItem(body) as T;
+  if (url.pathname === "/api/apps/delete") return deleteAppCenterItem(body) as T;
   if (url.pathname === "/api/employees/save") return saveEmployee(body) as T;
   if (url.pathname === "/api/permissions/save") return savePermissionConfig(body) as T;
   if (url.pathname === "/api/employees/delete") {

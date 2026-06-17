@@ -152,7 +152,12 @@ export const useTimesheetStore = create<TimesheetState>((set, get) => ({
 
   ensureDraftProjectRow: () => {
     const rows = get().rows;
-    const hasDraftProjectRow = rows.some((row) => !row.projectId && !row.approvalStatus);
+    const hasDraftProjectRow = rows.some(
+      (row) =>
+        !row.projectId &&
+        !row.approvalStatus &&
+        Object.values(row.percents).every((value) => !value),
+    );
     if (!hasDraftProjectRow) {
       set({ rows: [...rows, createEmptyRow()], isDirty: get().isDirty });
     }

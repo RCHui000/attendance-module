@@ -34,7 +34,7 @@ interface TimesheetTableProps {
   onUpdateOvertime: (day: string, hours: number) => void;
   onUpdateDescription: (rowIndex: number, day: string, value: string) => void;
   onUpdateProject: (rowIndex: number, projectId: number) => void;
-  onEditComplete: () => void;
+  onEditComplete: (context?: { day?: string }) => void;
   onAddRow: () => void;
   onRemoveRow: (rowIndex: number) => void;
 }
@@ -509,7 +509,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                           <PercentCell
                             value={row.percents[day] || 0}
                             onChange={(v) => onUpdatePercent(ri, day, v)}
-                            onCommit={onEditComplete}
+                            onCommit={() => onEditComplete({ day })}
                             locked={rowLocked}
                             invalid={dayTotals[day] > 100}
                           />
@@ -543,7 +543,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                       onChange={(e) =>
                         onUpdateDescription(ri, "__row", e.target.value)
                       }
-                      onBlur={onEditComplete}
+                      onBlur={() => onEditComplete()}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === "Tab") onEditComplete();
                       }}

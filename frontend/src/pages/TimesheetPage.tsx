@@ -140,11 +140,12 @@ export default function TimesheetPage() {
     store.ensureDraftProjectRow();
   }, [timesheet?.id, shouldShowDraftProjectRow, store.rows.length]);
 
-  const handleEditComplete = useCallback(() => {
+  const handleEditComplete = useCallback((context?: { day?: string }) => {
     if (isLocked) return;
     if (status === "submitted" && !hasRejectedProject) return;
     const rows = useTimesheetStore.getState().rows;
-    if (needsWorkIntentSlot(rows, weekDays)) store.ensureEmptyRow(store.isDirty);
+    const intentDays = context?.day ? [context.day] : weekDays;
+    if (needsWorkIntentSlot(rows, intentDays)) store.ensureEmptyRow(store.isDirty);
   }, [hasRejectedProject, isLocked, status, store, store.isDirty, weekDays]);
 
   const buildPayload = (): SaveTimesheetPayload => {

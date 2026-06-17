@@ -24,7 +24,8 @@ import { api } from "@/lib/api";
 import { formatMoney } from "@/utils/dates";
 import { cn } from "@/lib/utils";
 import { descendantOrgIds } from "@/utils/orgTree";
-import { Plus, Save, Search, Trash2 } from "lucide-react";
+import { useIsMobile } from "@/hooks/useMediaQuery";
+import { Plus, Save, Search, Trash2, X } from "lucide-react";
 import type { Employee, Organization } from "@/types/employee";
 import type { ProjectBase, ProjectBusinessType, ProjectRoleKey } from "@/types/project";
 import { toast } from "sonner";
@@ -172,6 +173,7 @@ function projectSummary(project: ProjectBase) {
 }
 
 export function ProjectList() {
+  const isMobile = useIsMobile();
   const { data: projects = [], isLoading, isError } = useProjectBase();
   const { data: employees = [] } = useEmployees();
   const { data: orgs = [] } = useOrganizations();
@@ -182,6 +184,7 @@ export function ProjectList() {
   const [autoProjectCode, setAutoProjectCode] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectBase | null>(null);
   const [projectSearch, setProjectSearch] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
 
   const activeProjects = useMemo(
     () => projects.filter((project) => project.status !== "deleted"),
@@ -242,12 +245,14 @@ export function ProjectList() {
       receivedAmount: String(project.received_amount || ""),
       roles,
     });
+    if (isMobile) setEditorOpen(true);
   };
 
   const startNew = () => {
     setSelectedId("new");
     setAutoProjectCode(null);
     setEditData(emptyEditData);
+    if (isMobile) setEditorOpen(true);
   };
 
   const update = (patch: Partial<EditData>) => setEditData((data) => ({ ...data, ...patch }));
@@ -359,7 +364,7 @@ export function ProjectList() {
   if (isError) return <div className="py-10 text-center text-sm text-destructive">项目加载失败</div>;
 
   return (
-    <div className="grid min-h-[68vh] grid-cols-[360px_minmax(0,1fr)] gap-4">
+    <div className="grid min-h-[68vh] grid-cols-[360px_minmax(0,1fr)] gap-4 max-[767px]:block">
       <div className="rounded-lg border border-border bg-white">
         <div className="flex items-center justify-between gap-2 border-b border-border p-3">
           <div>
@@ -384,7 +389,7 @@ export function ProjectList() {
             />
           </label>
         </div>
-        <div className="max-h-[68vh] overflow-y-auto p-2">
+        <div className="max-h-[68vh] overflow-y-auto p-2 max-[767px]:max-h-none">
           {directoryProjects.map((project) => {
             const type = project.business_type || inferBusinessType(project.code);
             return (
@@ -414,7 +419,22 @@ export function ProjectList() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-white p-4">
+      {isMobile && selectedId && editorOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+          aria-label="关闭项目配置"
+          onClick={() => setEditorOpen(false)}
+        />
+      )}
+
+      <div
+        className={cn(
+          "rounded-lg border border-border bg-white p-4",
+          "max-[767px]:fixed max-[767px]:inset-x-3 max-[767px]:top-6 max-[767px]:bottom-6 max-[767px]:z-50 max-[767px]:overflow-y-auto max-[767px]:shadow-xl",
+          (!isMobile || (selectedId && editorOpen)) ? "" : "max-[767px]:hidden",
+        )}
+      >
         {!selectedId && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             选择左侧项目，或新建项目后维护配置
@@ -428,6 +448,15 @@ export function ProjectList() {
                 <div className="text-xs text-muted-foreground">服务类型决定合同审批模板和负责人路由</div>
               </div>
               <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="hidden max-[767px]:inline-flex"
+                  onClick={() => setEditorOpen(false)}
+                  aria-label="关闭项目配置"
+                >
+                  <X className="size-4" />
+                </Button>
                 {selectedProject && (
                   <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(selectedProject)}>
                     <Trash2 className="mr-1 size-3.5" />

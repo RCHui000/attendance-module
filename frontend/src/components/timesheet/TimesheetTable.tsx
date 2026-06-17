@@ -116,26 +116,31 @@ function RowApprovalStatus({
       label: "\u5df2\u6279\u51c6",
       icon: CheckCircle2,
       className: "text-status-approved-text bg-status-approved-bg",
+      dotClassName: "bg-success",
     },
     summary_pending: {
       label: "\u5f85\u6c47\u603b",
       icon: CheckCircle2,
       className: "text-status-approved-text bg-status-approved-bg",
+      dotClassName: "bg-success",
     },
     pending: {
       label: "\u5ba1\u6279\u4e2d",
       icon: Clock3,
       className: "text-primary bg-primary/10",
+      dotClassName: "bg-primary",
     },
     rejected: {
       label: "\u5df2\u9000\u56de",
       icon: XCircle,
       className: "text-destructive bg-destructive/10",
+      dotClassName: "bg-destructive",
     },
     draft: {
       label: "\u8349\u7a3f",
       icon: Circle,
       className: "text-muted-foreground bg-muted",
+      dotClassName: "bg-muted-foreground",
     },
   }[status || "draft"];
   const Icon = config.icon;
@@ -144,12 +149,14 @@ function RowApprovalStatus({
     <span
       className={cn(
         "inline-flex h-6 w-[72px] shrink-0 items-center justify-center gap-1 rounded-md text-[11px] font-medium",
+        "max-[767px]:h-8 max-[767px]:w-3 max-[767px]:bg-transparent max-[767px]:p-0",
         config.className,
       )}
       title={config.label}
     >
-      <Icon className="size-3" />
-      {config.label}
+      <span className={cn("hidden size-2 rounded-full max-[767px]:block", config.dotClassName)} aria-hidden="true" />
+      <Icon className="size-3 max-[767px]:hidden" />
+      <span className="max-[767px]:sr-only">{config.label}</span>
     </span>
   );
 }

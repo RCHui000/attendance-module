@@ -294,13 +294,7 @@ export default function AppsPage() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">应用中心</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            统一进入公司内部工具和业务应用。
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{activeApps.length} 个应用</Badge>
           {canManage && (

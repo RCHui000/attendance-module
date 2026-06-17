@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { ReviewDrawer } from "@/components/review/ReviewDrawer";
+import { useMemo } from "react";
 import { ReviewMobileCards } from "@/components/review/mobile/ReviewMobileCards";
 import { Button } from "@/components/ui/button";
 import type { ApprovalTasks } from "@/types/approval";
@@ -22,7 +21,6 @@ export function ReviewMobile({
   onTabChange,
   onRefresh,
 }: ReviewMobileProps) {
-  const [drawerTimesheetId, setDrawerTimesheetId] = useState<number | null>(null);
   const counts = useMemo(
     () => ({
       pending: (data?.timesheets.length || 0) + (data?.overtime.length || 0),
@@ -73,15 +71,8 @@ export function ReviewMobile({
         <ReviewMobileCards
           data={data}
           approvalTab={approvalTab}
-          onOpenTimesheet={setDrawerTimesheetId}
         />
       )}
-
-      <ReviewDrawer
-        timesheetId={drawerTimesheetId}
-        open={drawerTimesheetId != null}
-        onClose={() => setDrawerTimesheetId(null)}
-      />
     </div>
   );
 }

@@ -72,23 +72,17 @@ function AppCard({ app }: { app: AppCenterItem }) {
       href={app.url}
       target="_blank"
       rel="noreferrer"
-      className="group relative grid aspect-square min-h-[108px] place-items-center overflow-hidden rounded-lg bg-card text-card-foreground shadow-app ring-1 ring-foreground/10 transition duration-150 ease-out hover:-translate-y-1 hover:shadow-float hover:ring-primary/25 active:translate-y-0 active:scale-[0.96] active:shadow-app focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none sm:min-h-[120px]"
+      className="group relative flex h-[116px] w-[104px] flex-col items-center justify-center gap-3 overflow-hidden rounded-lg bg-card px-2 py-3 text-card-foreground shadow-app ring-1 ring-foreground/10 transition duration-150 ease-out hover:-translate-y-1 hover:shadow-float hover:ring-primary/25 active:translate-y-0 active:scale-[0.96] active:shadow-app focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none sm:h-[124px] sm:w-[112px]"
       aria-label={`打开${app.name}`}
       title={app.description || app.name}
     >
       <div className="pointer-events-none absolute inset-0 bg-primary/[0.03] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-active:opacity-100" />
-      <div className="pointer-events-none absolute inset-x-4 top-4 h-12 rounded-full bg-primary/5 blur-2xl opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-active:opacity-100" />
-      <div className="relative flex h-full w-full flex-col items-center justify-between p-3">
-        <div className="flex flex-1 items-center justify-center">
-          <div className="flex size-14 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_12px_24px_rgba(17,24,39,0.18)] transition duration-150 group-hover:scale-105 group-active:scale-90 sm:size-16">
-            <Icon className="size-7 sm:size-8" aria-hidden="true" />
-          </div>
-        </div>
-        <div className="flex min-h-8 w-full items-center justify-center border-t border-border/70 pt-2">
-          <div className="max-w-full truncate text-center text-sm font-semibold leading-5">
-            {app.name}
-          </div>
-        </div>
+      <div className="pointer-events-none absolute inset-x-3 top-3 h-10 rounded-full bg-primary/5 blur-xl opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-active:opacity-100" />
+      <div className="relative flex size-14 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_12px_24px_rgba(17,24,39,0.18)] transition duration-150 group-hover:scale-105 group-active:scale-90 sm:size-16">
+        <Icon className="size-7 sm:size-8" aria-hidden="true" />
+      </div>
+      <div className="relative max-w-full truncate text-center text-[13px] font-semibold leading-5">
+        {app.name}
       </div>
       <span className="pointer-events-none absolute inset-0 rounded-lg ring-0 ring-primary/0 transition group-active:ring-[10px] group-active:ring-primary/10" />
     </a>
@@ -321,7 +315,7 @@ export default function AppsPage() {
         </div>
       )}
       {activeApps.length > 0 && (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-7">
+        <div className="grid justify-start gap-3 [grid-template-columns:repeat(auto-fill,minmax(104px,104px))] sm:[grid-template-columns:repeat(auto-fill,minmax(112px,112px))]">
           {activeApps.map((app) => (
             <AppCard key={app.id} app={app} />
           ))}

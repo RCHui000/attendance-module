@@ -52,8 +52,16 @@ CREATE POLICY "RBAC write app center items" ON public.app_center_items
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_center_items TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.app_center_items_id_seq TO authenticated;
-GRANT ALL ON public.app_center_items TO service_role, postgres;
-GRANT ALL ON SEQUENCE public.app_center_items_id_seq TO service_role, postgres;
+GRANT ALL ON public.app_center_items TO service_role;
+GRANT ALL ON SEQUENCE public.app_center_items_id_seq TO service_role;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+    GRANT ALL ON public.app_center_items TO postgres;
+    GRANT ALL ON SEQUENCE public.app_center_items_id_seq TO postgres;
+  END IF;
+END $$;
 
 INSERT INTO public.app_center_items (
   app_key,

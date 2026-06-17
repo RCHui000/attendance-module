@@ -8,21 +8,21 @@ This frontend is a React + Vite single page app. It keeps the old `/api/*` call 
 - `App.tsx` checks auth state through `authStore`.
 - Unauthenticated users see `LoginPage`.
 - Authenticated users enter `AppLayout` with these routes:
-  - `/timesheet`: weekly timesheet entry.
+  - `/timesheet`: weekly/month-split timesheet entry.
   - `/leave`: leave request entry placeholder; available to all authenticated roles.
   - `/dashboard`: BI dashboard.
   - `/review`: approval center.
-  - `/report`: project list and project reporting.
+  - `/report`: project list, mobile popup editor, and project reporting.
   - `/employees`: employee/organization system management and platform permission configuration.
-  - `/apps`: application center placeholder; visible when the `apps` resource is readable.
+  - `/apps`: application card center with admin maintenance; visible when the `apps` resource is readable.
 
 ## Module Directories
 
 | Directory | Purpose |
 | --- | --- |
-| `components/timesheet` | Weekly project workday entry table and validation UI. |
-| `components/review` | Approval task lists and timesheet detail expansion/drawer. |
-| `components/report` | Project CRUD, project financial/labor summary, project detail drawer. |
+| `components/timesheet` | Weekly/month-split project workday entry table, intent recognition, and validation UI. |
+| `components/review` | Approval task lists and desktop/mobile timesheet detail expansion. |
+| `components/report` | Project CRUD, mobile project popup editor, project financial/labor summary, project detail drawer. |
 | `components/employees` | Employee table, edit rows, organization tree, reminders, permission matrix. |
 | `components/dashboard` | Metric cards and BI perspectives. |
 | `components/layout` | App shell, sidebar, topbar, brand, login screen. |

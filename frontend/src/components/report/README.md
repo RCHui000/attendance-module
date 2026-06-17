@@ -7,7 +7,7 @@ The report module is the project list, project editor, and project labor/finance
 | File | Role |
 | --- | --- |
 | `pages/ReportPage.tsx` | Page container. |
-| `ProjectList.tsx` | Left project directory and fixed right-side project configuration panel. |
+| `ProjectList.tsx` | Desktop left directory + right configuration panel; mobile directory + popup configuration card. |
 | `ProjectDrawer.tsx` | Per-project labor detail. |
 | `LaborOverview.tsx` | Period summary. |
 | `PeriodSelector.tsx` | Date range selection. |
@@ -24,7 +24,7 @@ The report module is the project list, project editor, and project labor/finance
 | `useDeleteProject` | `/api/projects/delete` | POST | Soft delete project. |
 | project department owner save | `/api/project-department-owners/save` | POST | Save project participating department owner rows. |
 | `useWeeklyReport` | `/api/reports/weekly` | GET | Aggregate labor by project/user/date range. |
-| `useLaborMatrix` | `/api/reports/labor-matrix` | GET | Build project × period labor matrix. |
+| `useLaborMatrix` | `/api/reports/labor-matrix` | GET | Build project x period labor matrix. |
 | `useProjectDetail` | `/api/project-detail` | GET | Employee-level labor detail for one project. |
 
 ## Project Fields
@@ -47,7 +47,7 @@ Project service type is contract approval master data, not only a display label.
 | --- | --- |
 | `PM` | PM employee -> PM project owner -> PM department owner |
 | `CC` | CC employee -> CC project owner -> CC department owner |
-| `PMCC` | CC employee -> CC project owner -> PM cost department owner -> CC department owner -> PM project owner -> PM department owner |
+| `PMCC` | CC employee -> CC project owner -> PM cost department owner -> PM project owner -> PM department owner |
 
 Role keys currently used by the project list:
 
@@ -66,3 +66,4 @@ The project page exposes separate CC civil and MEP project owners. Saving either
 - Deleted projects are marked with `status = deleted`; they are not hard-deleted.
 - Labor totals only count reportable timesheet statuses.
 - Saving a project can refresh pending approval routes so unresolved reviews follow the latest owner configuration.
+- On mobile, the default view is the project directory only. Selecting a project opens the configuration form as a modal card so dense PM/CC/PMCC owner fields are not squeezed into a narrow two-column layout.

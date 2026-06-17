@@ -6,14 +6,14 @@ Pages are route-level containers. They should orchestrate hooks, stores, and fea
 
 | Page | Route | Main module | Purpose |
 | --- | --- | --- | --- |
-| `LoginPage.tsx` | unauthenticated default | `components/layout` | Login and password-change surface. |
-| `TimesheetPage.tsx` | `/timesheet` | `components/timesheet` | Weekly workday entry, save, submit. |
+| `LoginPage.tsx` | unauthenticated default | `components/layout` | Login, password-change surface, animated background. |
+| `TimesheetPage.tsx` | `/timesheet` | `components/timesheet` | Weekly/month-split workday entry, save, submit. |
 | `LeavePage.tsx` | `/leave` | page placeholder | Leave request entry placeholder. No backend API yet. |
 | `DashboardPage.tsx` | `/dashboard` | `components/dashboard` | KPI and BI dashboard. |
 | `ReviewPage.tsx` | `/review` | `components/review` | Approval center. |
-| `ReportPage.tsx` | `/report` | `components/report` | Project list and reports. |
+| `ReportPage.tsx` | `/report` | `components/report` | Project list, project popup editor on mobile, and reports. |
 | `EmployeesPage.tsx` | `/employees` | `components/employees` | System management and permission configuration. |
-| `AppsPage.tsx` | `/apps` | page placeholder | Application center placeholder. No backend API yet. |
+| `AppsPage.tsx` | `/apps` | route page + app-center API | Application card catalog; admin can maintain app entries. |
 
 ## Page Responsibilities
 

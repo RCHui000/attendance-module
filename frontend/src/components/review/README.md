@@ -12,7 +12,8 @@ This module describes timesheet approval only. Timesheet project blocks now use 
 | `ApprovalTable.tsx` | Pending/reviewed task lists and approve/reject actions. |
 | `ApprovalFlowConfig.tsx` | Admin-only contract approval template editor with live graph preview. |
 | `ExpandedReviewRow.tsx` | Inline expanded timesheet detail. |
-| `ReviewDrawer.tsx` | Drawer-style full timesheet detail. |
+| `ReviewDrawer.tsx` | Desktop drawer-style full timesheet detail for legacy/detail workflows. |
+| `mobile/MobileTimesheetDetail.tsx` | Mobile inline vertical detail for approval task cards. |
 | `hooks/useApprovals.ts` | Query and mutation wrapper. |
 | `types/approval.ts` | Approval task and detail contracts. |
 
@@ -48,3 +49,4 @@ Important fields used by the UI:
 - Rejecting a timesheet project task only affects that project block. Other project blocks in the same sheet keep their current pending/approved state.
 - The UI reads Approval Graph views only. Legacy `workflow_tasks` rows are migrated into graph nodes during V0.15 deployment and the legacy table is dropped after count checks pass.
 - Admin users can open the approval-flow configuration tab to inspect PM / CC / PMCC contract templates and preview the current serial graph.
+- Mobile approval cards expand details vertically in place instead of opening a side drawer/sheet, so long timesheet details can scroll with the page.

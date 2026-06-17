@@ -11,6 +11,7 @@ The dashboard module shows KPI cards and BI perspectives over approved labor dat
 | `DashboardTable.tsx` | Project/employee rollup table. |
 | `BiPerspectiveTab.tsx` | Project, department, and employee BI perspectives. |
 | `AnalyticsTab.tsx` | Chart-based analytics. |
+| `DashboardMobile.tsx` | Mobile-first dashboard composition and compact BI summaries. |
 | `PeriodFilter.tsx` | Period selector. |
 | `OverviewBarChart.tsx` | Basic bar chart rendering. |
 | `SimpleBarList.tsx` | Compact list chart. |
@@ -23,6 +24,7 @@ The dashboard module shows KPI cards and BI perspectives over approved labor dat
 | --- | --- | --- | --- |
 | `useProjects` | `/api/projects` | GET | Project master data, finance fields, configured owners. |
 | `useProjects` | `/api/reports/weekly` | GET | Labor totals in selected range. |
+| `useProjects` | `/api/reports/labor-matrix` | GET | Project x period labor matrix where needed by BI views. |
 | `useProjects` | `/api/employees` | GET | Employee salary/rate data for labor cost estimate. |
 | `useMonthlyData` | `/api/reports/weekly` | GET | Periodized labor report used by charts. |
 
@@ -35,3 +37,9 @@ The dashboard module shows KPI cards and BI perspectives over approved labor dat
 - Department and employee contribution views.
 
 Only reportable timesheet statuses are counted: `approved`, `locked`, `summarized`.
+
+## Mobile UX
+
+- Mobile dashboard views use a single-column information flow with compact selectors and cards.
+- BI perspectives prioritize readable lists and summaries before dense charts.
+- Desktop visual hierarchy stays closer to the multi-panel KPI and chart layout.

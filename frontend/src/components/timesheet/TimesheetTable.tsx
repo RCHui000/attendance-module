@@ -74,7 +74,7 @@ function PercentCell({
         max="100"
         step="1"
         className={cn(
-          "h-8 w-[72px] text-right text-sm",
+          "h-8 w-[72px] text-right text-base md:text-sm",
           invalid && "border-destructive bg-red-50",
         )}
         value={value || ""}
@@ -361,7 +361,7 @@ function ProjectPicker({
           aria-haspopup="listbox"
           title={selectedLabel || "输入关键字检索"}
           placeholder="输入关键字检索"
-          className="h-8 pr-8 pl-8 text-sm"
+          className="h-8 pr-8 pl-8 text-base md:text-sm"
         />
         <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       </div>
@@ -533,7 +533,7 @@ export const TimesheetTable = memo(function TimesheetTable({
 
                   <td className="p-1.5">
                     <Textarea
-                      className="h-8 text-sm resize-none"
+                      className="h-8 text-base resize-none md:text-sm"
                       value={
                         row.descriptions.__row ||
                         Object.values(row.descriptions).find(
@@ -600,7 +600,7 @@ export const TimesheetTable = memo(function TimesheetTable({
                       type="number"
                       min="0"
                       step="0.5"
-                      className="h-8 w-[72px] mx-auto text-right text-sm text-warning"
+                      className="h-8 w-[72px] mx-auto text-right text-base text-warning md:text-sm"
                       value={overtime[day]?.hours || ""}
                       onChange={(e) => {
                         if (isLocked) return;

@@ -62,7 +62,7 @@
   --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
 
   /* Typography */
-  --font-sans: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+  --font-sans: "Microsoft YaHei", "微软雅黑", sans-serif;
   --font-mono: "Cascadia Code", "Fira Code", "Consolas", monospace;
 
   /* Animation */
@@ -72,6 +72,7 @@
 /* ---- Base layer ---- */
 * {
   box-sizing: border-box;
+  font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
 }
 
 body {
@@ -79,7 +80,7 @@ body {
   min-height: 100vh;
   color: hsl(222 20% 11%);
   background: linear-gradient(180deg, #fbfbfc 0%, hsl(220 14% 96%) 100%);
-  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+  font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
   font-size: 14px;
   letter-spacing: 0;
   -webkit-tap-highlight-color: rgba(17, 24, 39, 0.08);
@@ -88,6 +89,14 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select,
+dialog {
+  font-family: inherit;
 }
 
 /* ---- Focus ring ---- */

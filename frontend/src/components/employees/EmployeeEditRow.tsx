@@ -90,6 +90,10 @@ function costSpecialtyLabel(value: string): string {
   return "";
 }
 
+function requiresConsultingSpecialty(role: string): boolean {
+  return role === "employee" || role === "lead";
+}
+
 export const EmployeeEditRow = memo(function EmployeeEditRow({
   data,
   orgs,
@@ -105,8 +109,10 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   );
 
   const showCostSpecialty = useMemo(
-    () => isCostOrganization(orgs, data.orgId ? Number(data.orgId) : null),
-    [orgs, data.orgId],
+    () =>
+      requiresConsultingSpecialty(data.role) &&
+      isCostOrganization(orgs, data.orgId ? Number(data.orgId) : null),
+    [orgs, data.orgId, data.role],
   );
 
   const effectiveCostSpecialty = data.costSpecialty || inferCostSpecialty(data.positionName);
@@ -122,16 +128,17 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   const handleOrgChange = useCallback(
     (value: string) => {
       const shouldKeepSpecialty = isCostOrganization(orgs, value ? Number(value) : null);
-      const nextSpecialty = shouldKeepSpecialty
+      const shouldUseSpecialty = shouldKeepSpecialty && requiresConsultingSpecialty(data.role);
+      const nextSpecialty = shouldUseSpecialty
         ? data.costSpecialty || inferCostSpecialty(data.positionName)
         : "";
       onChange({
         orgId: value,
         costSpecialty: nextSpecialty,
-        positionName: shouldKeepSpecialty ? costSpecialtyLabel(nextSpecialty) : data.positionName,
+        positionName: shouldUseSpecialty ? costSpecialtyLabel(nextSpecialty) : data.positionName,
       });
     },
-    [data.costSpecialty, data.positionName, orgs, onChange],
+    [data.costSpecialty, data.positionName, data.role, orgs, onChange],
   );
 
   const handleHireDateChange = useCallback(

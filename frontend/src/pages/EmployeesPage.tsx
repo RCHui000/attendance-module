@@ -80,6 +80,10 @@ function inferCostSpecialty(positionName: string): string {
   return "";
 }
 
+function requiresConsultingSpecialty(role: string): boolean {
+  return role === "employee" || role === "lead";
+}
+
 function employeeSearchText(emp: Employee, orgPath: string) {
   return [
     emp.employee_no,
@@ -425,14 +429,16 @@ export default function EmployeesPage() {
     }
     if (
       editData.orgId &&
+      requiresConsultingSpecialty(editData.role) &&
       isCostOrganization(orgs, Number(editData.orgId)) &&
       !editData.costSpecialty
     ) {
-      toast.error("成本合约执行人员需要选择土建或机电岗位");
+      toast.error("造价咨询执行/基层人员需要选择土建、机电或全专业");
       return;
     }
     const shouldSaveCostSpecialty =
       !!editData.orgId &&
+      requiresConsultingSpecialty(editData.role) &&
       isCostOrganization(orgs, Number(editData.orgId));
 
     const payload: Record<string, unknown> = {

@@ -201,7 +201,7 @@ export default function EmployeesPage() {
       }
     });
     const queue = orgs
-      .filter((org) => org.manager_user_id === currentUser.id)
+      .filter((org) => (org.manager_ids || []).includes(currentUser.id))
       .map((org) => org.id);
     while (queue.length > 0) {
       const id = queue.shift();

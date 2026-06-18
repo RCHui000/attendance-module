@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,11 +19,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card } from "@/components/ui/card";
-import { useOrganizations, useSaveOrganization, useDeleteOrganization } from "@/hooks/useEmployees";
+import { useDeleteOrganization, useOrganizations, useSaveOrganization } from "@/hooks/useEmployees";
 import type { Employee, Organization } from "@/types/employee";
-import { descendantOrgIds, flattenOrgTree, orgOptionLabel } from "@/utils/orgTree";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Pencil, Trash2, Plus } from "lucide-react";
+import { descendantOrgIds, flattenOrgTree, orgOptionLabel } from "@/utils/orgTree";
+import { ChevronDown, ChevronRight, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrganizationPanelProps {
@@ -48,21 +48,23 @@ export function OrganizationPanel({
     orgName: "",
     orgType: "department" as "company" | "department",
     parentId: "" as string,
-    managerUserId: "" as string,
+    managerIds: [] as string[],
   });
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [expandedOrgIds, setExpandedOrgIds] = useState<Set<number>>(() => new Set());
 
   const directOrgMemberCounts = useMemo(() => {
     const counts: Record<number, number> = {};
-    employees.forEach((e) => {
-      if (e.org_id) counts[e.org_id] = (counts[e.org_id] || 0) + 1;
+    employees.forEach((employee) => {
+      if (employee.org_id) counts[employee.org_id] = (counts[employee.org_id] || 0) + 1;
     });
     return counts;
   }, [employees]);
 
   const treeOrgs = useMemo(() => flattenOrgTree(orgs), [orgs]);
   const orgById = useMemo(() => new Map(orgs.map((org) => [org.id, org])), [orgs]);
+  const selectedOrg = editingId ? orgById.get(editingId) || null : null;
+
   const childIdsByParent = useMemo(() => {
     const map = new Map<number | null, number[]>();
     orgs.forEach((org) => {
@@ -88,7 +90,7 @@ export function OrganizationPanel({
 
   const visibleRows = useMemo(() => {
     const normalizedSearch = search.trim();
-    const passesSearch = (org: typeof treeOrgs[number]) =>
+    const passesSearch = (org: (typeof treeOrgs)[number]) =>
       !normalizedSearch || org.path.includes(normalizedSearch) || org.org_name.includes(normalizedSearch);
 
     return treeOrgs.filter((org) => {
@@ -112,20 +114,23 @@ export function OrganizationPanel({
   }, [editingId, orgs, treeOrgs]);
 
   const managerOptions = useMemo(
-    () =>
-      employees.filter((e) => {
-        if (String(e.status || "").toLowerCase() === "terminated") return false;
-        return true;
-      }),
+    () => employees
+      .filter((employee) => String(employee.status || "").toLowerCase() !== "terminated")
+      .sort((a, b) => a.name.localeCompare(b.name, "zh-CN")),
     [employees],
   );
 
-  // Get manager name
-  const getManagerName = (managerId: number | null) => {
-    if (!managerId) return "—";
-    const emp = employees.find((e) => e.id === managerId);
-    return emp?.name || "—";
+  const employeeById = useMemo(
+    () => new Map(employees.map((employee) => [String(employee.id), employee])),
+    [employees],
+  );
+
+  const isPmOrg = (org?: Organization | null, draftName = "") => {
+    const text = `${org?.org_code || ""} ${org?.org_name || draftName}`.toUpperCase();
+    return text.includes("PM") || text.includes("项目管理");
   };
+
+  const allowMultipleManagers = isPmOrg(selectedOrg, editData.orgName);
 
   const startEdit = (org?: Organization) => {
     if (!canManage) return;
@@ -136,11 +141,12 @@ export function OrganizationPanel({
         orgName: org.org_name,
         orgType: org.org_type,
         parentId: org.parent_id ? String(org.parent_id) : "",
-        managerUserId: org.manager_user_id ? String(org.manager_user_id) : "",
+        managerIds: (org.manager_ids || []).map(String),
       });
     } else {
       setIsNew(true);
-      setEditData({ orgName: "", orgType: "department", parentId: "", managerUserId: "" });
+      setEditingId(null);
+      setEditData({ orgName: "", orgType: "department", parentId: "", managerIds: [] });
     }
   };
 
@@ -149,21 +155,46 @@ export function OrganizationPanel({
     setIsNew(false);
   };
 
+  const addManager = (value: string | null) => {
+    if (!value || value === "none") return;
+    setEditData((data) => {
+      if (data.managerIds.includes(value)) return data;
+      return {
+        ...data,
+        managerIds: allowMultipleManagers ? [...data.managerIds, value] : [value],
+      };
+    });
+  };
+
+  const removeManager = (id: string) => {
+    setEditData((data) => ({
+      ...data,
+      managerIds: data.managerIds.filter((managerId) => managerId !== id),
+    }));
+  };
+
+  const managerChipLabel = (id: string) => {
+    const employee = employeeById.get(id);
+    return employee ? `${employee.name} · ${employee.org_name || employee.department || "未分配部门"}` : id;
+  };
+
+  const managerSummary = (org: Organization) => {
+    const names = org.manager_names || [];
+    if (names.length === 0) return "未设置负责人";
+    return names.join(" / ");
+  };
+
   const renderEditForm = () => (
     <div className="space-y-2">
       <Input
         className="h-8 text-sm"
         value={editData.orgName}
-        onChange={(e) =>
-          setEditData((d) => ({ ...d, orgName: e.target.value }))
-        }
+        onChange={(event) => setEditData((data) => ({ ...data, orgName: event.target.value }))}
         placeholder="部门名称"
       />
       <Select
         value={editData.orgType}
-        onValueChange={(v) =>
-          setEditData((d) => ({ ...d, orgType: v as "company" | "department" }))
-        }
+        onValueChange={(value) => setEditData((data) => ({ ...data, orgType: value as "company" | "department" }))}
       >
         <SelectTrigger className="h-8 text-sm">
           <SelectValue />
@@ -175,9 +206,7 @@ export function OrganizationPanel({
       </Select>
       <Select
         value={editData.parentId || "none"}
-        onValueChange={(v) =>
-          setEditData((d) => ({ ...d, parentId: !v || v === "none" ? "" : v }))
-        }
+        onValueChange={(value) => setEditData((data) => ({ ...data, parentId: !value || value === "none" ? "" : value }))}
       >
         <SelectTrigger className="h-8 text-sm">
           <SelectValue placeholder="上级部门" />
@@ -191,31 +220,50 @@ export function OrganizationPanel({
           ))}
         </SelectContent>
       </Select>
-      <Select
-        value={editData.managerUserId || "none"}
-        onValueChange={(v) =>
-          setEditData((d) => ({ ...d, managerUserId: !v || v === "none" ? "" : v }))
-        }
-      >
-        <SelectTrigger className="h-8 text-sm">
-          <SelectValue placeholder="选择负责人" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">无</SelectItem>
-          {managerOptions.map((e) => (
-            <SelectItem key={e.id} value={String(e.id)}>
-              {e.name} · {e.org_name || e.department || "未分配部门"}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <div className="flex gap-1 justify-end">
-        <Button
-          size="sm"
-          className="h-7"
-          onClick={handleSave}
-          disabled={saveOrg.isPending}
-        >
+      <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            {allowMultipleManagers ? "部门负责人" : "负责人"}
+          </span>
+          {allowMultipleManagers && <span className="text-[11px] text-muted-foreground">首位为主负责人</span>}
+        </div>
+        <Select value="none" onValueChange={addManager}>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue placeholder={allowMultipleManagers ? "添加负责人" : "选择负责人"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">不设置</SelectItem>
+            {managerOptions.map((employee) => (
+              <SelectItem key={employee.id} value={String(employee.id)}>
+                {employee.name} · {employee.org_name || employee.department || "未分配部门"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {editData.managerIds.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {editData.managerIds.map((id, index) => (
+              <span
+                key={id}
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+              >
+                <span className="max-w-36 truncate">{managerChipLabel(id)}</span>
+                {index === 0 && <span className="rounded-full bg-slate-100 px-1 text-[10px] text-slate-500">主</span>}
+                <button
+                  type="button"
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-slate-100 hover:text-foreground"
+                  onClick={() => removeManager(id)}
+                  aria-label="移除负责人"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end gap-1">
+        <Button size="sm" className="h-7" onClick={handleSave} disabled={saveOrg.isPending}>
           保存
         </Button>
         <Button size="sm" variant="outline" className="h-7" onClick={cancelEdit}>
@@ -236,15 +284,14 @@ export function OrganizationPanel({
         orgName: editData.orgName.trim(),
         orgType: editData.orgType,
         parentId: editData.parentId ? Number(editData.parentId) : null,
-        managerUserId: editData.managerUserId ? Number(editData.managerUserId) : null,
+        managerIds: editData.managerIds.map(Number),
       },
       {
         onSuccess: () => {
           toast.success(isNew ? "部门已创建" : "部门已更新");
           cancelEdit();
         },
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "保存失败"),
+        onError: (error) => toast.error(error instanceof Error ? error.message : "保存失败"),
       },
     );
   };
@@ -253,8 +300,7 @@ export function OrganizationPanel({
     if (!deleteTarget) return;
     deleteOrg.mutate(deleteTarget, {
       onSuccess: () => toast.success("部门已删除"),
-      onError: (err) =>
-        toast.error(err instanceof Error ? err.message : "删除失败"),
+      onError: (error) => toast.error(error instanceof Error ? error.message : "删除失败"),
     });
     setDeleteTarget(null);
   };
@@ -269,22 +315,22 @@ export function OrganizationPanel({
   };
 
   return (
-    <Card className="p-3.5 shadow-app rounded-lg">
-      <div className="flex items-center justify-between mb-3">
+    <Card className="rounded-lg p-3.5 shadow-app">
+      <div className="mb-3 flex items-center justify-between">
         <strong className="text-sm">部门列表</strong>
         {canManage && (
           <Button variant="outline" size="sm" onClick={() => startEdit()}>
-            <Plus className="size-3.5 mr-1" />
+            <Plus className="mr-1 size-3.5" />
             新增部门
           </Button>
         )}
       </div>
 
       <Input
-        placeholder="搜索部门…"
+        placeholder="搜索部门"
         className="mb-3 h-8 text-sm"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(event) => setSearch(event.target.value)}
       />
 
       {isNew && (
@@ -295,69 +341,64 @@ export function OrganizationPanel({
 
       {isLoading && (
         <div className="py-6 text-center text-sm text-muted-foreground">
-          加载中…
+          加载中...
         </div>
       )}
 
-      <div className="grid gap-2 max-h-[55vh] overflow-auto">
+      <div className="grid max-h-[55vh] gap-2 overflow-auto">
         {visibleRows.map((org) => {
           const hasChildren = (childIdsByParent.get(org.id) || []).length > 0;
           const isExpanded = expandedOrgIds.has(org.id) || !!search.trim();
           return (
-          <div
-            key={org.id}
-            className="rounded-md border border-border px-3 py-2 hover:bg-row-hover transition-colors"
-          >
-            {editingId === org.id ? (
-              renderEditForm()
-            ) : (
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center">
-                  <span style={{ width: org.depth * 18 }} className="shrink-0" />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className={cn("mr-1 size-6 shrink-0 p-0", !hasChildren && "invisible")}
-                    onClick={() => toggleExpanded(org.id)}
-                  >
-                    {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                  </Button>
-                  <span className="truncate text-sm font-medium">{org.org_name}</span>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {getManagerName(org.manager_user_id)} ·{" "}
-                    {orgMemberCounts[org.id] || 0}人
-                  </span>
-                </div>
-                {canManage && (
-                  <div className="flex gap-1">
+            <div
+              key={org.id}
+              className="rounded-md border border-border px-3 py-2 transition-colors hover:bg-row-hover"
+            >
+              {editingId === org.id ? (
+                renderEditForm()
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center">
+                    <span style={{ width: org.depth * 18 }} className="shrink-0" />
                     <Button
-                      size="sm"
+                      type="button"
                       variant="ghost"
-                      className="size-7 p-0"
-                      onClick={() => startEdit(org)}
-                    >
-                      <Pencil className="size-3" />
-                    </Button>
-                    <Button
                       size="sm"
-                      variant="ghost"
-                      className="size-7 p-0 text-destructive"
-                      onClick={() => setDeleteTarget(org.id)}
+                      className={cn("mr-1 size-6 shrink-0 p-0", !hasChildren && "invisible")}
+                      onClick={() => toggleExpanded(org.id)}
                     >
-                      <Trash2 className="size-3" />
+                      {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                     </Button>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{org.org_name}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {managerSummary(org)} · {orgMemberCounts[org.id] || 0}人
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
+                  {canManage && (
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="size-7 p-0" onClick={() => startEdit(org)}>
+                        <Pencil className="size-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="size-7 p-0 text-destructive"
+                        onClick={() => setDeleteTarget(org.id)}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
         })}
       </div>
 
-      {/* Delete confirmation */}
-      <AlertDialog open={deleteTarget != null} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+      <AlertDialog open={deleteTarget != null} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除部门？</AlertDialogTitle>

@@ -434,14 +434,35 @@ async function listEmployees(): Promise<AnyRow[]> {
 }
 
 async function organizations(): Promise<AnyRow[]> {
-  const [orgs, employees] = await Promise.all([
+  const [orgs, employees, managers] = await Promise.all([
     rest<AnyRow[]>("/organizations?select=*&status=eq.active&order=parent_id.asc,id.asc"),
     rest<AnyRow[]>("/employees?select=id,name"),
+    rest<AnyRow[]>("/organization_managers?select=*&is_active=eq.true&manager_role=eq.department_owner&order=org_id.asc,is_primary.desc,updated_at.desc,id.desc").catch(() => []),
   ]);
   const names = new Map(employees.map((e) => [Number(e.id), e.name]));
+  const managersByOrg = new Map<number, AnyRow[]>();
+  for (const manager of managers) {
+    const orgId = Number(manager.org_id);
+    const rows = managersByOrg.get(orgId) || [];
+    rows.push({
+      ...manager,
+      id: Number(manager.id),
+      org_id: orgId,
+      employee_id: Number(manager.employee_id),
+      employee_name: names.get(Number(manager.employee_id)) || "",
+      manager_role: manager.manager_role || "department_owner",
+      is_primary: manager.is_primary === true,
+      is_active: manager.is_active !== false,
+    });
+    managersByOrg.set(orgId, rows);
+  }
   return orgs.map((org) => ({
     ...org,
-    manager_name: org.manager_user_id ? names.get(Number(org.manager_user_id)) || null : null,
+    managers: managersByOrg.get(Number(org.id)) || [],
+    manager_ids: (managersByOrg.get(Number(org.id)) || []).map((manager) => Number(manager.employee_id)),
+    manager_names: (managersByOrg.get(Number(org.id)) || []).map((manager) => manager.employee_name).filter(Boolean),
+    primary_manager_id: (managersByOrg.get(Number(org.id)) || [])[0]?.employee_id || null,
+    primary_manager_name: (managersByOrg.get(Number(org.id)) || [])[0]?.employee_name || null,
   }));
 }
 
@@ -1257,7 +1278,7 @@ async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promis
   for (const role of roles) {
     const roleKey = String(role.role_key || role.roleKey || "");
     const userId = Number(role.user_id || role.userId || role.employee_id || role.employeeId || 0);
-    const dedupeKey = `${roleKey}:${userId}`;
+    const dedupeKey = roleKey;
     if (!roleKeys.includes(roleKey) || !userId || seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
     if (!employeeOrgMap.has(userId)) {
@@ -1274,7 +1295,7 @@ async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promis
       org_id: employeeOrgMap.get(userId),
       status: "active",
     };
-    const existing = current.find((item) => String(item.role_key) === roleKey && Number(item.user_id || item.employee_id) === userId);
+    const existing = current.find((item) => String(item.role_key) === roleKey);
     if (existing?.id) {
       activeIds.add(Number(existing.id));
       await rest(`/project_roles?id=eq.${existing.id}`, {
@@ -1413,19 +1434,69 @@ async function overtimeAction(body: AnyRow): Promise<AnyRow> {
   });
 }
 
+async function saveOrganizationManagers(orgId: number, managerIds: number[] = []): Promise<void> {
+  const current = await rest<AnyRow[]>(
+    `/organization_managers?select=*&org_id=eq.${orgId}&manager_role=eq.department_owner&is_active=eq.true`,
+  ).catch(() => []);
+  const activeIds = new Set<number>();
+  const seen = new Set<number>();
+  const normalized = managerIds.map((id) => Number(id || 0)).filter(Boolean);
+
+  for (const employeeId of normalized) {
+    if (seen.has(employeeId)) continue;
+    seen.add(employeeId);
+    const existing = current.find((item) => Number(item.employee_id) === employeeId);
+    const row = {
+      org_id: orgId,
+      employee_id: employeeId,
+      manager_role: "department_owner",
+      is_primary: activeIds.size === 0,
+      is_active: true,
+    };
+    if (existing?.id) {
+      activeIds.add(Number(existing.id));
+      await rest(`/organization_managers?id=eq.${existing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(row),
+      });
+    } else {
+      const inserted = await rest<AnyRow[]>("/organization_managers", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([row]),
+      });
+      if (inserted[0]?.id) activeIds.add(Number(inserted[0].id));
+    }
+  }
+
+  const deactivateIds = current
+    .map((manager) => Number(manager.id))
+    .filter((id) => id && !activeIds.has(id));
+  if (deactivateIds.length) {
+    await rest(`/organization_managers?id=in.(${deactivateIds.join(",")})`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: false }),
+    });
+  }
+}
+
 async function saveOrganization(body: AnyRow): Promise<AnyRow> {
   const row = {
     org_name: body.orgName || body.org_name,
     org_type: body.orgType || body.org_type || "department",
     parent_id: body.parentId || body.parent_id || null,
-    manager_user_id: body.managerUserId || body.manager_user_id || null,
     status: "active",
   };
+  const managerIds = (body.managerIds || body.manager_ids || [])
+    .map((id: unknown) => Number(id || 0))
+    .filter(Boolean);
   if (body.id) {
     await rest(`/organizations?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify(row) });
+    await saveOrganizationManagers(Number(body.id), managerIds);
   } else {
     const id = await nextId("organizations");
     await rest("/organizations", { method: "POST", body: JSON.stringify([{ id, org_code: `D${String(id).padStart(3, "0")}`, ...row }]) });
+    await saveOrganizationManagers(id, managerIds);
   }
   return { ok: true, organizations: await organizations() };
 }

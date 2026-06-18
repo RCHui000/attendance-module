@@ -25,7 +25,7 @@ import { formatMoney } from "@/utils/dates";
 import { cn } from "@/lib/utils";
 import { descendantOrgIds } from "@/utils/orgTree";
 import { useIsMobile } from "@/hooks/useMediaQuery";
-import { Plus, Save, Search, Trash2, X } from "lucide-react";
+import { Save, Search, Trash2, X, Plus } from "lucide-react";
 import type { Employee, Organization } from "@/types/employee";
 import type { ProjectBase, ProjectBusinessType, ProjectRoleKey } from "@/types/project";
 import { toast } from "sonner";
@@ -117,7 +117,7 @@ type EditData = {
   businessType: ProjectBusinessType | "";
   contractAmount: string;
   receivedAmount: string;
-  roles: Record<string, string[]>;
+  roles: Record<string, string>;
 };
 
 const emptyEditData: EditData = {
@@ -140,13 +140,13 @@ function inferBusinessType(code: string): ProjectBusinessType | "" {
 
 function roleValues(project: ProjectBase | null, roleKey: ProjectRoleKey) {
   const roles = project?.project_roles || [];
-  const direct = roles.filter((role) => role.role_key === roleKey && role.user_id).map((role) => String(role.user_id));
-  if (direct.length) return direct;
+  const direct = roles.find((role) => role.role_key === roleKey && role.user_id);
+  if (direct) return String(direct.user_id);
   if (roleKey === "cc_civil_project_owner" || roleKey === "cc_mep_project_owner") {
-    const legacy = roles.filter((role) => role.role_key === "cc_project_owner" && role.user_id).map((role) => String(role.user_id));
-    if (legacy.length) return legacy;
+    const legacy = roles.find((role) => role.role_key === "cc_project_owner" && role.user_id);
+    if (legacy) return String(legacy.user_id);
   }
-  return [];
+  return "";
 }
 
 function serviceBadgeClass(type: ProjectBusinessType | "") {
@@ -213,7 +213,7 @@ export function ProjectList() {
 
   const roleCandidates = (role: ProjectRoleKey) => {
     const scope = roleOrgScope(role, orgs);
-    const selected = editData.roles[role] || [];
+    const selected = editData.roles[role] ? [editData.roles[role]] : [];
     const candidates = employees
       .filter((employee) => employeeMatchesRole(employee, role, scope))
       .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
@@ -231,7 +231,7 @@ export function ProjectList() {
 
   const selectProject = (project: ProjectBase) => {
     const type = project.business_type || inferBusinessType(project.code);
-    const roles: Record<string, string[]> = {};
+    const roles: Record<string, string> = {};
     for (const role of type ? rolesByServiceType[type] : []) roles[role] = roleValues(project, role);
     setSelectedId(project.id);
     setAutoProjectCode(null);
@@ -263,18 +263,10 @@ export function ProjectList() {
   const updateBusinessType = (value: string | null) => {
     update({ businessType: value === NONE ? "" : (value as ProjectBusinessType) });
   };
-  const updateRole = (role: ProjectRoleKey, index: number, value: string) =>
+  const updateRole = (role: ProjectRoleKey, value: string) =>
     setEditData((data) => {
-      const values = [...(data.roles[role] || [])];
-      if (value === NONE) values.splice(index, 1);
-      else values[index] = value;
-      const nextValues = Array.from(new Set(values.filter(Boolean)));
-      return { ...data, roles: { ...data.roles, [role]: nextValues } };
-    });
-  const addRoleAssignee = (role: ProjectRoleKey) =>
-    setEditData((data) => {
-      const current = data.roles[role] || [];
-      return { ...data, roles: { ...data.roles, [role]: current.length ? [...current, ""] : ["", ""] } };
+      const nextValue = value === NONE ? "" : value;
+      return { ...data, roles: { ...data.roles, [role]: nextValue } };
     });
 
   useEffect(() => {
@@ -304,14 +296,14 @@ export function ProjectList() {
     if (selectedId !== "new" && !editData.code.trim()) return toast.error("合同编码不能为空");
 
     const projectRoles = visibleRoles
-      .flatMap((roleKey) => (editData.roles[roleKey] || []).map((userId) => ({
+      .map((roleKey) => ({
         role_key: roleKey,
-        user_id: Number(userId || 0),
-      })))
+        user_id: Number(editData.roles[roleKey] || 0),
+      }))
       .filter((role) => role.user_id);
     const ccFallbackOwner =
-      Number(editData.roles.cc_civil_project_owner?.[0] || 0) ||
-      Number(editData.roles.cc_mep_project_owner?.[0] || 0);
+      Number(editData.roles.cc_civil_project_owner || 0) ||
+      Number(editData.roles.cc_mep_project_owner || 0);
     if (ccFallbackOwner && businessType !== "PM") {
       projectRoles.push({ role_key: "cc_project_owner", user_id: ccFallbackOwner });
     }
@@ -326,9 +318,9 @@ export function ProjectList() {
         contractAmount: Number(editData.contractAmount || 0),
         receivedAmount: Number(editData.receivedAmount || 0),
         projectOwnerId:
-          Number(editData.roles.pm_project_owner?.[0] || 0) ||
-          Number(editData.roles.cc_civil_project_owner?.[0] || 0) ||
-          Number(editData.roles.cc_mep_project_owner?.[0] || 0) ||
+          Number(editData.roles.pm_project_owner || 0) ||
+          Number(editData.roles.cc_civil_project_owner || 0) ||
+          Number(editData.roles.cc_mep_project_owner || 0) ||
           undefined,
         projectRoles,
       },
@@ -504,17 +496,12 @@ export function ProjectList() {
             <div>
               <div className="mb-2 text-sm font-semibold">负责人配置</div>
               <div className="grid grid-cols-2 gap-3">
-                {visibleRoles.map((role) => (
-                  <div key={role} className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between gap-2">
+                {visibleRoles.map((role) => {
+                  const userId = editData.roles[role] || "";
+                  return (
+                    <div key={role} className="space-y-2 text-sm">
                       <span className="text-xs font-medium text-muted-foreground">{roleLabels[role]}</span>
-                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => addRoleAssignee(role)}>
-                        <Plus className="mr-1 h-3.5 w-3.5" />
-                        添加负责人
-                      </Button>
-                    </div>
-                    {(editData.roles[role]?.length ? editData.roles[role] : [""]).map((userId, index) => (
-                      <Select key={`${role}-${index}`} value={userId || NONE} onValueChange={(value) => updateRole(role, index, value || NONE)}>
+                      <Select value={userId || NONE} onValueChange={(value) => updateRole(role, value || NONE)}>
                         <SelectTrigger>
                           {userId ? employeeLabel(employeeById.get(userId)) : <SelectValue placeholder={roleLabels[role]} />}
                         </SelectTrigger>
@@ -527,9 +514,9 @@ export function ProjectList() {
                           ))}
                         </SelectContent>
                       </Select>
-                    ))}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

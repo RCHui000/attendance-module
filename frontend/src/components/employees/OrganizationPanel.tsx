@@ -225,7 +225,6 @@ export function OrganizationPanel({
           <span className="text-xs font-medium text-muted-foreground">
             {allowMultipleManagers ? "部门负责人" : "负责人"}
           </span>
-          {allowMultipleManagers && <span className="text-[11px] text-muted-foreground">首位为主负责人</span>}
         </div>
         <Select value="none" onValueChange={addManager}>
           <SelectTrigger className="h-8 text-sm">
@@ -242,13 +241,12 @@ export function OrganizationPanel({
         </Select>
         {editData.managerIds.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {editData.managerIds.map((id, index) => (
+            {editData.managerIds.map((id) => (
               <span
                 key={id}
                 className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
               >
                 <span className="max-w-36 truncate">{managerChipLabel(id)}</span>
-                {index === 0 && <span className="rounded-full bg-slate-100 px-1 text-[10px] text-slate-500">主</span>}
                 <button
                   type="button"
                   className="rounded-full p-0.5 text-muted-foreground hover:bg-slate-100 hover:text-foreground"

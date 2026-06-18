@@ -437,7 +437,7 @@ async function organizations(): Promise<AnyRow[]> {
   const [orgs, employees, managers] = await Promise.all([
     rest<AnyRow[]>("/organizations?select=*&status=eq.active&order=parent_id.asc,id.asc"),
     rest<AnyRow[]>("/employees?select=id,name"),
-    rest<AnyRow[]>("/organization_managers?select=*&is_active=eq.true&manager_role=eq.department_owner&order=org_id.asc,is_primary.desc,updated_at.desc,id.desc").catch(() => []),
+    rest<AnyRow[]>("/organization_managers?select=*&is_active=eq.true&manager_role=eq.department_owner&order=org_id.asc,updated_at.desc,id.desc").catch(() => []),
   ]);
   const names = new Map(employees.map((e) => [Number(e.id), e.name]));
   const managersByOrg = new Map<number, AnyRow[]>();
@@ -451,7 +451,6 @@ async function organizations(): Promise<AnyRow[]> {
       employee_id: Number(manager.employee_id),
       employee_name: names.get(Number(manager.employee_id)) || "",
       manager_role: manager.manager_role || "department_owner",
-      is_primary: manager.is_primary === true,
       is_active: manager.is_active !== false,
     });
     managersByOrg.set(orgId, rows);
@@ -461,8 +460,6 @@ async function organizations(): Promise<AnyRow[]> {
     managers: managersByOrg.get(Number(org.id)) || [],
     manager_ids: (managersByOrg.get(Number(org.id)) || []).map((manager) => Number(manager.employee_id)),
     manager_names: (managersByOrg.get(Number(org.id)) || []).map((manager) => manager.employee_name).filter(Boolean),
-    primary_manager_id: (managersByOrg.get(Number(org.id)) || [])[0]?.employee_id || null,
-    primary_manager_name: (managersByOrg.get(Number(org.id)) || [])[0]?.employee_name || null,
   }));
 }
 
@@ -1450,7 +1447,7 @@ async function saveOrganizationManagers(orgId: number, managerIds: number[] = []
       org_id: orgId,
       employee_id: employeeId,
       manager_role: "department_owner",
-      is_primary: activeIds.size === 0,
+      is_primary: false,
       is_active: true,
     };
     if (existing?.id) {

@@ -62,8 +62,6 @@ export interface Organization {
   managers?: OrganizationManager[];
   manager_ids?: number[];
   manager_names?: string[];
-  primary_manager_id?: number | null;
-  primary_manager_name?: string | null;
   member_count?: number;
   status: string;
 }
@@ -74,6 +72,5 @@ export interface OrganizationManager {
   employee_id: number;
   employee_name?: string;
   manager_role: string;
-  is_primary: boolean;
   is_active: boolean;
 }

@@ -97,7 +97,7 @@ function roleOrgScope(role: ProjectRoleKey, orgs: Organization[]) {
   if (ccRoleKeys.has(role)) {
     return orgScopes(orgs, (org) => {
       const text = normalizedOrgName(org);
-      return text.includes("CC") || org.org_name.includes("成本合约") || org.org_name.includes("造价");
+      return text.includes("CC") || org.org_name.includes("造价");
     });
   }
   if (role === "pm_cost_department_owner") return orgScopeIds(orgs, pmCost || pmRoot);

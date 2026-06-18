@@ -76,7 +76,7 @@ export function isCostOrganization(orgs: Organization[], orgId: number | null | 
   while (current && !seen.has(current.id)) {
     seen.add(current.id);
     if (current.org_code === "CC") return true;
-    if (current.org_name.includes("成本合约") || current.org_name.includes("造价")) return true;
+    if (current.org_name.includes("造价")) return true;
     current = current.parent_id ? byId.get(current.parent_id) : undefined;
   }
 

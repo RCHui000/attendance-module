@@ -44,6 +44,25 @@ interface EmployeeEditRowProps {
   onCancel: () => void;
 }
 
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={className}>
+      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 function calculateMonths(startDate: string, endDate: string): number {
   if (!startDate || !endDate) return 12;
   const start = new Date(startDate);
@@ -155,23 +174,6 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
         onChange={(e) => onChange({ monthlySalary: e.target.value })}
       />
     );
-
-  const Field = ({
-    label,
-    children,
-    className,
-  }: {
-    label: string;
-    children: ReactNode;
-    className?: string;
-  }) => (
-    <label className={className}>
-      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
 
   return (
     <div className="space-y-4">

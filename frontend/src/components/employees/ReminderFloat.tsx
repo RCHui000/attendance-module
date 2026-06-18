@@ -26,34 +26,9 @@ export function ReminderFloat({ employees }: ReminderFloatProps) {
       if (emp.id === 0) continue;
       const name = emp.name || emp.employee_no || "未命名员工";
 
-      // Missing salary
-      if (
-        emp.contract_type === "service" &&
-        !Number(emp.daily_wage || 0)
-      ) {
-        list.push({
-          level: "danger",
-          title: `${name} 缺少劳务日薪`,
-          meta: "薪酬基础待补全",
-        });
-      }
-      if (
-        emp.contract_type !== "service" &&
-        !Number(emp.monthly_salary || 0)
-      ) {
-        list.push({
-          level: "danger",
-          title: `${name} 缺少劳动月薪`,
-          meta: "薪酬基础待补全",
-        });
-      }
-
-      // Contract expiration
       if (emp.contract_end) {
         const end = new Date(emp.contract_end);
-        const daysLeft = Math.ceil(
-          (end.getTime() - today.getTime()) / 86400000,
-        );
+        const daysLeft = Math.ceil((end.getTime() - today.getTime()) / 86400000);
         if (daysLeft < 0) {
           list.push({
             level: "danger",
@@ -74,25 +49,16 @@ export function ReminderFloat({ employees }: ReminderFloatProps) {
 
   return (
     <div className="relative">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(!open)}
-      >
+      <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
         {reminders.length > 0 ? `提醒 (${reminders.length})` : "提醒"}
       </Button>
 
       {open && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setOpen(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          {/* Float panel */}
-          <div className="absolute right-0 top-full mt-1 z-50 w-[340px] rounded-lg border border-border bg-card shadow-float">
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
+          <div className="absolute right-0 top-full z-50 mt-1 w-[340px] rounded-lg border border-border bg-card shadow-float">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
               <strong className="text-sm">提醒事项</strong>
               <Button
                 variant="ghost"
@@ -103,18 +69,18 @@ export function ReminderFloat({ employees }: ReminderFloatProps) {
                 <X className="size-3.5" />
               </Button>
             </div>
-            <div className="max-h-[320px] overflow-auto p-2 grid gap-1.5">
+            <div className="grid max-h-[320px] gap-1.5 overflow-auto p-2">
               {reminders.length === 0 ? (
                 <div className="px-3 py-4 text-center text-xs text-muted-foreground">
                   暂无提醒事项
                 </div>
               ) : (
-                reminders.map((r, i) => (
+                reminders.map((reminder, index) => (
                   <div
-                    key={i}
+                    key={index}
                     className={cn(
-                      "rounded-md px-3 py-2 text-sm border-l-[3px]",
-                      r.level === "danger"
+                      "rounded-md border-l-[3px] px-3 py-2 text-sm",
+                      reminder.level === "danger"
                         ? "border-l-destructive bg-red-50"
                         : "border-l-warning bg-orange-50",
                     )}
@@ -122,15 +88,15 @@ export function ReminderFloat({ employees }: ReminderFloatProps) {
                     <strong
                       className={cn(
                         "text-sm",
-                        r.level === "danger"
+                        reminder.level === "danger"
                           ? "text-destructive"
                           : "text-warning",
                       )}
                     >
-                      {r.title}
+                      {reminder.title}
                     </strong>
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      {r.meta}
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {reminder.meta}
                     </span>
                   </div>
                 ))

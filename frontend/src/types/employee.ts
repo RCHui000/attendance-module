@@ -9,7 +9,7 @@ export interface Employee {
   org_name: string;
   department: string;
   position_name: string;
-  cost_specialty: "civil" | "mep" | "";
+  cost_specialty: "civil" | "mep" | "all" | "";
   contract_type: "labor" | "service";
   monthly_salary: string;
   daily_wage: string;

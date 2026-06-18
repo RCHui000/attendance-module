@@ -79,17 +79,15 @@ function calculateMonths(startDate: string, endDate: string): number {
 function inferCostSpecialty(positionName: string): string {
   if (positionName.includes("土建")) return "civil";
   if (positionName.includes("机电")) return "mep";
+  if (positionName.includes("全专业")) return "all";
   return "";
 }
 
 function costSpecialtyLabel(value: string): string {
   if (value === "civil") return "土建";
   if (value === "mep") return "机电";
+  if (value === "all") return "全专业";
   return "";
-}
-
-function requiresCostSpecialty(role: string): boolean {
-  return role === "employee";
 }
 
 export const EmployeeEditRow = memo(function EmployeeEditRow({
@@ -107,10 +105,8 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   );
 
   const showCostSpecialty = useMemo(
-    () =>
-      requiresCostSpecialty(data.role) &&
-      isCostOrganization(orgs, data.orgId ? Number(data.orgId) : null),
-    [orgs, data.orgId, data.role],
+    () => isCostOrganization(orgs, data.orgId ? Number(data.orgId) : null),
+    [orgs, data.orgId],
   );
 
   const effectiveCostSpecialty = data.costSpecialty || inferCostSpecialty(data.positionName);
@@ -126,16 +122,16 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   const handleOrgChange = useCallback(
     (value: string) => {
       const shouldKeepSpecialty = isCostOrganization(orgs, value ? Number(value) : null);
-      const nextSpecialty = shouldKeepSpecialty && requiresCostSpecialty(data.role)
+      const nextSpecialty = shouldKeepSpecialty
         ? data.costSpecialty || inferCostSpecialty(data.positionName)
         : "";
       onChange({
         orgId: value,
         costSpecialty: nextSpecialty,
-        positionName: shouldKeepSpecialty && requiresCostSpecialty(data.role) ? costSpecialtyLabel(nextSpecialty) : data.positionName,
+        positionName: shouldKeepSpecialty ? costSpecialtyLabel(nextSpecialty) : data.positionName,
       });
     },
-    [data.costSpecialty, data.positionName, data.role, orgs, onChange],
+    [data.costSpecialty, data.positionName, orgs, onChange],
   );
 
   const handleHireDateChange = useCallback(
@@ -254,6 +250,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
               <SelectItem value="none">未设</SelectItem>
               <SelectItem value="civil">土建</SelectItem>
               <SelectItem value="mep">机电</SelectItem>
+              <SelectItem value="all">全专业</SelectItem>
             </SelectContent>
           </Select>
         ) : (

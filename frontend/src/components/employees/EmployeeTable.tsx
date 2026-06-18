@@ -17,6 +17,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, RotateCcw } from "lucide-react
 const costSpecialtyText: Record<string, string> = {
   civil: "土建",
   mep: "机电",
+  all: "全专业",
 };
 
 interface EmployeeTableProps {

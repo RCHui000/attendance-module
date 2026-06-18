@@ -76,11 +76,8 @@ const EMPTY_EDIT_DATA: EmployeeEditData = {
 function inferCostSpecialty(positionName: string): string {
   if (positionName.includes("土建")) return "civil";
   if (positionName.includes("机电")) return "mep";
+  if (positionName.includes("全专业")) return "all";
   return "";
-}
-
-function requiresCostSpecialty(role: string): boolean {
-  return role === "employee";
 }
 
 function employeeSearchText(emp: Employee, orgPath: string) {
@@ -94,6 +91,7 @@ function employeeSearchText(emp: Employee, orgPath: string) {
     roleText[emp.role],
     emp.cost_specialty === "civil" ? "土建" : "",
     emp.cost_specialty === "mep" ? "机电" : "",
+    emp.cost_specialty === "all" ? "全专业" : "",
     emp.contract_type === "service" ? "劳务合同" : "劳动合同",
     emp.status === "active" ? "在职" : "离职",
   ]
@@ -427,7 +425,6 @@ export default function EmployeesPage() {
     }
     if (
       editData.orgId &&
-      requiresCostSpecialty(editData.role) &&
       isCostOrganization(orgs, Number(editData.orgId)) &&
       !editData.costSpecialty
     ) {
@@ -436,7 +433,6 @@ export default function EmployeesPage() {
     }
     const shouldSaveCostSpecialty =
       !!editData.orgId &&
-      requiresCostSpecialty(editData.role) &&
       isCostOrganization(orgs, Number(editData.orgId));
 
     const payload: Record<string, unknown> = {

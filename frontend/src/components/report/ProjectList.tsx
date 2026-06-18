@@ -78,11 +78,15 @@ function orgScopeIds(orgs: Organization[], rootId: number | null) {
   return ids;
 }
 
-function roleOrgScope(role: ProjectRoleKey, orgs: Organization[]) {
-  const ccRoot = findOrgId(orgs, (org) => {
-    const text = normalizedOrgName(org);
-    return text.includes("CC") || org.org_name.includes("成本合约");
+function orgScopes(orgs: Organization[], matcher: (org: Organization) => boolean) {
+  const ids = new Set<number>();
+  orgs.filter(matcher).forEach((org) => {
+    orgScopeIds(orgs, org.id).forEach((id) => ids.add(id));
   });
+  return ids;
+}
+
+function roleOrgScope(role: ProjectRoleKey, orgs: Organization[]) {
   const pmRoot = findOrgId(orgs, (org) => {
     const text = normalizedOrgName(org);
     return (text.includes("PM") || org.org_name.includes("项目管理")) && !org.parent_id;
@@ -90,7 +94,12 @@ function roleOrgScope(role: ProjectRoleKey, orgs: Organization[]) {
   const pmCost = findOrgId(orgs, (org) => org.org_code === "PM_COST" || org.org_name === "成本");
   const pmManage = findOrgId(orgs, (org) => org.org_code === "PM_MANAGE" || org.org_name === "管理");
 
-  if (ccRoleKeys.has(role)) return orgScopeIds(orgs, ccRoot);
+  if (ccRoleKeys.has(role)) {
+    return orgScopes(orgs, (org) => {
+      const text = normalizedOrgName(org);
+      return text.includes("CC") || org.org_name.includes("成本合约") || org.org_name.includes("造价");
+    });
+  }
   if (role === "pm_cost_department_owner") return orgScopeIds(orgs, pmCost || pmRoot);
   if (role === "pm_project_owner") return orgScopeIds(orgs, pmManage || pmRoot);
   if (role === "pm_department_owner") return orgScopeIds(orgs, pmRoot);

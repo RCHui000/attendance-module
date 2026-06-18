@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/utils/dates";
 import { roleText } from "@/lib/constants";
-import { EmployeeEditRow, type EmployeeEditData } from "./EmployeeEditRow";
-import type { Employee, Organization } from "@/types/employee";
+import type { Employee } from "@/types/employee";
 import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, RotateCcw } from "lucide-react";
 
 const costSpecialtyText: Record<string, string> = {
@@ -22,22 +21,14 @@ const costSpecialtyText: Record<string, string> = {
 
 interface EmployeeTableProps {
   employees: Employee[];
-  orgs: Organization[];
   selectedId: number | null;
-  editingId: number | null;
-  editData: EmployeeEditData | null;
   onSelect: (id: number | null) => void;
   onEdit: (id: number) => void;
   onReactivate?: (id: number) => void;
   canEditEmployee?: (employee: Employee) => boolean;
-  canEditRole?: boolean;
   sortKey: EmployeeSortKey | null;
   sortDirection: SortDirection;
   onSort: (key: EmployeeSortKey) => void;
-  onEditChange: (data: Partial<EmployeeEditData>) => void;
-  onNameBlur?: (name: string) => void;
-  onSave: () => void;
-  onCancelEdit: () => void;
 }
 
 type EmployeeSortKey =
@@ -109,29 +100,20 @@ function SortableHead({
 
 export function EmployeeTable({
   employees,
-  orgs,
   selectedId,
-  editingId,
-  editData,
   onSelect,
   onEdit,
   onReactivate,
   canEditEmployee = () => true,
-  canEditRole = true,
   sortKey,
   sortDirection,
   onSort,
-  onEditChange,
-  onNameBlur,
-  onSave,
-  onCancelEdit,
 }: EmployeeTableProps) {
   const handleRowClick = useCallback(
     (id: number) => {
-      if (editingId != null) return;
       onSelect(selectedId === id ? null : id);
     },
-    [selectedId, editingId, onSelect],
+    [selectedId, onSelect],
   );
 
   return (
@@ -156,21 +138,6 @@ export function EmployeeTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {editingId === 0 && editData && (
-              <EmployeeEditRow
-                item={null}
-                data={editData}
-                orgs={orgs}
-                employees={employees}
-                isNew
-                canEditRole={canEditRole}
-                onChange={onEditChange}
-                onNameBlur={onNameBlur}
-                onSave={onSave}
-                onCancel={onCancelEdit}
-              />
-            )}
-
             {employees.length === 0 && (
               <TableRow>
                 <TableCell colSpan={11} className="py-8 text-center text-sm text-muted-foreground">
@@ -180,24 +147,6 @@ export function EmployeeTable({
             )}
 
             {employees.map((emp) => {
-              if (editingId === emp.id && editData) {
-                return (
-                  <EmployeeEditRow
-                    key={emp.id}
-                    item={emp}
-                    data={editData}
-                    orgs={orgs}
-                    employees={employees}
-                    isNew={false}
-                    canEditRole={canEditRole}
-                    onChange={onEditChange}
-                    onNameBlur={onNameBlur}
-                    onSave={onSave}
-                    onCancel={onCancelEdit}
-                  />
-                );
-              }
-
               const deptDisplay = emp.org_name || emp.department || "未分配部门";
               const editable = canEditEmployee(emp);
               const terminated = String(emp.status || "").toLowerCase() === "terminated";
@@ -216,13 +165,16 @@ export function EmployeeTable({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Button
-                      size="sm"
+                      size={terminated && onReactivate ? "sm" : "icon-sm"}
                       variant="outline"
                       className={cn(
-                        "h-7 text-xs",
+                        "h-7 rounded-full text-xs",
+                        !terminated && "w-9",
                         terminated && onReactivate && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
                       )}
                       disabled={!editable}
+                      aria-label={terminated && onReactivate ? "重新启用员工" : "编辑员工"}
+                      title={terminated && onReactivate ? "重新启用" : "编辑"}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!editable) return;
@@ -236,9 +188,9 @@ export function EmployeeTable({
                       {terminated && onReactivate ? (
                         <RotateCcw className="mr-1 size-3" />
                       ) : (
-                        <Pencil className="mr-1 size-3" />
+                        <Pencil className="size-3.5" />
                       )}
-                      {terminated && onReactivate ? "重新启用" : "编辑"}
+                      {terminated && onReactivate ? "重新启用" : null}
                     </Button>
                   </TableCell>
                   <TableCell className="text-sm tabular-nums">

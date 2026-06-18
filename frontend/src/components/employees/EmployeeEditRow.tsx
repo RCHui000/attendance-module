@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -74,10 +74,8 @@ function requiresCostSpecialty(role: string): boolean {
 }
 
 export const EmployeeEditRow = memo(function EmployeeEditRow({
-  item,
   data,
   orgs,
-  employees,
   canEditRole = true,
   onChange,
   onNameBlur,
@@ -138,7 +136,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   const salaryField =
     data.contractType === "service" ? (
       <Input
-        className="h-8 text-sm text-right w-[82px]"
+        className="h-9 text-sm text-right"
         type="number"
         min="0"
         placeholder="日薪"
@@ -148,7 +146,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
       />
     ) : (
       <Input
-        className="h-8 text-sm text-right w-[82px]"
+        className="h-9 text-sm text-right"
         type="number"
         min="0"
         placeholder="月薪"
@@ -158,44 +156,39 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
       />
     );
 
-  return (
-    <tr className="bg-row-selected">
-      {/* Actions */}
-      <td className="p-1.5 sticky left-0 bg-row-selected z-[5]">
-        <div className="flex gap-1">
-          <Button
-            size="sm"
-            className="h-7 text-xs"
-            onClick={onSave}
-          >
-            保存
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            onClick={onCancel}
-          >
-            取消
-          </Button>
-        </div>
-      </td>
+  const Field = ({
+    label,
+    children,
+    className,
+  }: {
+    label: string;
+    children: ReactNode;
+    className?: string;
+  }) => (
+    <label className={className}>
+      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
 
-      {/* Employee No */}
-      <td className="p-1.5">
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="员工编号">
         <Input
-          className="h-8 text-sm w-[80px]"
+          className="h-9 text-sm"
           autoComplete="off"
           aria-label="员工编号"
           value={data.employeeNo}
           onChange={(e) => onChange({ employeeNo: e.target.value })}
         />
-      </td>
+        </Field>
 
-      {/* Name */}
-      <td className="p-1.5">
+        <Field label="姓名">
         <Input
-          className="h-8 text-sm w-[80px]"
+          className="h-9 text-sm"
           autoComplete="off"
           aria-label="姓名"
           value={data.name}
@@ -203,16 +196,15 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           onBlur={(e) => onNameBlur?.(e.target.value)}
           placeholder="必填"
         />
-      </td>
+        </Field>
 
-      {/* Role */}
-      <td className="p-1.5">
+        <Field label="权限角色">
         <Select
           value={data.role || "employee"}
           onValueChange={(v) => onChange({ role: v || "employee" })}
           disabled={!canEditRole}
         >
-          <SelectTrigger className="h-8 text-sm w-[88px]">
+          <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -223,12 +215,11 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
             <SelectItem value="admin">管理员</SelectItem>
           </SelectContent>
         </Select>
-      </td>
+        </Field>
 
-      {/* Department / Org */}
-      <td className="p-1.5">
+        <Field label="部门">
         <Select value={data.orgId} onValueChange={(v) => handleOrgChange(v || "")}>
-          <SelectTrigger className="h-8 text-sm w-[108px]">
+          <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue placeholder="部门" />
           </SelectTrigger>
           <SelectContent>
@@ -239,10 +230,9 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
             ))}
           </SelectContent>
         </Select>
-      </td>
+        </Field>
 
-      {/* Position */}
-      <td className="p-1.5">
+        <Field label="岗位">
         {showCostSpecialty ? (
           <Select
             value={effectiveCostSpecialty || "none"}
@@ -255,7 +245,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
               });
             }}
           >
-            <SelectTrigger className="h-8 text-sm w-[88px]" aria-label="造价岗位">
+            <SelectTrigger className="h-9 w-full text-sm" aria-label="造价岗位">
               <SelectValue placeholder="岗位" />
             </SelectTrigger>
             <SelectContent>
@@ -266,19 +256,18 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           </Select>
         ) : (
           <Input
-            className="h-8 text-sm w-[80px]"
+            className="h-9 text-sm"
             autoComplete="off"
             aria-label="岗位"
             value={data.positionName}
             onChange={(e) => onChange({ positionName: e.target.value })}
           />
         )}
-      </td>
+        </Field>
 
-      {/* Contract Type */}
-      <td className="p-1.5">
+        <Field label="合同类型">
         <Select value={data.contractType} onValueChange={(v) => handleContractTypeChange((v || "labor") as "labor" | "service")}>
-          <SelectTrigger className="h-8 text-sm w-[90px]">
+          <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -286,24 +275,24 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
             <SelectItem value="service">劳务合同</SelectItem>
           </SelectContent>
         </Select>
-      </td>
+        </Field>
 
-      {/* Salary */}
-      <td className="p-1.5">{salaryField}</td>
+        <Field label={data.contractType === "service" ? "日薪" : "月薪"}>
+          {salaryField}
+        </Field>
 
-      {/* Employment Period: hire date + contract months */}
-      <td className="p-1.5">
-        <div className="flex gap-1.5">
+        <Field label="聘用期" className="sm:col-span-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
           <Input
             type="date"
-            className="h-8 text-sm w-[108px]"
+            className="h-9 text-sm"
             aria-label="入职日期"
             value={data.hireDate}
             onChange={(e) => handleHireDateChange(e.target.value)}
           />
           <Input
             type="number"
-            className="h-8 text-sm w-[64px]"
+            className="h-9 text-sm"
             min="1"
             aria-label="合同时长（月）"
             title="合同时长（月）"
@@ -311,32 +300,41 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
             onChange={(e) => handleContractMonthsChange(e.target.value)}
           />
         </div>
-      </td>
+        </Field>
 
-      {/* Tenure (calculated, not editable) */}
-      <td className="p-1.5 text-sm text-muted-foreground text-right tabular-nums">
-        {data.hireDate ? (
-          (() => {
-            const total = calculateMonths(data.hireDate, isoDate(new Date()));
-            return total < 12 ? `${total}个月` : `${Math.floor(total / 12)}年`;
-          })()
-        ) : (
-          "—"
-        )}
-      </td>
-
-      {/* Status */}
-      <td className="p-1.5">
+        <Field label="状态">
         <Select value={data.status} onValueChange={(v) => onChange({ status: v as "active" | "terminated" })}>
-          <SelectTrigger className="h-8 text-sm w-[72px]">
+          <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">在职</SelectItem>
-            <SelectItem value="terminated">解聘</SelectItem>
+            <SelectItem value="terminated">离职</SelectItem>
           </SelectContent>
         </Select>
-      </td>
-    </tr>
+        </Field>
+
+        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          工龄：
+          <span className="font-medium text-foreground">
+            {data.hireDate
+              ? (() => {
+                  const total = calculateMonths(data.hireDate, isoDate(new Date()));
+                  return total < 12 ? `${total}个月` : `${Math.floor(total / 12)}年`;
+                })()
+              : "-"}
+          </span>
+        </div>
+      </div>
+
+      <div className="-mx-4 -mb-4 flex justify-end gap-2 border-t bg-muted/40 px-4 py-3">
+        <Button size="sm" variant="outline" className="rounded-full" onClick={onCancel}>
+          取消
+        </Button>
+        <Button size="sm" className="rounded-full" onClick={onSave}>
+          保存
+        </Button>
+      </div>
+    </div>
   );
 });

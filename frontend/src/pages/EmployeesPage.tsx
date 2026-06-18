@@ -11,6 +11,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   useEmployees,
   useOrganizations,
   useSaveEmployee,
@@ -20,6 +27,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { roleText } from "@/lib/constants";
 import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
@@ -30,7 +38,7 @@ import { PermissionConfigPanel } from "@/components/employees/PermissionConfigPa
 import { useAuthStore } from "@/stores/authStore";
 import { flattenOrgTree, isCostOrganization } from "@/utils/orgTree";
 import { isoDate } from "@/utils/dates";
-import type { EmployeeEditData } from "@/components/employees/EmployeeEditRow";
+import { EmployeeEditRow, type EmployeeEditData } from "@/components/employees/EmployeeEditRow";
 import type { Employee } from "@/types/employee";
 import { toast } from "sonner";
 
@@ -496,6 +504,23 @@ export default function EmployeesPage() {
   }, [selectedId, listedEmployees, currentUser]);
 
   const deleteDisabled = !selectedId || editingId != null;
+  const editDialogTitle = editingId === 0 ? "新增员工" : "员工配置";
+  const editDialogDescription =
+    editingId === 0
+      ? "填写基础信息后会自动生成登录账号。"
+      : "维护员工的部门、权限、合同和薪酬信息。";
+  const employeeListSegments = [
+    {
+      value: "active" as const,
+      label: "员工列表",
+      meta: employeeListView === "active" ? `${filteredEmployees.length} / ${activeEmployees.length}` : activeEmployees.length,
+    },
+    {
+      value: "terminated" as const,
+      label: "离职人员",
+      meta: employeeListView === "terminated" ? `${filteredEmployees.length} / ${terminatedEmployees.length}` : terminatedEmployees.length,
+    },
+  ];
   const handleSort = (key: EmployeeSortKey) => {
     if (sortKey !== key) {
       setSortKey(key);
@@ -523,35 +548,12 @@ export default function EmployeesPage() {
             <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div>
-                    <strong className="text-sm">{employeeListView === "active" ? "员工列表" : "离职人员"}</strong>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {filteredEmployees.length} / {listedEmployees.length} 人
-                    </span>
-                  </div>
+                  <SegmentedPill
+                    value={employeeListView}
+                    items={employeeListSegments}
+                    onChange={setEmployeeListView}
+                  />
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <div className="inline-flex rounded-full border border-border bg-muted p-0.5">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={employeeListView === "active" ? "default" : "ghost"}
-                        className="h-7 rounded-full px-3 text-xs"
-                        onClick={() => setEmployeeListView("active")}
-                      >
-                        员工列表
-                        <span className="ml-1 text-[11px] opacity-75">{activeEmployees.length}</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={employeeListView === "terminated" ? "default" : "ghost"}
-                        className="h-7 rounded-full px-3 text-xs"
-                        onClick={() => setEmployeeListView("terminated")}
-                      >
-                        离职人员
-                        <span className="ml-1 text-[11px] opacity-75">{terminatedEmployees.length}</span>
-                      </Button>
-                    </div>
                     <ReminderFloat employees={activeEmployees} />
                     <Button variant="outline" size="sm" onClick={() => refetch()}>
                       <RefreshCw className="size-3.5 mr-1" />
@@ -599,30 +601,14 @@ export default function EmployeesPage() {
                 {!isLoading && !isError && (
                   <EmployeeTable
                     employees={filteredEmployees}
-                    orgs={visibleOrgs}
                     selectedId={selectedId}
-                    editingId={editingId}
-                    editData={editData}
                     onSelect={setSelectedId}
                     onEdit={handleEdit}
                     onReactivate={handleReactivate}
                     canEditEmployee={canEditEmployee}
-                    canEditRole={canWritePermissions}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onSort={handleSort}
-                    onEditChange={(update) =>
-                      setEditData((prev) => {
-                        if (!prev) return prev;
-                        if (editingId === 0 && update.employeeNo !== undefined) {
-                          setAutoEmployeeNo(null);
-                        }
-                        return { ...prev, ...update };
-                      })
-                    }
-                    onNameBlur={applyUniqueNewName}
-                    onSave={handleSave}
-                    onCancelEdit={handleCancelEdit}
                   />
                 )}
               </div>
@@ -642,6 +628,42 @@ export default function EmployeesPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      <Dialog
+        open={editData != null}
+        onOpenChange={(open) => {
+          if (!open) handleCancelEdit();
+        }}
+      >
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editDialogTitle}</DialogTitle>
+            <DialogDescription>{editDialogDescription}</DialogDescription>
+          </DialogHeader>
+          {editData && (
+            <EmployeeEditRow
+              item={editingId === 0 ? null : visibleEmployees.find((emp) => emp.id === editingId) || null}
+              data={editData}
+              orgs={visibleOrgs}
+              employees={employees}
+              isNew={editingId === 0}
+              canEditRole={canWritePermissions}
+              onChange={(update) =>
+                setEditData((prev) => {
+                  if (!prev) return prev;
+                  if (editingId === 0 && update.employeeNo !== undefined) {
+                    setAutoEmployeeNo(null);
+                  }
+                  return { ...prev, ...update };
+                })
+              }
+              onNameBlur={applyUniqueNewName}
+              onSave={handleSave}
+              onCancel={handleCancelEdit}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={deleteTarget != null}

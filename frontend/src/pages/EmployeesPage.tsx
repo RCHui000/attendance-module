@@ -28,7 +28,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { roleText } from "@/lib/constants";
 import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { EmployeeTable } from "@/components/employees/EmployeeTable";
@@ -55,6 +54,7 @@ type EmployeeSortKey =
   | "status";
 type SortDirection = "asc" | "desc";
 type EmployeeListView = "active" | "terminated";
+type EmployeePageTab = "system" | "permissions";
 
 const EMPTY_EDIT_DATA: EmployeeEditData = {
   id: 0,
@@ -166,6 +166,18 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<EmployeeSortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [employeePageTab, setEmployeePageTab] = useState<EmployeePageTab>(
+    canReadSystem ? "system" : "permissions",
+  );
+
+  useEffect(() => {
+    if (employeePageTab === "system" && !canReadSystem) {
+      setEmployeePageTab("permissions");
+    }
+    if (employeePageTab === "permissions" && !canReadPermissions) {
+      setEmployeePageTab("system");
+    }
+  }, [canReadPermissions, canReadSystem, employeePageTab]);
 
   const {
     data: employees = [],
@@ -521,6 +533,10 @@ export default function EmployeesPage() {
       meta: employeeListView === "terminated" ? `${filteredEmployees.length} / ${terminatedEmployees.length}` : terminatedEmployees.length,
     },
   ];
+  const employeePageSegments = [
+    ...(canReadSystem ? [{ value: "system" as const, label: "系统管理" }] : []),
+    ...(canReadPermissions ? [{ value: "permissions" as const, label: "权限配置" }] : []),
+  ];
   const handleSort = (key: EmployeeSortKey) => {
     if (sortKey !== key) {
       setSortKey(key);
@@ -537,14 +553,16 @@ export default function EmployeesPage() {
 
   return (
     <div>
-      <Tabs defaultValue={canReadSystem ? "system" : "permissions"} className="gap-4">
-        <TabsList>
-          {canReadSystem && <TabsTrigger value="system">系统管理</TabsTrigger>}
-          {canReadPermissions && <TabsTrigger value="permissions">权限配置</TabsTrigger>}
-        </TabsList>
+      <div className="mb-4">
+        <SegmentedPill
+          value={employeePageTab}
+          items={employeePageSegments}
+          onChange={setEmployeePageTab}
+          ariaLabel="员工与组织视图"
+        />
+      </div>
 
-        {canReadSystem && (
-          <TabsContent value="system">
+        {canReadSystem && employeePageTab === "system" && (
             <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -619,15 +637,11 @@ export default function EmployeesPage() {
                 visibleOrgIds={visibleOrgIds}
               />
             </div>
-          </TabsContent>
         )}
 
-        {canReadPermissions && (
-          <TabsContent value="permissions">
+        {canReadPermissions && employeePageTab === "permissions" && (
             <PermissionConfigPanel canWrite={canWritePermissions} />
-          </TabsContent>
         )}
-      </Tabs>
 
       <Dialog
         open={editData != null}

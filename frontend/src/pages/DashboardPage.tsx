@@ -12,7 +12,7 @@ import {
   type PeriodType,
 } from "@/components/dashboard/PeriodFilter";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { SegmentedPill } from "@/components/ui/segmented-pill";
 import {
   RefreshCw,
   FileDown,
@@ -23,8 +23,8 @@ import {
 type DashboardTab = "overview" | "analytics";
 
 const TAB_OPTIONS: { value: DashboardTab; label: string; icon: React.ReactNode }[] = [
-  { value: "overview", label: "总览", icon: <LayoutDashboard className="size-4" /> },
-  { value: "analytics", label: "分析", icon: <TrendingUp className="size-4" /> },
+  { value: "overview", label: "总览", icon: <LayoutDashboard className="size-3.5" /> },
+  { value: "analytics", label: "分析", icon: <TrendingUp className="size-3.5" /> },
 ];
 
 export default function DashboardPage() {
@@ -105,32 +105,12 @@ export default function DashboardPage() {
       {/* Tab row: desktop tabs on left, PeriodFilter + actions on right */}
       {!isMobile && (
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-        {/* Tabs */}
-        <nav
-          className="flex items-center gap-1"
-          role="tablist"
-          aria-label="看板视图切换"
-        >
-          {TAB_OPTIONS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.value}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-colors",
-                "hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none",
-                activeTab === tab.value
-                  ? "bg-muted text-foreground shadow-sm"
-                  : "text-muted-foreground",
-              )}
-              onClick={() => updateDashboardParams({ tab: tab.value })}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+        <SegmentedPill
+          value={activeTab}
+          items={TAB_OPTIONS}
+          onChange={(tab) => updateDashboardParams({ tab })}
+          ariaLabel="看板视图切换"
+        />
 
         {/* PeriodFilter + actions */}
         <div className="flex items-center gap-3 flex-wrap">

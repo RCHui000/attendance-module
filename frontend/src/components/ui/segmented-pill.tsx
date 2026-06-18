@@ -1,10 +1,11 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface SegmentedPillItem<T extends string> {
   value: T;
   label: string;
   meta?: string | number;
+  icon?: ReactNode;
 }
 
 interface SegmentedPillProps<T extends string> {
@@ -66,7 +67,7 @@ export function SegmentedPill<T extends string>({
       role="group"
       aria-label={ariaLabel}
       className={cn(
-        "relative inline-flex rounded-full border border-border bg-muted p-0.5 shadow-sm",
+        "relative inline-flex rounded-full border border-slate-200/80 bg-[#f8fafc] p-0.5 shadow-sm",
         className,
       )}
     >
@@ -99,6 +100,7 @@ export function SegmentedPill<T extends string>({
             onClick={() => onChange(item.value)}
             aria-pressed={active}
           >
+            {item.icon && <span className="mr-1.5 inline-flex items-center">{item.icon}</span>}
             <span>{item.label}</span>
             {item.meta != null && (
               <span

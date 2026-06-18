@@ -13,7 +13,7 @@ import { formatMoney } from "@/utils/dates";
 import { roleText } from "@/lib/constants";
 import { EmployeeEditRow, type EmployeeEditData } from "./EmployeeEditRow";
 import type { Employee, Organization } from "@/types/employee";
-import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, RotateCcw } from "lucide-react";
 
 const costSpecialtyText: Record<string, string> = {
   civil: "土建",
@@ -28,12 +28,14 @@ interface EmployeeTableProps {
   editData: EmployeeEditData | null;
   onSelect: (id: number | null) => void;
   onEdit: (id: number) => void;
+  onReactivate?: (id: number) => void;
   canEditEmployee?: (employee: Employee) => boolean;
   canEditRole?: boolean;
   sortKey: EmployeeSortKey | null;
   sortDirection: SortDirection;
   onSort: (key: EmployeeSortKey) => void;
   onEditChange: (data: Partial<EmployeeEditData>) => void;
+  onNameBlur?: (name: string) => void;
   onSave: () => void;
   onCancelEdit: () => void;
 }
@@ -55,7 +57,7 @@ function calculateTenure(hireDate: string): string {
   const start = new Date(hireDate);
   const now = new Date();
   const total = (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth();
-  if (total < 12) return `${total}个月`;
+  if (total < 12) return `${Math.max(total, 0)}个月`;
   return `${Math.floor(total / 12)}年`;
 }
 
@@ -113,12 +115,14 @@ export function EmployeeTable({
   editData,
   onSelect,
   onEdit,
+  onReactivate,
   canEditEmployee = () => true,
   canEditRole = true,
   sortKey,
   sortDirection,
   onSort,
   onEditChange,
+  onNameBlur,
   onSave,
   onCancelEdit,
 }: EmployeeTableProps) {
@@ -131,12 +135,12 @@ export function EmployeeTable({
   );
 
   return (
-    <div className="rounded-lg border border-border shadow-app overflow-hidden">
-      <div className="overflow-auto max-h-[65vh]">
+    <div className="overflow-hidden rounded-lg border border-border shadow-app">
+      <div className="max-h-[65vh] overflow-auto">
         <Table>
-          <TableHeader className="sticky top-0 bg-table-header z-10">
+          <TableHeader className="sticky top-0 z-10 bg-table-header">
             <TableRow>
-              <TableHead className="text-xs font-bold w-[60px] sticky left-0 bg-table-header z-20">
+              <TableHead className="sticky left-0 z-20 w-[92px] bg-table-header text-xs font-bold">
                 操作
               </TableHead>
               <SortableHead label="编号" sortId="employeeNo" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} />
@@ -152,7 +156,6 @@ export function EmployeeTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* New row */}
             {editingId === 0 && editData && (
               <EmployeeEditRow
                 item={null}
@@ -162,6 +165,7 @@ export function EmployeeTable({
                 isNew
                 canEditRole={canEditRole}
                 onChange={onEditChange}
+                onNameBlur={onNameBlur}
                 onSave={onSave}
                 onCancel={onCancelEdit}
               />
@@ -169,8 +173,8 @@ export function EmployeeTable({
 
             {employees.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} className="text-center text-muted-foreground text-sm py-8">
-                  暂无员工
+                <TableCell colSpan={11} className="py-8 text-center text-sm text-muted-foreground">
+                  暂无人员
                 </TableCell>
               </TableRow>
             )}
@@ -187,47 +191,58 @@ export function EmployeeTable({
                     isNew={false}
                     canEditRole={canEditRole}
                     onChange={onEditChange}
+                    onNameBlur={onNameBlur}
                     onSave={onSave}
                     onCancel={onCancelEdit}
                   />
                 );
               }
 
-              // Use org_name as the department display
-              const deptDisplay =
-                emp.org_name || emp.department || "未分配部门";
+              const deptDisplay = emp.org_name || emp.department || "未分配部门";
               const editable = canEditEmployee(emp);
+              const terminated = String(emp.status || "").toLowerCase() === "terminated";
 
               return (
                 <TableRow
                   key={emp.id}
                   className={cn(
-                    "hover:bg-row-hover transition-colors cursor-pointer",
+                    "cursor-pointer transition-colors hover:bg-row-hover",
                     selectedId === emp.id && "bg-row-selected",
                   )}
                   onClick={() => handleRowClick(emp.id)}
                 >
                   <TableCell
-                    className="p-1.5 sticky left-0 bg-white z-[5]"
+                    className="sticky left-0 z-[5] bg-white p-1.5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs"
+                      className={cn(
+                        "h-7 text-xs",
+                        terminated && onReactivate && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                      )}
                       disabled={!editable}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!editable) return;
+                        if (terminated && onReactivate) {
+                          onReactivate(emp.id);
+                          return;
+                        }
                         onEdit(emp.id);
                       }}
                     >
-                      <Pencil className="size-3 mr-1" />
-                      编辑
+                      {terminated && onReactivate ? (
+                        <RotateCcw className="mr-1 size-3" />
+                      ) : (
+                        <Pencil className="mr-1 size-3" />
+                      )}
+                      {terminated && onReactivate ? "重新启用" : "编辑"}
                     </Button>
                   </TableCell>
                   <TableCell className="text-sm tabular-nums">
-                    {emp.employee_no || "—"}
+                    {emp.employee_no || "-"}
                   </TableCell>
                   <TableCell className="text-sm font-medium">
                     {emp.name}
@@ -240,7 +255,7 @@ export function EmployeeTable({
                   </TableCell>
                   <TableCell className="text-sm">
                     <div className="flex flex-wrap items-center gap-1">
-                      <span>{emp.position_name || "—"}</span>
+                      <span>{emp.position_name || "-"}</span>
                       {emp.cost_specialty && (
                         <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
                           {costSpecialtyText[emp.cost_specialty] || emp.cost_specialty}
@@ -251,7 +266,7 @@ export function EmployeeTable({
                   <TableCell className="text-sm">
                     {emp.contract_type === "service" ? "劳务合同" : "劳动合同"}
                   </TableCell>
-                  <TableCell className="text-sm text-right tabular-nums">
+                  <TableCell className="text-right text-sm tabular-nums">
                     {formatMoney(
                       emp.contract_type === "service"
                         ? emp.daily_wage
@@ -259,10 +274,10 @@ export function EmployeeTable({
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {emp.hire_date ? `${emp.hire_date} 起` : "—"}
+                    {emp.hire_date ? `${emp.hire_date} 起` : "-"}
                   </TableCell>
-                  <TableCell className="text-sm text-right tabular-nums">
-                    {emp.hire_date ? calculateTenure(emp.hire_date) : "—"}
+                  <TableCell className="text-right text-sm tabular-nums">
+                    {emp.hire_date ? calculateTenure(emp.hire_date) : "-"}
                   </TableCell>
                   <TableCell className="text-sm">
                     <span

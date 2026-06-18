@@ -39,6 +39,7 @@ interface EmployeeEditRowProps {
   isNew: boolean;
   canEditRole?: boolean;
   onChange: (update: Partial<EmployeeEditData>) => void;
+  onNameBlur?: (name: string) => void;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -79,6 +80,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
   employees,
   canEditRole = true,
   onChange,
+  onNameBlur,
   onSave,
   onCancel,
 }: EmployeeEditRowProps) {
@@ -198,6 +200,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           aria-label="姓名"
           value={data.name}
           onChange={(e) => onChange({ name: e.target.value })}
+          onBlur={(e) => onNameBlur?.(e.target.value)}
           placeholder="必填"
         />
       </td>

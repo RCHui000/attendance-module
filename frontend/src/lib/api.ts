@@ -396,7 +396,7 @@ async function currentUserCanAccessResource(resourceKey: string, minAccess = "re
 async function listEmployees(): Promise<AnyRow[]> {
   const [rows, rolesRows] = await Promise.all([
     rest<AnyRow[]>(
-      "/hr_employee_current_view?select=*&is_active=eq.true&order=employee_id.asc",
+      "/hr_employee_current_view?select=*&order=employee_id.asc",
     ),
     rest<AnyRow[]>("/user_roles?select=employee_id,role"),
   ]);
@@ -425,11 +425,12 @@ async function listEmployees(): Promise<AnyRow[]> {
     manager_name: null,
     employment_type: row.employment_type || "labor",
     is_active: row.is_active,
-    status: String(row.employment_status || "active").toLowerCase(),
+    status: row.is_active === false
+      ? "terminated"
+      : String(row.employment_status || "active").toLowerCase(),
     standard_monthly_workdays: Number(row.standard_monthly_workdays || 21.75),
     };
-  })
-    .filter((row) => row.is_active !== false && row.status !== "terminated");
+  });
 }
 
 async function organizations(): Promise<AnyRow[]> {

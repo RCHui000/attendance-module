@@ -46,6 +46,7 @@ type EmployeeSortKey =
   | "tenure"
   | "status";
 type SortDirection = "asc" | "desc";
+type EmployeeListView = "active" | "terminated";
 
 const EMPTY_EDIT_DATA: EmployeeEditData = {
   id: 0,
@@ -108,6 +109,31 @@ function employeeSortValue(emp: Employee, sortKey: EmployeeSortKey) {
   return emp.status || "";
 }
 
+function activeStatus(emp: Employee) {
+  return String(emp.status || "").toLowerCase() === "terminated"
+    ? "terminated"
+    : "active";
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function nextNameWithSuffix(name: string, employees: Employee[]) {
+  const trimmed = name.trim();
+  if (!trimmed) return name;
+  if (/\d+$/.test(trimmed)) return trimmed;
+  const pattern = new RegExp(`^${escapeRegExp(trimmed)}(\\d*)$`);
+  let maxSuffix = 0;
+  for (const employee of employees) {
+    const existing = String(employee.name || "").trim();
+    const match = existing.match(pattern);
+    if (!match) continue;
+    maxSuffix = Math.max(maxSuffix, match[1] ? Number(match[1]) : 1);
+  }
+  return maxSuffix > 0 ? `${trimmed}${maxSuffix + 1}` : trimmed;
+}
+
 export default function EmployeesPage() {
   const { user: currentUser, canAccess } = useAuthStore();
   const navigate = useNavigate();
@@ -128,6 +154,7 @@ export default function EmployeesPage() {
     id: number;
     name: string;
   } | null>(null);
+  const [employeeListView, setEmployeeListView] = useState<EmployeeListView>("active");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<EmployeeSortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -180,6 +207,18 @@ export default function EmployeesPage() {
     [employees, canReadSystem, canEditEmployee],
   );
 
+  const activeEmployees = useMemo(
+    () => visibleEmployees.filter((emp) => activeStatus(emp) === "active"),
+    [visibleEmployees],
+  );
+
+  const terminatedEmployees = useMemo(
+    () => visibleEmployees.filter((emp) => activeStatus(emp) === "terminated"),
+    [visibleEmployees],
+  );
+
+  const listedEmployees = employeeListView === "active" ? activeEmployees : terminatedEmployees;
+
   const visibleOrgs = useMemo(
     () => orgs.filter((org) => canReadSystem || visibleOrgIds.has(org.id)),
     [orgs, canReadSystem, visibleOrgIds],
@@ -194,7 +233,7 @@ export default function EmployeesPage() {
       .toLowerCase()
       .split(/\s+/)
       .filter(Boolean);
-    const rows = visibleEmployees.filter((emp) => {
+    const rows = listedEmployees.filter((emp) => {
       if (keywords.length === 0) return true;
       const searchText = employeeSearchText(emp, emp.org_id ? orgPathById.get(Number(emp.org_id)) || "" : "");
       return keywords.every((keyword) => searchText.includes(keyword));
@@ -211,14 +250,21 @@ export default function EmployeesPage() {
     search,
     sortDirection,
     sortKey,
-    visibleEmployees,
+    listedEmployees,
   ]);
 
   useEffect(() => {
-    if (selectedId && !visibleEmployees.some((emp) => emp.id === selectedId)) {
+    if (selectedId && !listedEmployees.some((emp) => emp.id === selectedId)) {
       setSelectedId(null);
     }
-  }, [selectedId, visibleEmployees]);
+  }, [selectedId, listedEmployees]);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setEditingId(null);
+    setEditData(null);
+    setAutoEmployeeNo(null);
+  }, [employeeListView]);
 
   const initEditData = useCallback(
     (emp: Employee): EmployeeEditData => ({
@@ -303,8 +349,58 @@ export default function EmployeesPage() {
     };
   }, [autoEmployeeNo, editData?.employeeNo, editData?.orgId, editingId]);
 
+  const applyUniqueNewName = useCallback(
+    (name: string) => {
+      if (editingId !== 0) return;
+      const nextName = nextNameWithSuffix(name, employees);
+      if (nextName === name.trim()) return;
+      setEditData((prev) => (prev && prev.id === 0 ? { ...prev, name: nextName } : prev));
+      toast.info(`检测到重名，已自动调整为 ${nextName}`);
+    },
+    [editingId, employees],
+  );
+
+  const handleReactivate = useCallback(
+    async (id: number) => {
+      const emp = visibleEmployees.find((e) => e.id === id);
+      if (!emp) return;
+      try {
+        await saveEmployee.mutateAsync({
+          id: emp.id,
+          employeeNo: emp.employee_no,
+          name: emp.name,
+          role: emp.role || "employee",
+          orgId: emp.org_id,
+          positionName: emp.position_name || "",
+          costSpecialty: emp.cost_specialty || null,
+          contractType: emp.contract_type || "labor",
+          monthlySalary: emp.monthly_salary || "0",
+          dailyWage: emp.daily_wage || "0",
+          hireDate: emp.hire_date || isoDate(new Date()),
+          contractMonths: "12",
+          managerUserId: emp.manager_user_id,
+          status: "active",
+          employmentType: emp.employment_type || emp.contract_type || "labor",
+        });
+        toast.success(`${emp.name} 已重新启用`);
+        setEmployeeListView("active");
+        setSelectedId(emp.id);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "重新启用失败");
+      }
+    },
+    [saveEmployee, visibleEmployees],
+  );
+
   const handleSave = useCallback(async () => {
     if (!editData) return;
+    const normalizedName = editingId === 0
+      ? nextNameWithSuffix(editData.name, employees)
+      : editData.name.trim();
+    if (editingId === 0 && normalizedName !== editData.name.trim()) {
+      setEditData((prev) => (prev ? { ...prev, name: normalizedName } : prev));
+      toast.info(`检测到重名，已自动调整为 ${normalizedName}`);
+    }
     if (!editData.name.trim()) {
       toast.error("请先填写姓名");
       return;
@@ -326,7 +422,7 @@ export default function EmployeesPage() {
     const payload: Record<string, unknown> = {
       id: editData.id || null,
       employeeNo: editData.employeeNo,
-      name: editData.name.trim(),
+      name: normalizedName,
       role: editData.role,
       orgId: editData.orgId ? Number(editData.orgId) : null,
       positionName: editData.positionName,
@@ -368,36 +464,36 @@ export default function EmployeesPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存失败");
     }
-  }, [editData, orgs, saveEmployee]);
+  }, [editData, editingId, employees, orgs, saveEmployee]);
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;
     try {
       await deleteEmployee.mutateAsync(deleteTarget.id);
-      toast.success("已删除「" + deleteTarget.name + "」");
+      toast.success(`${deleteTarget.name} 已设为离职`);
       if (selectedId === deleteTarget.id) setSelectedId(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "删除失败");
+      toast.error(e instanceof Error ? e.message : "设为离职失败");
     }
     setDeleteTarget(null);
   }, [deleteTarget, deleteEmployee, selectedId]);
 
   const handleDelete = useCallback(() => {
     if (!selectedId) {
-      toast.error("请先在列表中选中要删除的人员");
+      toast.error("请先在列表中选中要设为离职的人员");
       return;
     }
-    const emp = visibleEmployees.find((e) => e.id === selectedId);
+    const emp = listedEmployees.find((e) => e.id === selectedId);
     if (!emp) {
       toast.error("选中的人员不存在，请刷新后重试");
       return;
     }
     if (emp.id === currentUser?.id) {
-      toast.error("不能删除当前登录账号");
+      toast.error("不能将当前登录账号设为离职");
       return;
     }
     setDeleteTarget({ id: emp.id, name: emp.name || String(emp.id) });
-  }, [selectedId, visibleEmployees, currentUser]);
+  }, [selectedId, listedEmployees, currentUser]);
 
   const deleteDisabled = !selectedId || editingId != null;
   const handleSort = (key: EmployeeSortKey) => {
@@ -426,15 +522,37 @@ export default function EmployeesPage() {
           <TabsContent value="system">
             <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
               <div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div>
-                    <strong className="text-sm">员工列表</strong>
+                    <strong className="text-sm">{employeeListView === "active" ? "员工列表" : "离职人员"}</strong>
                     <span className="ml-2 text-xs text-muted-foreground">
-                      {filteredEmployees.length} / {visibleEmployees.length} 人
+                      {filteredEmployees.length} / {listedEmployees.length} 人
                     </span>
                   </div>
-                  <div className="flex gap-1">
-                    <ReminderFloat employees={visibleEmployees} />
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <div className="inline-flex rounded-full border border-border bg-muted p-0.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={employeeListView === "active" ? "default" : "ghost"}
+                        className="h-7 rounded-full px-3 text-xs"
+                        onClick={() => setEmployeeListView("active")}
+                      >
+                        员工列表
+                        <span className="ml-1 text-[11px] opacity-75">{activeEmployees.length}</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={employeeListView === "terminated" ? "default" : "ghost"}
+                        className="h-7 rounded-full px-3 text-xs"
+                        onClick={() => setEmployeeListView("terminated")}
+                      >
+                        离职人员
+                        <span className="ml-1 text-[11px] opacity-75">{terminatedEmployees.length}</span>
+                      </Button>
+                    </div>
+                    <ReminderFloat employees={activeEmployees} />
                     <Button variant="outline" size="sm" onClick={() => refetch()}>
                       <RefreshCw className="size-3.5 mr-1" />
                       刷新
@@ -442,14 +560,14 @@ export default function EmployeesPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      disabled={deleteDisabled}
+                      disabled={deleteDisabled || employeeListView !== "active"}
                       onClick={handleDelete}
-                      className={canWriteSystem ? "" : "hidden"}
+                      className={canWriteSystem && employeeListView === "active" ? "" : "hidden"}
                     >
                       <Trash2 className="size-3.5 mr-1" />
-                      删除员工
+                      设为离职
                     </Button>
-                    <Button size="sm" onClick={handleNew} className={canWriteSystem ? "" : "hidden"}>
+                    <Button size="sm" onClick={handleNew} className={canWriteSystem && employeeListView === "active" ? "" : "hidden"}>
                       <Plus className="size-3.5 mr-1" />
                       新增员工
                     </Button>
@@ -470,7 +588,7 @@ export default function EmployeesPage() {
 
                 {isLoading && (
                   <div className="py-10 text-center text-sm text-muted-foreground">
-                    加载中…
+                    加载中...
                   </div>
                 )}
                 {isError && (
@@ -487,8 +605,9 @@ export default function EmployeesPage() {
                     editData={editData}
                     onSelect={setSelectedId}
                     onEdit={handleEdit}
+                    onReactivate={handleReactivate}
                     canEditEmployee={canEditEmployee}
-              canEditRole={canWritePermissions}
+                    canEditRole={canWritePermissions}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onSort={handleSort}
@@ -501,6 +620,7 @@ export default function EmployeesPage() {
                         return { ...prev, ...update };
                       })
                     }
+                    onNameBlur={applyUniqueNewName}
                     onSave={handleSave}
                     onCancelEdit={handleCancelEdit}
                   />
@@ -508,7 +628,7 @@ export default function EmployeesPage() {
               </div>
 
               <OrganizationPanel
-                employees={visibleEmployees}
+                employees={activeEmployees}
                 canManage={canWriteSystem}
                 visibleOrgIds={visibleOrgIds}
               />
@@ -531,15 +651,15 @@ export default function EmployeesPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogTitle>确认设为离职</AlertDialogTitle>
             <AlertDialogDescription>
-              确认删除「{deleteTarget?.name}」吗？历史周表会保留。
+              确认将“{deleteTarget?.name}”设为离职吗？历史周表会保留。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm}>
-              确认删除
+              确认
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

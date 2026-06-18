@@ -19,6 +19,7 @@ export interface Employee {
   manager_user_id: number | null;
   manager_name: string | null;
   employment_type: string;
+  is_active?: boolean;
   status: "active" | "terminated";
   standard_monthly_workdays: number;
 }

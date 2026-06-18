@@ -444,6 +444,20 @@ AS $$
   LIMIT 1;
 $$;
 
+DROP POLICY IF EXISTS "Department managers manage own project department owners"
+  ON public.project_department_owners;
+
+CREATE POLICY "Department managers manage own project department owners"
+  ON public.project_department_owners FOR ALL TO authenticated
+  USING (
+    public.current_user_can_access_resource('report', 'write')
+    OR public.current_user_manages_org(org_id)
+  )
+  WITH CHECK (
+    public.current_user_can_access_resource('report', 'write')
+    OR public.current_user_manages_org(org_id)
+  );
+
 ALTER TABLE public.organizations
   DROP COLUMN IF EXISTS manager_user_id;
 

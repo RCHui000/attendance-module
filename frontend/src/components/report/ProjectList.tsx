@@ -101,11 +101,9 @@ function isActiveEmployee(employee: Employee) {
   return String(employee.status || "").toLowerCase() !== "terminated";
 }
 
-function employeeMatchesRole(employee: Employee, role: ProjectRoleKey, scope: Set<number>) {
+function employeeMatchesRole(employee: Employee, scope: Set<number>) {
   if (!isActiveEmployee(employee)) return false;
   if (scope.size > 0 && (!employee.org_id || !scope.has(employee.org_id))) return false;
-  if (role === "cc_civil_project_owner") return employee.cost_specialty === "civil" || !employee.cost_specialty;
-  if (role === "cc_mep_project_owner") return employee.cost_specialty === "mep" || !employee.cost_specialty;
   return true;
 }
 
@@ -215,7 +213,7 @@ export function ProjectList() {
     const scope = roleOrgScope(role, orgs);
     const selected = editData.roles[role] ? [editData.roles[role]] : [];
     const candidates = employees
-      .filter((employee) => employeeMatchesRole(employee, role, scope))
+      .filter((employee) => employeeMatchesRole(employee, scope))
       .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
     const selectedEmployees = selected
       .map((id) => employeeById.get(id))

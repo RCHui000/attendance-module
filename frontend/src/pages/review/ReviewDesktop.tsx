@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ApprovalFlowConfig } from "@/components/review/ApprovalFlowConfig";
 import { ApprovalTable } from "@/components/review/ApprovalTable";
 import { Button } from "@/components/ui/button";
+import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { useAuthStore } from "@/stores/authStore";
 import type { ApprovalTasks } from "@/types/approval";
 import { RefreshCw } from "lucide-react";
@@ -25,28 +26,20 @@ export function ReviewDesktop({
 }: ReviewDesktopProps) {
   const { isAdmin } = useAuthStore();
   const [pageTab, setPageTab] = useState<"tasks" | "templates">("tasks");
+  const pageTabs = [
+    { value: "tasks" as const, label: "审批任务" },
+    ...(isAdmin ? [{ value: "templates" as const, label: "审批流配置" }] : []),
+  ];
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="inline-flex items-center gap-1 rounded-lg border border-border p-0.5">
-          <button
-            type="button"
-            className={`rounded-md px-3 py-1 text-sm ${pageTab === "tasks" ? "bg-muted font-medium" : "text-muted-foreground"}`}
-            onClick={() => setPageTab("tasks")}
-          >
-            审批任务
-          </button>
-          {isAdmin && (
-            <button
-              type="button"
-              className={`rounded-md px-3 py-1 text-sm ${pageTab === "templates" ? "bg-muted font-medium" : "text-muted-foreground"}`}
-              onClick={() => setPageTab("templates")}
-            >
-              审批流配置
-            </button>
-          )}
-        </div>
+        <SegmentedPill
+          value={pageTab}
+          items={pageTabs}
+          onChange={setPageTab}
+          ariaLabel="审批页面视图"
+        />
         <Button variant="outline" size="sm" onClick={onRefresh}>
           <RefreshCw className="mr-1 size-3.5" />
           刷新

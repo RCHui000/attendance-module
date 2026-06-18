@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { cn } from "@/lib/utils";
 import { getTimesheetPeriodEnd } from "@/utils/dates";
 import {
@@ -56,6 +57,10 @@ export function ApprovalTable({
 
   const reviewAction = useReviewAction();
   const overtimeAction = useOvertimeAction();
+  const approvalTabs = [
+    { value: "pending" as const, label: "待审核" },
+    { value: "reviewed" as const, label: "已审核" },
+  ];
 
   const getTaskKey = (item: ApprovalTaskItem | ReviewedTaskItem) =>
     `${item.task_id || item.timesheet_id}:${item.scope_type || "timesheet"}:${item.scope_id || "all"}`;
@@ -119,24 +124,12 @@ export function ApprovalTable({
     <>
       <div>
         <div className="flex items-center justify-between mb-3">
-          <div className="inline-flex items-center rounded-lg border border-border p-0.5 gap-0.5">
-            {(["pending", "reviewed"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-sm font-medium transition-colors cursor-pointer select-none",
-                  "hover:bg-muted hover:text-foreground",
-                  approvalTab === tab
-                    ? "bg-muted text-foreground shadow-sm"
-                    : "text-muted-foreground",
-                )}
-                onClick={() => onTabChange(tab)}
-              >
-                {tab === "pending" ? "待审核" : "已审核"}
-              </button>
-            ))}
-          </div>
+          <SegmentedPill
+            value={approvalTab}
+            items={approvalTabs}
+            onChange={onTabChange}
+            ariaLabel="审批状态"
+          />
           <span className="text-xs text-muted-foreground">
             {approvalTab === "pending"
               ? "处理待审批周表和加班 OT"

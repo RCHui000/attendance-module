@@ -6,7 +6,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { Download } from "lucide-react";
 
 export type PeriodType = "month" | "quarter" | "year";
@@ -45,25 +45,12 @@ export function PeriodSelector({
 
   return (
     <div className="flex items-center gap-3 flex-wrap mb-4">
-      {/* Period type — plain buttons to avoid @base-ui ToggleGroup issues */}
-      <div className="inline-flex items-center rounded-lg border border-border p-0.5 gap-0.5">
-        {PERIOD_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            className={cn(
-              "px-2.5 py-1 rounded-md text-sm font-medium transition-colors cursor-pointer select-none",
-              "hover:bg-muted hover:text-foreground",
-              periodType === opt.value
-                ? "bg-muted text-foreground shadow-sm"
-                : "text-muted-foreground",
-            )}
-            onClick={() => onPeriodTypeChange(opt.value)}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedPill
+        value={periodType}
+        items={PERIOD_OPTIONS}
+        onChange={onPeriodTypeChange}
+        ariaLabel="时间跨度"
+      />
 
       <Select
         value={String(year)}

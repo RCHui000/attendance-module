@@ -5,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { SegmentedPill } from "@/components/ui/segmented-pill";
 
 export type PeriodType = "month" | "quarter" | "year";
 
@@ -71,26 +71,12 @@ export function PeriodFilter({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Period type buttons — plain buttons to avoid @base-ui ToggleGroup API issues */}
-      <div className="inline-flex items-center rounded-lg border border-border p-0.5 gap-0.5">
-        {PERIOD_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            aria-pressed={periodType === opt.value}
-            className={cn(
-              "px-2.5 py-1 rounded-md text-sm font-medium transition-colors cursor-pointer select-none",
-              "hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none",
-              periodType === opt.value
-                ? "bg-muted text-foreground shadow-sm"
-                : "text-muted-foreground",
-            )}
-            onClick={() => onPeriodTypeChange(opt.value)}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedPill
+        value={periodType}
+        items={PERIOD_OPTIONS}
+        onChange={onPeriodTypeChange}
+        ariaLabel="时间跨度"
+      />
 
       <Select
         value={String(year)}

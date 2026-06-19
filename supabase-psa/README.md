@@ -18,6 +18,7 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 - Apply migrations on NAS/cloud before deploying frontend code that depends on them.
 - Refresh PostgREST schema cache with `NOTIFY pgrst, 'reload schema'` when schema changes.
 - Back up cloud PostgreSQL before production migration.
+- Keep public function exposure documented in `FUNCTION_PERMISSION_INVENTORY.md` and re-run `scripts/audit-public-function-grants.sql` after function/RPC grant changes.
 
 ## Current Important Migration Groups
 

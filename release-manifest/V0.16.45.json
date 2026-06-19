@@ -1,0 +1,35 @@
+{
+  "version": "V0.16.45",
+  "released_at": "2026-06-20",
+  "base_version": "V0.16.44",
+  "summary": "Release governance and production safety checks for RPC permissions, JWT keys, deployment gates, and timesheet withdraw smoke testing.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema migration is included in this release.",
+      "Function exposure remains at 44 public schema functions, 0 PostgreSQL PUBLIC execute grants, 3 anon executable functions, and 16 authenticated executable functions."
+    ]
+  },
+  "backend": {
+    "notes": [
+      "Documented the function permission inventory and frontend RPC allowlist.",
+      "Added SQL assertions for function grants.",
+      "Added a transactional smoke test for submitted timesheet withdraw behavior.",
+      "Fixed the Aliyun deploy script to use the configured PostgreSQL user when applying GoTrue compatibility SQL."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.16.45 and rebuild approval-app with APP_IMAGE_TAG=V0.16.45.",
+    "notes": [
+      "Run deploy/scripts/verify-jwt-keys.sh before deploy.",
+      "Run deploy/scripts/pre-deploy-check.sh before and after deploy as the production gate."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.16.45.",
+    "Run scripts/assert-function-grants.sql against production.",
+    "Run scripts/smoke-timesheet-withdraw.sql against production in rollback mode.",
+    "Run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.16.45."
+  ]
+}

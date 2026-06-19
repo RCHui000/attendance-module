@@ -42,7 +42,7 @@ POSTGRES_DB="${POSTGRES_DB:-psa}" \
 
 echo "== Apply GoTrue compatibility views =="
 docker exec -i "${POSTGRES_CONTAINER_NAME:-approval-postgres}" \
-  psql -U postgres -d "${POSTGRES_DB:-psa}" \
+  psql -U "${POSTGRES_USER:-psa_admin}" -d "${POSTGRES_DB:-psa}" \
   < deploy/sql/gotrue-public-compat.sql
 
 echo "== Container status =="

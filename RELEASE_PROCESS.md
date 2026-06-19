@@ -9,7 +9,8 @@ Use this process when the product owner says the current work is ready for a Git
 3. Update or add `release-manifest/<version>.json`.
 4. Run local checks:
    - `git diff --check`
-   - `npm --prefix frontend run build` with `VITE_APP_VERSION=<version>`
+   - `npm --prefix frontend run build` with `VITE_APP_VERSION=<version>` and the production `VITE_SUPABASE_ANON_KEY`
+   - `EXPECTED_VERSION=<version> E2E_BASE_URL=<local-or-production-url> node scripts/smoke-frontend-render.mjs`
 5. Run production safety gates before deployment:
    - `deploy/scripts/verify-jwt-keys.sh`
    - `deploy/scripts/pre-deploy-check.sh`
@@ -22,6 +23,7 @@ Use this process when the product owner says the current work is ready for a Git
    - If the cloud host has no Node/npm, build locally, sync `frontend/dist`, then run `SKIP_FRONTEND_BUILD=1 APP_IMAGE_TAG=<version> VITE_APP_VERSION=<version> bash deploy/scripts/deploy-aliyun.sh`
 10. Run post-deploy checks:
    - `EXPECTED_VERSION=<version> deploy/scripts/pre-deploy-check.sh`
+   - `EXPECTED_VERSION=<version> E2E_BASE_URL=https://xpjs.asia/ node scripts/smoke-frontend-render.mjs`
    - `scripts/smoke-timesheet-withdraw.sql` for approval/timesheet related changes
 
 ## Automation Boundary

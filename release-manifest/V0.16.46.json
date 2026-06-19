@@ -19,7 +19,8 @@
   },
   "verification": [
     "Run git diff --check.",
-    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.16.46.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.16.46 and the production VITE_SUPABASE_ANON_KEY.",
+    "Run scripts/smoke-frontend-render.mjs against the deployed site.",
     "Run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.16.46 after deployment.",
     "Run scripts/smoke-timesheet-withdraw.sql against production in rollback mode."
   ]

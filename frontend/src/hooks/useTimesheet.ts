@@ -46,3 +46,25 @@ export function useSubmitTimesheet() {
     },
   });
 }
+
+export function useWithdrawTimesheet() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { timesheetId: number; comment?: string }) =>
+      api("/api/timesheet/action", {
+        method: "POST",
+        body: JSON.stringify({
+          timesheetId: params.timesheetId,
+          action: "withdraw",
+          comment: params.comment || "",
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["timesheet"] });
+      queryClient.invalidateQueries({ queryKey: ["approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      publishLocalSync(["timesheet", "approvals", "reports", "dashboard"]);
+    },
+  });
+}

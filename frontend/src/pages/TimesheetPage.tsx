@@ -12,6 +12,7 @@ import {
   useTimesheet,
   useSaveTimesheet,
   useSubmitTimesheet,
+  useWithdrawTimesheet,
 } from "@/hooks/useTimesheet";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -71,6 +72,7 @@ export default function TimesheetPage() {
 
   const saveMutation = useSaveTimesheet();
   const submitMutation = useSubmitTimesheet();
+  const withdrawMutation = useWithdrawTimesheet();
 
   const weekDays = useMemo(() => getTimesheetPeriodDays(currentWeek), [currentWeek]);
   const displayWeekDays = useMemo(() => getTimesheetDisplayWeekDays(currentWeek), [currentWeek]);
@@ -130,6 +132,7 @@ export default function TimesheetPage() {
     [store.rows, weekDays],
   );
   const status = timesheet?.status || "draft";
+  const timesheetId = timesheet?.id;
   const isLocked = ["approved", "locked", "summarized"].includes(status);
   const hasRejectedProject = store.rows.some((row) => row.approvalStatus === "rejected");
   const shouldShowDraftProjectRow =
@@ -233,6 +236,26 @@ export default function TimesheetPage() {
     }
   }, [timesheet?.id, store.rows, store.overtime, store.remark, store.isDirty, currentWeek, blocking]);
 
+  const handleWithdraw = useCallback(async () => {
+    if (!timesheetId) return;
+    const confirmed = window.confirm("撤回后周表会回到草稿，已分发的项目块审批任务会被取消。确定撤回吗？");
+    if (!confirmed) return;
+
+    try {
+      await withdrawMutation.mutateAsync({
+        timesheetId,
+        comment: "提交人撤回周表",
+      });
+      store.markClean();
+      toast.success("周表已撤回，可继续编辑");
+      refetch();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "撤回失败",
+      );
+    }
+  }, [timesheetId, withdrawMutation, store, refetch]);
+
   if (isLoading) {
     return (
       <div className="py-16 text-center text-sm text-muted-foreground">
@@ -323,8 +346,10 @@ export default function TimesheetPage() {
         isDirty={store.isDirty}
         isSaving={saveMutation.isPending}
         isSubmitting={submitMutation.isPending || saveMutation.isPending}
+        isWithdrawing={withdrawMutation.isPending}
         onSave={handleSave}
         onSubmit={handleSubmit}
+        onWithdraw={status === "submitted" ? handleWithdraw : undefined}
       />
     </div>
   );

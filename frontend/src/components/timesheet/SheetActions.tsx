@@ -8,8 +8,10 @@ interface SheetActionsProps {
   isDirty: boolean;
   isSaving: boolean;
   isSubmitting: boolean;
+  isWithdrawing?: boolean;
   onSave: () => void;
   onSubmit: () => void;
+  onWithdraw?: () => void;
 }
 
 export function SheetActions({
@@ -19,10 +21,13 @@ export function SheetActions({
   isDirty,
   isSaving,
   isSubmitting,
+  isWithdrawing = false,
   onSave,
   onSubmit,
+  onWithdraw,
 }: SheetActionsProps) {
   const isLocked = ["approved", "locked", "summarized"].includes(status);
+  const canWithdraw = status === "submitted" && !!onWithdraw;
 
   if (isLocked || (status === "submitted" && !canEditSubmittedRevision)) {
     return (
@@ -30,6 +35,15 @@ export function SheetActions({
         <span className="text-sm text-muted-foreground mr-auto self-center">
           此周表已提交或已锁定，无法编辑
         </span>
+        {canWithdraw ? (
+          <Button
+            variant="destructive"
+            onClick={onWithdraw}
+            disabled={isWithdrawing}
+          >
+            {isWithdrawing ? "撤回中..." : "撤回周表"}
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -43,17 +57,27 @@ export function SheetActions({
       <Button
         variant="outline"
         onClick={onSave}
-        disabled={isSaving}
+        disabled={isSaving || isWithdrawing}
       >
-        {isSaving ? "保存中…" : "保存草稿"}
+        {isSaving ? "保存中..." : "保存草稿"}
       </Button>
+
+      {canWithdraw ? (
+        <Button
+          variant="destructive"
+          onClick={onWithdraw}
+          disabled={isWithdrawing || isSubmitting}
+        >
+          {isWithdrawing ? "撤回中..." : "撤回周表"}
+        </Button>
+      ) : null}
 
       <Button
         onClick={onSubmit}
-        disabled={isSubmitting || hasBlockingError}
+        disabled={isSubmitting || isWithdrawing || hasBlockingError}
         title={hasBlockingError ? "请先修正每日合计超过 100% 的项目" : undefined}
       >
-        {isSubmitting ? "提交中…" : "提交审核"}
+        {isSubmitting ? "提交中..." : "提交审核"}
       </Button>
     </div>
   );

@@ -1,0 +1,26 @@
+{
+  "version": "V0.16.46",
+  "released_at": "2026-06-20",
+  "base_version": "V0.16.45",
+  "summary": "Cloud deployment compatibility release for hosts that use prebuilt frontend assets instead of local Node/npm.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema migration is included in this release.",
+      "Function exposure remains at 44 public schema functions, 0 PostgreSQL PUBLIC execute grants, 3 anon executable functions, and 16 authenticated executable functions."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.16.46, sync frontend/dist when the host has no npm, then rebuild approval-app with APP_IMAGE_TAG=V0.16.46.",
+    "notes": [
+      "deploy/scripts/deploy-aliyun.sh now supports SKIP_FRONTEND_BUILD=1 when frontend/dist is already present.",
+      "This release supersedes V0.16.45 for production deployment."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.16.46.",
+    "Run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.16.46 after deployment.",
+    "Run scripts/smoke-timesheet-withdraw.sql against production in rollback mode."
+  ]
+}

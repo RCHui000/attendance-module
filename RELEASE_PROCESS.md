@@ -19,6 +19,7 @@ Use this process when the product owner says the current work is ready for a Git
 8. Create the GitHub release from the pushed tag.
 9. Deploy on the cloud host with:
    - `APP_IMAGE_TAG=<version> VITE_APP_VERSION=<version> bash deploy/scripts/deploy-aliyun.sh`
+   - If the cloud host has no Node/npm, build locally, sync `frontend/dist`, then run `SKIP_FRONTEND_BUILD=1 APP_IMAGE_TAG=<version> VITE_APP_VERSION=<version> bash deploy/scripts/deploy-aliyun.sh`
 10. Run post-deploy checks:
    - `EXPECTED_VERSION=<version> deploy/scripts/pre-deploy-check.sh`
    - `scripts/smoke-timesheet-withdraw.sql` for approval/timesheet related changes

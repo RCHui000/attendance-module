@@ -6,7 +6,7 @@
 --
 -- Notes:
 --   PostgreSQL PUBLIC grants are different from this project's "PUBLIC" tier
---   in supabase-psa/FUNCTION_PERMISSION_INVENTORY.md. After V0.16.45 there
+--   in supabase-psa/FUNCTION_PERMISSION_INVENTORY.md. After V0.16.46 there
 --   should be no PostgreSQL PUBLIC EXECUTE grants on public schema functions.
 
 \pset pager off

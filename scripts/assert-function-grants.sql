@@ -4,7 +4,7 @@
 --   docker exec -i approval-postgres psql -U psa_admin -d psa \
 --     < scripts/assert-function-grants.sql
 --
--- Expected baseline after V0.16.45:
+-- Expected baseline after V0.16.46:
 --   public schema functions: 44
 --   PostgreSQL PUBLIC EXECUTE grants: 0
 --   anon EXECUTE grants: 3

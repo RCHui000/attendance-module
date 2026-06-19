@@ -27,8 +27,22 @@ else
 fi
 
 echo "== Build frontend =="
-npm --prefix frontend ci
-npm --prefix frontend run build
+if [ "${SKIP_FRONTEND_BUILD:-0}" = "1" ]; then
+  if [ ! -f frontend/dist/index.html ]; then
+    echo "SKIP_FRONTEND_BUILD=1 but frontend/dist/index.html is missing." >&2
+    exit 1
+  fi
+  echo "Skip frontend build and use existing frontend/dist."
+elif command -v npm >/dev/null 2>&1; then
+  npm --prefix frontend ci
+  npm --prefix frontend run build
+elif [ -f frontend/dist/index.html ]; then
+  echo "npm not found; use existing frontend/dist."
+else
+  echo "npm is not installed and frontend/dist/index.html is missing." >&2
+  echo "Build frontend locally, sync frontend/dist, then rerun with SKIP_FRONTEND_BUILD=1." >&2
+  exit 1
+fi
 
 echo "== Build and start containers =="
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" build

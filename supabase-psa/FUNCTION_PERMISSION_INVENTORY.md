@@ -1,7 +1,7 @@
 # Public Function Permission Inventory
 
 Updated: 2026-06-20
-Baseline: production after `V0.16.45` / migration `089_function_execute_grants_hardening.sql`
+Baseline: production after `V0.16.46` / migration `089_function_execute_grants_hardening.sql`
 
 This inventory tracks the 44 functions in the PostgreSQL `public` schema. They
 are not all public-facing RPC APIs. Most are internal database helpers used by
@@ -20,7 +20,7 @@ PostgreSQL role `PUBLIC` execute grants must remain `0`.
 
 ## Current Summary
 
-| Metric | Expected after V0.16.45 |
+| Metric | Expected after V0.16.46 |
 | --- | ---: |
 | `public` schema functions | 44 |
 | PostgreSQL `PUBLIC` execute grants | 0 |

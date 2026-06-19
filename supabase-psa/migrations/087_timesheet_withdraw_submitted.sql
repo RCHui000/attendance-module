@@ -162,9 +162,9 @@ BEGIN
 
     UPDATE public.approval_node_assignees a
     SET status = 'cancelled',
-        action = COALESCE(action, p_action),
-        comment = COALESCE(NULLIF(p_comment, ''), comment, ''),
-        acted_at = COALESCE(acted_at, now())
+        action = COALESCE(a.action, p_action),
+        comment = COALESCE(NULLIF(p_comment, ''), a.comment, ''),
+        acted_at = COALESCE(a.acted_at, now())
     FROM public.approval_nodes n
     JOIN public.approval_instances i ON i.id = n.instance_id
     WHERE a.node_id = n.id
@@ -175,9 +175,9 @@ BEGIN
 
     UPDATE public.approval_nodes n
     SET status = 'cancelled',
-        result_action = COALESCE(result_action, p_action),
-        comment = COALESCE(NULLIF(p_comment, ''), comment, ''),
-        completed_at = COALESCE(completed_at, now()),
+        result_action = COALESCE(n.result_action, p_action),
+        comment = COALESCE(NULLIF(p_comment, ''), n.comment, ''),
+        completed_at = COALESCE(n.completed_at, now()),
         updated_at = now()
     FROM public.approval_instances i
     WHERE i.id = n.instance_id
@@ -191,7 +191,7 @@ BEGIN
 
     UPDATE public.approval_rounds r
     SET status = 'cancelled',
-        completed_at = COALESCE(completed_at, now()),
+        completed_at = COALESCE(r.completed_at, now()),
         updated_at = now()
     FROM public.approval_instances i
     WHERE r.instance_id = i.id

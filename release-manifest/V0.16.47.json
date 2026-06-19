@@ -1,0 +1,28 @@
+{
+  "version": "V0.16.47",
+  "released_at": "2026-06-20",
+  "base_version": "V0.16.46",
+  "summary": "Permission configuration drag-sort animation release.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema or permission migration is included in this release."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.16.47",
+    "notes": [
+      "Added FLIP-style movement animation while dragging sidebar resources in the employee permission configuration page.",
+      "Added clearer dragging and drop-target visual states.",
+      "Kept the existing native drag-and-drop persistence flow without adding new dependencies."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.16.47 and production VITE variables, sync frontend/dist, then rebuild approval-app with APP_IMAGE_TAG=V0.16.47."
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.16.47 and the production VITE_SUPABASE_ANON_KEY.",
+    "Run scripts/smoke-frontend-render.mjs against the deployed site."
+  ]
+}

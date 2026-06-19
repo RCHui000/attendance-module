@@ -208,34 +208,19 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
     }
   };
 
-  const moveSidebarPreview = (targetResourceKey: string) => {
-    if (!draggingResourceKey || draggingResourceKey === targetResourceKey) return;
-    const current = sidebarResources.map((resource) => resource.resource_key);
-    const next = moveResourceKey(current, draggingResourceKey, targetResourceKey);
-    if (!next || sameOrder(next, current)) return;
-
-    captureSidebarItemRects();
-    setDragOverResourceKey(targetResourceKey);
-    setSidebarOrderPreview(next);
-  };
-
   const commitSidebarOrder = (targetResourceKey: string) => {
     if (!draggingResourceKey) return;
     didDropRef.current = true;
 
-    let orderedKeys = sidebarOrderPreview || sidebarResources.map((resource) => resource.resource_key);
-    if (!sidebarOrderPreview && targetResourceKey !== draggingResourceKey) {
-      const movedKeys = moveResourceKey(orderedKeys, draggingResourceKey, targetResourceKey);
-      if (movedKeys) {
-        captureSidebarItemRects();
-        setSidebarOrderPreview(movedKeys);
-        orderedKeys = movedKeys;
-      }
+    const currentKeys = baseSidebarResources.map((resource) => resource.resource_key);
+    let orderedKeys = currentKeys;
+    if (targetResourceKey !== draggingResourceKey) {
+      orderedKeys = moveResourceKey(currentKeys, draggingResourceKey, targetResourceKey) || currentKeys;
     }
 
     const resourceMap = new Map(baseSidebarResources.map((resource) => [resource.resource_key, resource]));
     const orderedItems = orderedKeys.map((resourceKey) => resourceMap.get(resourceKey)).filter(Boolean) as PermissionResource[];
-    const changed = !sameOrder(orderedKeys, baseSidebarResources.map((resource) => resource.resource_key));
+    const changed = !sameOrder(orderedKeys, currentKeys);
 
     setDraggingResourceKey(null);
     setDragOverResourceKey(null);
@@ -244,6 +229,9 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
       setSidebarOrderPreview(null);
       return;
     }
+
+    captureSidebarItemRects();
+    setSidebarOrderPreview(orderedKeys);
 
     void saveSidebarOrder(orderedItems).then((saved) => {
       if (!saved) {
@@ -326,13 +314,13 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
                         didDropRef.current = false;
                         setDraggingResourceKey(resource.resource_key);
                         setDragOverResourceKey(null);
-                        setSidebarOrderPreview(sidebarResources.map((item) => item.resource_key));
+                        setSidebarOrderPreview(null);
                       }}
                       onDragOver={(event) => {
                         if (!canDrag || !draggingResourceKey) return;
                         event.preventDefault();
                         event.dataTransfer.dropEffect = "move";
-                        moveSidebarPreview(resource.resource_key);
+                        setDragOverResourceKey(resource.resource_key);
                       }}
                       onDrop={(event) => {
                         event.preventDefault();

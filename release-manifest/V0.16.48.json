@@ -1,0 +1,29 @@
+{
+  "version": "V0.16.48",
+  "released_at": "2026-06-20",
+  "base_version": "V0.16.47",
+  "summary": "Stabilize permission sidebar drag sorting by limiting FLIP animation to the drop transition.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema or permission migration is included in this release."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.16.48",
+    "notes": [
+      "Removed live FLIP reordering during drag-over to avoid transform conflicts with the browser drag system and React re-rendering.",
+      "Drag-over now only highlights the potential drop target.",
+      "The list order changes once on drop, with a single FLIP-style landing animation."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.16.48 and production VITE variables, sync frontend/dist, then rebuild approval-app with APP_IMAGE_TAG=V0.16.48."
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.16.48 and the production VITE_SUPABASE_ANON_KEY.",
+    "Run scripts/smoke-frontend-render.mjs against the deployed site."
+  ]
+}

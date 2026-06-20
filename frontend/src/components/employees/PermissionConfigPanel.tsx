@@ -1,4 +1,28 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragCancelEvent,
+  type DragEndEvent,
+  type DragMoveEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
+} from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -6,13 +30,52 @@ import { usePermissionConfig, useSavePermissionConfig } from "@/hooks/useEmploye
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import type { PermissionAccess } from "@/types/auth";
-import type { PermissionResource } from "@/types/employee";
+import type { PermissionResource, PermissionRole } from "@/types/employee";
 import { toast } from "sonner";
 
 type PermissionListItem = PermissionResource & {
   displayGroup: "sidebar" | "employee_org";
   displayName?: string;
 };
+
+type SidebarDragMetrics = {
+  activeKey: string;
+  activeCenterY: number;
+  centersByKey: Map<string, number>;
+  initialKeys: string[];
+  lastInsertIndex: number;
+};
+
+const DRAG_REORDER_HYSTERESIS_PX = 8;
+
+interface PermissionConfigPanelProps {
+  canWrite: boolean;
+}
+
+interface PermissionResourceRowProps {
+  canDrag: boolean;
+  canWrite: boolean;
+  dragHandleAttributes?: DraggableAttributes;
+  dragHandleListeners?: DraggableSyntheticListeners;
+  isDragging?: boolean;
+  isSidebarResource: boolean;
+  resource: PermissionListItem;
+  savePending: boolean;
+  setAccess: (resourceKey: string, accessLevel: PermissionAccess) => void;
+  style?: CSSProperties;
+  value: PermissionAccess;
+}
+
+interface SortablePermissionResourceRowProps {
+  canSort: boolean;
+  canWrite: boolean;
+  isDragging?: boolean;
+  resource: PermissionListItem;
+  savePending: boolean;
+  setAccess: (resourceKey: string, accessLevel: PermissionAccess) => void;
+  setSidebarItemNode: (resourceKey: string, node: HTMLDivElement | null) => void;
+  value: PermissionAccess;
+}
 
 const accessText: Record<PermissionAccess, string> = {
   none: "不可见",
@@ -38,24 +101,32 @@ function errorMessage(error: unknown): string {
   return "权限保存失败，请查看服务端日志";
 }
 
-interface PermissionConfigPanelProps {
-  canWrite: boolean;
-}
-
 export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) {
   const { data, isLoading, isError } = usePermissionConfig();
   const saveConfig = useSavePermissionConfig();
   const { user, sidebarOrder, setSidebarOrder } = useAuthStore();
-  const roles = data?.roles || [];
-  const resources = data?.resources || [];
+  const roles = useMemo<PermissionRole[]>(() => data?.roles || [], [data?.roles]);
+  const resources = useMemo<PermissionResource[]>(() => data?.resources || [], [data?.resources]);
   const [selectedRole, setSelectedRole] = useState("");
   const [draggingResourceKey, setDraggingResourceKey] = useState<string | null>(null);
-  const [dragOverResourceKey, setDragOverResourceKey] = useState<string | null>(null);
-  const [sidebarOrderPreview, setSidebarOrderPreview] = useState<string[] | null>(null);
-  const sidebarItemRefs = useRef(new Map<string, HTMLDivElement>());
-  const sidebarItemRects = useRef(new Map<string, DOMRect>());
-  const didDropRef = useRef(false);
+  const [draftSidebarOrder, setDraftSidebarOrder] = useState<string[] | null>(null);
+  const draftSidebarOrderRef = useRef<string[] | null>(null);
+  const dragStartOrderRef = useRef<string[] | null>(null);
+  const sidebarDragMetricsRef = useRef<SidebarDragMetrics | null>(null);
+  const pendingDragCenterYRef = useRef<number | null>(null);
+  const dragMoveFrameRef = useRef<number | null>(null);
+  const sidebarItemNodesRef = useRef(new Map<string, HTMLDivElement>());
   const activeRole = selectedRole || roles[0]?.role_key || "";
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const matrix = useMemo(() => {
     const map = new Map<string, PermissionAccess>();
@@ -84,59 +155,22 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
     [activeRole, permissionDetails, resources],
   );
 
-  const sidebarResources = useMemo(() => {
-    if (!sidebarOrderPreview) return baseSidebarResources;
+  const baseSidebarKeys = useMemo(
+    () => baseSidebarResources.map((resource) => resource.resource_key),
+    [baseSidebarResources],
+  );
 
-    const order = new Map(sidebarOrderPreview.map((resourceKey, index) => [resourceKey, index]));
+  const sidebarResources = useMemo(() => {
+    if (!draftSidebarOrder) return baseSidebarResources;
+
+    const order = new Map(draftSidebarOrder.map((resourceKey, index) => [resourceKey, index]));
     return [...baseSidebarResources].sort((a, b) => {
       const aOrder = order.get(a.resource_key) ?? Number.MAX_SAFE_INTEGER;
       const bOrder = order.get(b.resource_key) ?? Number.MAX_SAFE_INTEGER;
       if (aOrder !== bOrder) return aOrder - bOrder;
       return sidebarSortOrder(activeRole, a, permissionDetails) - sidebarSortOrder(activeRole, b, permissionDetails);
     });
-  }, [activeRole, baseSidebarResources, permissionDetails, sidebarOrderPreview]);
-
-  useEffect(() => {
-    setDraggingResourceKey(null);
-    setDragOverResourceKey(null);
-    setSidebarOrderPreview(null);
-  }, [activeRole]);
-
-  useEffect(() => {
-    if (!sidebarOrderPreview || draggingResourceKey) return;
-    const actualOrder = baseSidebarResources.map((resource) => resource.resource_key);
-    if (sameOrder(actualOrder, sidebarOrderPreview)) {
-      setSidebarOrderPreview(null);
-    }
-  }, [baseSidebarResources, draggingResourceKey, sidebarOrderPreview]);
-
-  useLayoutEffect(() => {
-    const previousRects = sidebarItemRects.current;
-    if (previousRects.size === 0) return;
-
-    sidebarItemRefs.current.forEach((node, resourceKey) => {
-      const previous = previousRects.get(resourceKey);
-      if (!previous) return;
-
-      const next = node.getBoundingClientRect();
-      const deltaX = previous.left - next.left;
-      const deltaY = previous.top - next.top;
-      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
-
-      node.animate(
-        [
-          { transform: `translate(${deltaX}px, ${deltaY}px)` },
-          { transform: "translate(0, 0)" },
-        ],
-        {
-          duration: 180,
-          easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-        },
-      );
-    });
-
-    sidebarItemRects.current = new Map();
-  }, [sidebarResources]);
+  }, [activeRole, baseSidebarResources, draftSidebarOrder, permissionDetails]);
 
   const groupedResources = useMemo(() => {
     const employeeOrgResources: PermissionListItem[] = [
@@ -170,22 +204,6 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
     }
   };
 
-  const captureSidebarItemRects = () => {
-    const next = new Map<string, DOMRect>();
-    sidebarItemRefs.current.forEach((node, resourceKey) => {
-      next.set(resourceKey, node.getBoundingClientRect());
-    });
-    sidebarItemRects.current = next;
-  };
-
-  const setSidebarItemRef = (resourceKey: string, node: HTMLDivElement | null) => {
-    if (node) {
-      sidebarItemRefs.current.set(resourceKey, node);
-    } else {
-      sidebarItemRefs.current.delete(resourceKey);
-    }
-  };
-
   const saveSidebarOrder = async (orderedItems: PermissionResource[]): Promise<boolean> => {
     if (!canWrite || !activeRole || saveConfig.isPending) return false;
     const permissions = orderedItems.map((resource, index) => ({
@@ -208,50 +226,157 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
     }
   };
 
-  const commitSidebarOrder = (targetResourceKey: string) => {
-    if (!draggingResourceKey) return;
-    didDropRef.current = true;
+  const applyDraftSidebarOrder = (orderedKeys: string[] | null) => {
+    draftSidebarOrderRef.current = orderedKeys;
+    setDraftSidebarOrder(orderedKeys);
+  };
 
-    const currentKeys = baseSidebarResources.map((resource) => resource.resource_key);
-    let orderedKeys = currentKeys;
-    if (targetResourceKey !== draggingResourceKey) {
-      orderedKeys = moveResourceKey(currentKeys, draggingResourceKey, targetResourceKey) || currentKeys;
+  const setSidebarItemNode = (resourceKey: string, node: HTMLDivElement | null) => {
+    if (node) {
+      sidebarItemNodesRef.current.set(resourceKey, node);
+    } else {
+      sidebarItemNodesRef.current.delete(resourceKey);
+    }
+  };
+
+  const captureSidebarDragMetrics = (activeKey: string): SidebarDragMetrics | null => {
+    const centersByKey = new Map<string, number>();
+    for (const resourceKey of baseSidebarKeys) {
+      const rect = sidebarItemNodesRef.current.get(resourceKey)?.getBoundingClientRect();
+      if (!rect) continue;
+      centersByKey.set(resourceKey, rect.top + rect.height / 2);
+    }
+
+    const activeCenterY = centersByKey.get(activeKey);
+    if (typeof activeCenterY !== "number") return null;
+
+    return {
+      activeKey,
+      activeCenterY,
+      centersByKey,
+      initialKeys: baseSidebarKeys,
+      lastInsertIndex: baseSidebarKeys.indexOf(activeKey),
+    };
+  };
+
+  const orderSidebarKeysForDragPosition = (metrics: SidebarDragMetrics, activeCenterY: number) => {
+    const otherKeys = metrics.initialKeys.filter((resourceKey) => resourceKey !== metrics.activeKey);
+    let insertIndex = metrics.lastInsertIndex;
+
+    while (insertIndex > 0) {
+      const previousKey = otherKeys[insertIndex - 1];
+      const previousCenter = metrics.centersByKey.get(previousKey);
+      if (typeof previousCenter !== "number" || activeCenterY >= previousCenter - DRAG_REORDER_HYSTERESIS_PX) break;
+      insertIndex -= 1;
+    }
+
+    while (insertIndex < otherKeys.length) {
+      const nextKey = otherKeys[insertIndex];
+      const nextCenter = metrics.centersByKey.get(nextKey);
+      if (typeof nextCenter !== "number" || activeCenterY <= nextCenter + DRAG_REORDER_HYSTERESIS_PX) break;
+      insertIndex += 1;
+    }
+
+    metrics.lastInsertIndex = insertIndex;
+    const next = [...otherKeys];
+    next.splice(insertIndex, 0, metrics.activeKey);
+    return next;
+  };
+
+  const flushPendingDragMove = () => {
+    dragMoveFrameRef.current = null;
+    const metrics = sidebarDragMetricsRef.current;
+    const activeCenterY = pendingDragCenterYRef.current;
+    pendingDragCenterYRef.current = null;
+    if (!metrics || activeCenterY === null) return;
+
+    const orderedKeys = orderSidebarKeysForDragPosition(metrics, activeCenterY);
+    if (!sameOrder(orderedKeys, draftSidebarOrderRef.current || baseSidebarKeys)) {
+      applyDraftSidebarOrder(orderedKeys);
+    }
+  };
+
+  const flushPendingDragMoveNow = () => {
+    if (dragMoveFrameRef.current !== null) {
+      cancelAnimationFrame(dragMoveFrameRef.current);
+      dragMoveFrameRef.current = null;
+    }
+    flushPendingDragMove();
+  };
+
+  const cancelPendingDragMoveFrame = () => {
+    if (dragMoveFrameRef.current !== null) {
+      cancelAnimationFrame(dragMoveFrameRef.current);
+      dragMoveFrameRef.current = null;
+    }
+    pendingDragCenterYRef.current = null;
+  };
+
+  const handleSidebarDragStart = (event: DragStartEvent) => {
+    if (!canWrite || saveConfig.isPending) return;
+    const resourceKey = String(event.active.id);
+    dragStartOrderRef.current = baseSidebarKeys;
+    sidebarDragMetricsRef.current = captureSidebarDragMetrics(resourceKey);
+    setDraggingResourceKey(resourceKey);
+    applyDraftSidebarOrder(baseSidebarKeys);
+  };
+
+  const handleSidebarDragMove = (event: DragMoveEvent) => {
+    if (!canWrite || saveConfig.isPending) return;
+    const metrics = sidebarDragMetricsRef.current;
+    if (!metrics || String(event.active.id) !== metrics.activeKey) return;
+
+    pendingDragCenterYRef.current = metrics.activeCenterY + event.delta.y;
+    if (dragMoveFrameRef.current === null) {
+      dragMoveFrameRef.current = requestAnimationFrame(flushPendingDragMove);
+    }
+  };
+
+  const handleSidebarDragOver = (event: DragOverEvent) => {
+    if (!canWrite || saveConfig.isPending || sidebarDragMetricsRef.current) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const orderedKeys = draftSidebarOrderRef.current || baseSidebarKeys;
+    const oldIndex = orderedKeys.indexOf(String(active.id));
+    const newIndex = orderedKeys.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+    applyDraftSidebarOrder(arrayMove(orderedKeys, oldIndex, newIndex));
+  };
+
+  const finishSidebarDrag = (event: DragEndEvent) => {
+    flushPendingDragMoveNow();
+    const orderedKeys = draftSidebarOrderRef.current || draftSidebarOrder || baseSidebarKeys;
+    const originalKeys = dragStartOrderRef.current || baseSidebarKeys;
+    setDraggingResourceKey(null);
+    dragStartOrderRef.current = null;
+    sidebarDragMetricsRef.current = null;
+    cancelPendingDragMoveFrame();
+
+    if (!event.over || !canWrite || saveConfig.isPending || sameOrder(orderedKeys, originalKeys)) {
+      applyDraftSidebarOrder(null);
+      return;
     }
 
     const resourceMap = new Map(baseSidebarResources.map((resource) => [resource.resource_key, resource]));
     const orderedItems = orderedKeys.map((resourceKey) => resourceMap.get(resourceKey)).filter(Boolean) as PermissionResource[];
-    const changed = !sameOrder(orderedKeys, currentKeys);
-
-    setDraggingResourceKey(null);
-    setDragOverResourceKey(null);
-
-    if (!changed) {
-      setSidebarOrderPreview(null);
-      return;
-    }
-
-    captureSidebarItemRects();
-    setSidebarOrderPreview(orderedKeys);
 
     void saveSidebarOrder(orderedItems).then((saved) => {
       if (!saved) {
-        captureSidebarItemRects();
-        setSidebarOrderPreview(null);
+        applyDraftSidebarOrder(null);
       }
     });
   };
 
-  const cancelSidebarDrag = () => {
-    if (!didDropRef.current) {
-      captureSidebarItemRects();
-      setSidebarOrderPreview(null);
-    }
-    didDropRef.current = false;
+  const cancelSidebarDrag = (_event?: DragCancelEvent) => {
     setDraggingResourceKey(null);
-    setDragOverResourceKey(null);
+    applyDraftSidebarOrder(null);
+    dragStartOrderRef.current = null;
+    sidebarDragMetricsRef.current = null;
+    cancelPendingDragMoveFrame();
   };
 
-  if (isLoading) return <div className="py-10 text-sm text-muted-foreground">加载权限配置中…</div>;
+  if (isLoading) return <div className="py-10 text-sm text-muted-foreground">加载权限配置中...</div>;
   if (isError) return <div className="py-10 text-sm text-destructive">权限配置加载失败</div>;
 
   return (
@@ -269,7 +394,10 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
                 "mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors",
                 activeRole === role.role_key ? "bg-primary text-primary-foreground" : "hover:bg-muted",
               )}
-              onClick={() => setSelectedRole(role.role_key)}
+              onClick={() => {
+                cancelSidebarDrag();
+                setSelectedRole(role.role_key);
+              }}
             >
               <span>{role.role_name}</span>
               <span className="text-xs opacity-75">{role.role_key}</span>
@@ -295,81 +423,54 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
           {groupedResources.map(([group, items]) => (
             <div key={group} className="p-4">
               <div className="mb-2 text-xs font-bold text-muted-foreground">{group}</div>
-              <div className="grid gap-2">
-                {items.map((resource) => {
-                  const value = matrix.get(`${activeRole}:${resource.resource_key}`) || "none";
-                  const isSidebarResource = resource.displayGroup === "sidebar";
-                  const canDrag = canWrite && isSidebarResource && !saveConfig.isPending;
-                  return (
-                    <div
-                      key={`${resource.displayGroup}:${resource.resource_key}`}
-                      ref={(node) => {
-                        if (isSidebarResource) setSidebarItemRef(resource.resource_key, node);
-                      }}
-                      draggable={canDrag}
-                      onDragStart={(event) => {
-                        if (!canDrag) return;
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", resource.resource_key);
-                        didDropRef.current = false;
-                        setDraggingResourceKey(resource.resource_key);
-                        setDragOverResourceKey(null);
-                        setSidebarOrderPreview(null);
-                      }}
-                      onDragOver={(event) => {
-                        if (!canDrag || !draggingResourceKey) return;
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = "move";
-                        setDragOverResourceKey(resource.resource_key);
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        if (canDrag) commitSidebarOrder(resource.resource_key);
-                      }}
-                      onDragEnd={cancelSidebarDrag}
-                      aria-grabbed={draggingResourceKey === resource.resource_key}
-                      className={cn(
-                        "grid grid-cols-[32px_1fr_120px_140px] items-center gap-3 rounded-md border border-border px-3 py-2 transition-[background-color,border-color,box-shadow,opacity] duration-150 ease-out max-[720px]:grid-cols-1 motion-reduce:transition-none",
-                        canDrag && "cursor-grab",
-                        dragOverResourceKey === resource.resource_key &&
-                          draggingResourceKey !== resource.resource_key &&
-                          "border-primary/40 bg-row-selected shadow-sm",
-                        draggingResourceKey === resource.resource_key &&
-                          "border-primary bg-primary/5 opacity-70 shadow-float",
-                      )}
-                    >
-                      <div className="flex items-center justify-center text-muted-foreground">
-                        {isSidebarResource ? (
-                          <GripVertical className={cn("size-4", !canDrag && "opacity-40")} aria-hidden="true" />
-                        ) : (
-                          <span className="text-xs">-</span>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium">{resource.displayName || resource.resource_name}</div>
-                        <div className="text-xs text-muted-foreground">{resource.resource_key}</div>
-                      </div>
-                      <Badge variant="outline" className={cn("w-fit rounded-pill", accessTone[value])}>
-                        {accessText[value]}
-                      </Badge>
-                      <Select
-                        value={value}
-                        disabled={!canWrite || saveConfig.isPending}
-                        onValueChange={(next) => setAccess(resource.resource_key, next as PermissionAccess)}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">不可见</SelectItem>
-                          <SelectItem value="read">只读</SelectItem>
-                          <SelectItem value="write">编辑</SelectItem>
-                        </SelectContent>
-                      </Select>
+              {items[0]?.displayGroup === "sidebar" ? (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  modifiers={[restrictToVerticalAxis]}
+                  onDragStart={handleSidebarDragStart}
+                  onDragMove={handleSidebarDragMove}
+                  onDragOver={handleSidebarDragOver}
+                  onDragEnd={finishSidebarDrag}
+                  onDragCancel={cancelSidebarDrag}
+                >
+                  <SortableContext
+                    items={items.map((resource) => resource.resource_key)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="grid gap-2" data-testid="permission-sidebar-sortable-list">
+                      {items.map((resource) => (
+                        <SortablePermissionResourceRow
+                          key={`${resource.displayGroup}:${resource.resource_key}`}
+                          canSort={canWrite && !saveConfig.isPending}
+                          canWrite={canWrite}
+                          isDragging={draggingResourceKey === resource.resource_key}
+                          resource={resource}
+                          savePending={saveConfig.isPending}
+                          setAccess={setAccess}
+                          setSidebarItemNode={setSidebarItemNode}
+                          value={matrix.get(`${activeRole}:${resource.resource_key}`) || "none"}
+                        />
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <div className="grid gap-2">
+                  {items.map((resource) => (
+                    <PermissionResourceRow
+                      key={`${resource.displayGroup}:${resource.resource_key}`}
+                      canDrag={false}
+                      canWrite={canWrite}
+                      isSidebarResource={false}
+                      resource={resource}
+                      savePending={saveConfig.isPending}
+                      setAccess={setAccess}
+                      value={matrix.get(`${activeRole}:${resource.resource_key}`) || "none"}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -379,6 +480,124 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function SortablePermissionResourceRow({
+  canSort,
+  canWrite,
+  isDragging,
+  resource,
+  savePending,
+  setAccess,
+  setSidebarItemNode,
+  value,
+}: SortablePermissionResourceRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: sortableDragging,
+  } = useSortable({
+    id: resource.resource_key,
+    disabled: !canSort,
+  });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  const setCombinedNodeRef = (node: HTMLDivElement | null) => {
+    setNodeRef(node);
+    setSidebarItemNode(resource.resource_key, node);
+  };
+
+  return (
+    <PermissionResourceRow
+      canDrag={canSort}
+      canWrite={canWrite}
+      dragHandleAttributes={attributes}
+      dragHandleListeners={listeners}
+      isDragging={isDragging || sortableDragging}
+      isSidebarResource
+      resource={resource}
+      savePending={savePending}
+      setAccess={setAccess}
+      style={style}
+      value={value}
+      refCallback={setCombinedNodeRef}
+    />
+  );
+}
+
+function PermissionResourceRow({
+  canDrag,
+  canWrite,
+  dragHandleAttributes,
+  dragHandleListeners,
+  isDragging,
+  isSidebarResource,
+  resource,
+  savePending,
+  setAccess,
+  style,
+  value,
+  refCallback,
+}: PermissionResourceRowProps & { refCallback?: (node: HTMLDivElement | null) => void }) {
+  return (
+    <div
+      ref={refCallback}
+      style={style}
+      data-testid={isSidebarResource ? `permission-sidebar-sortable-item-${resource.resource_key}` : undefined}
+      className={cn(
+        "grid grid-cols-[32px_1fr_120px_140px] items-center gap-3 rounded-md border border-border bg-white px-3 py-2 transition-[background-color,border-color,box-shadow,opacity,transform] duration-150 ease-out max-[720px]:grid-cols-1 motion-reduce:transition-none",
+        isSidebarResource && canDrag && "cursor-default",
+        isDragging && "relative z-10 border-primary bg-primary/5 opacity-80 shadow-float",
+      )}
+    >
+      <div className="flex items-center justify-center text-muted-foreground">
+        {isSidebarResource ? (
+          <button
+            type="button"
+            disabled={!canDrag}
+            aria-label={`拖拽排序 ${resource.displayName || resource.resource_name}`}
+            data-testid={`permission-sidebar-drag-handle-${resource.resource_key}`}
+            className={cn(
+              "flex size-7 touch-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-row-hover hover:text-foreground focus-visible:shadow-focus motion-reduce:transition-none",
+              canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-40",
+            )}
+            {...dragHandleAttributes}
+            {...dragHandleListeners}
+          >
+            <GripVertical className="size-4" aria-hidden="true" />
+          </button>
+        ) : (
+          <span className="text-xs">-</span>
+        )}
+      </div>
+      <div>
+        <div className="text-sm font-medium">{resource.displayName || resource.resource_name}</div>
+        <div className="text-xs text-muted-foreground">{resource.resource_key}</div>
+      </div>
+      <Badge variant="outline" className={cn("w-fit rounded-pill", accessTone[value])}>
+        {accessText[value]}
+      </Badge>
+      <Select
+        value={value}
+        disabled={!canWrite || savePending}
+        onValueChange={(next) => setAccess(resource.resource_key, next as PermissionAccess)}
+      >
+        <SelectTrigger className="h-8 text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">不可见</SelectItem>
+          <SelectItem value="read">只读</SelectItem>
+          <SelectItem value="write">编辑</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -393,15 +612,4 @@ function sidebarSortOrder(
 
 function sameOrder(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
-}
-
-function moveResourceKey(keys: string[], sourceKey: string, targetKey: string): string[] | null {
-  const fromIndex = keys.indexOf(sourceKey);
-  const toIndex = keys.indexOf(targetKey);
-  if (fromIndex < 0 || toIndex < 0) return null;
-
-  const next = [...keys];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
 }

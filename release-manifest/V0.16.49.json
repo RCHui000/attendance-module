@@ -1,0 +1,31 @@
+{
+  "version": "V0.16.49",
+  "released_at": "2026-06-20",
+  "base_version": "V0.16.48",
+  "summary": "Restore live permission sidebar drag sorting with dnd-kit, frame-batched updates, and jitter-resistant reorder thresholds.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema or permission migration is included in this release."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.16.49",
+    "notes": [
+      "Replaced native HTML drag/drop sorting in the permission configuration sidebar list with dnd-kit sortable interactions.",
+      "Sidebar resources now preview their order while dragging, with row-center based insertion, requestAnimationFrame batching, and an 8px hysteresis threshold to avoid boundary jitter.",
+      "Dragging is limited to the grip handle so permission level selects remain normal controls.",
+      "Added stable DOM test IDs for the sortable list, sortable rows, and drag handles."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.16.49 and production VITE variables, sync frontend/dist, then rebuild approval-app with APP_IMAGE_TAG=V0.16.49."
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npx --prefix frontend eslint frontend/src/components/employees/PermissionConfigPanel.tsx.",
+    "Run npm --prefix frontend run build.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.16.49 and the production VITE_SUPABASE_ANON_KEY.",
+    "Run scripts/smoke-frontend-render.mjs against the deployed site."
+  ]
+}

@@ -2,6 +2,8 @@
 
 Use this process when the product owner says the current work is ready for a GitHub release and cloud deployment.
 
+For the detailed SSH, packaging, cloud deployment, verification, and rollback runbook, see `DEVOPS_RELEASE_RUNBOOK.md`.
+
 ## Standard Flow
 
 1. Confirm the target version from the latest `V*` tag and choose the next patch version unless the change clearly needs a minor version.

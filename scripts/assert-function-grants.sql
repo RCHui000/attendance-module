@@ -5,10 +5,10 @@
 --     < scripts/assert-function-grants.sql
 --
 -- Expected baseline after V0.16.46:
---   public schema functions: 47
+--   public schema functions: 48
 --   PostgreSQL PUBLIC EXECUTE grants: 0
 --   anon EXECUTE grants: 3
---   authenticated EXECUTE grants: 19
+--   authenticated EXECUTE grants: 20
 
 \set ON_ERROR_STOP on
 \pset pager off
@@ -73,8 +73,8 @@ BEGIN
   SELECT * INTO v_summary
   FROM function_grant_assertion_summary;
 
-  IF v_summary.public_schema_functions <> 47 THEN
-    RAISE EXCEPTION 'Expected 47 public schema functions, got %', v_summary.public_schema_functions;
+  IF v_summary.public_schema_functions <> 48 THEN
+    RAISE EXCEPTION 'Expected 48 public schema functions, got %', v_summary.public_schema_functions;
   END IF;
 
   IF v_summary.pg_public_execute <> 0 THEN
@@ -85,8 +85,8 @@ BEGIN
     RAISE EXCEPTION 'Expected 3 anon EXECUTE grants, got %', v_summary.anon_execute;
   END IF;
 
-  IF v_summary.authenticated_execute <> 19 THEN
-    RAISE EXCEPTION 'Expected 19 authenticated EXECUTE grants, got %', v_summary.authenticated_execute;
+  IF v_summary.authenticated_execute <> 20 THEN
+    RAISE EXCEPTION 'Expected 20 authenticated EXECUTE grants, got %', v_summary.authenticated_execute;
   END IF;
 
   SELECT ARRAY(
@@ -115,7 +115,8 @@ BEGIN
       'psa_save_role_permission',
       'psa_save_approval_template',
       'psa_save_project',
-      'psa_update_employee'
+      'psa_update_employee',
+      'psa_timesheet_approval_chain'
     ]) AS expected(function_name)
     WHERE NOT EXISTS (
       SELECT 1
@@ -176,7 +177,8 @@ WHERE has_authenticated_execute
     'psa_save_role_permission',
     'psa_save_approval_template',
     'psa_save_project',
-    'psa_update_employee'
+    'psa_update_employee',
+    'psa_timesheet_approval_chain'
   ]);
 
 SELECT

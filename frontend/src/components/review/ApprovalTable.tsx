@@ -56,8 +56,9 @@ export function ApprovalTable({
 
   const reviewAction = useReviewAction();
   const overtimeAction = useOvertimeAction();
+  const inProgress = data.inProgress || [];
   const approvalTabs = [
-    { value: "pending" as const, label: "待审核" },
+    { value: "pending" as const, label: "待我审批" },
     { value: "reviewed" as const, label: "已审核" },
   ];
 
@@ -140,7 +141,7 @@ export function ApprovalTable({
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-2">
             <strong className="text-sm">周表</strong>
-            <span className="text-xs text-muted-foreground">待主管审核</span>
+            <span className="text-xs text-muted-foreground">待我审批 / 流转中可见</span>
           </div>
 
           {approvalTab === "pending" && (
@@ -159,7 +160,7 @@ export function ApprovalTable({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.timesheets.length === 0 && (
+                    {data.timesheets.length === 0 && inProgress.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center text-muted-foreground text-sm py-6">
                           暂无待审批周表
@@ -219,6 +220,41 @@ export function ApprovalTable({
                       }
                       return rows;
                     })()}
+                    {inProgress.length > 0 && (
+                      <TableRow className="bg-table-header hover:bg-table-header">
+                        <TableCell colSpan={7} className="py-1.5 px-3">
+                          <span className="text-xs font-bold text-muted-foreground">
+                            流转中（未轮到我）
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {inProgress.length} 份周表
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {inProgress.map((item) => {
+                      const itemKey = `visible-${getTaskKey(item)}`;
+                      const isExpanded = expandedKey === itemKey;
+                      return (
+                        <Fragment key={itemKey}>
+                          <InProgressRow
+                            item={item}
+                            isExpanded={isExpanded}
+                            onToggle={() =>
+                              setExpandedKey(isExpanded ? null : itemKey)
+                            }
+                          />
+                          {isExpanded && (
+                            <ExpandedReviewRow
+                              key={`detail-${itemKey}`}
+                              timesheetId={item.timesheet_id}
+                              projectId={item.project_id || null}
+                              colSpan={7}
+                            />
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -489,6 +525,58 @@ function ApprovalRow({
             <X className="size-3" />
           </Button>
         </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function InProgressRow({
+  item,
+  isExpanded,
+  onToggle,
+}: {
+  item: ApprovalTaskItem;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <TableRow
+      className="hover:bg-row-hover cursor-pointer"
+      onClick={onToggle}
+    >
+      <TableCell className="w-7 p-0">
+        <div className="flex items-center justify-center">
+          {isExpanded ? (
+            <ChevronDown className="size-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="size-4 text-muted-foreground" />
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="text-sm font-medium">{item.name}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {item.department || "—"}
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className="text-xs">
+          {item.current_assignee_names ? `当前待审批：${item.current_assignee_names}` : "尚未轮到你"}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-sm text-right tabular-nums">
+        {item.total_hours?.toFixed(1)}
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {item.submitted_at
+          ? new Date(item.submitted_at).toLocaleDateString("zh-CN", {
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "—"}
+      </TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">
+        仅查看
       </TableCell>
     </TableRow>
   );

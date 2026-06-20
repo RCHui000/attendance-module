@@ -1,5 +1,6 @@
 export interface ApprovalTasks {
   timesheets: ApprovalTaskItem[];
+  inProgress: ApprovalTaskItem[];
   reviewed: ReviewedTaskItem[];
   overtime: ApprovalOvertimeItem[];
   overtimeReviewed: ApprovalOvertimeItem[];
@@ -21,6 +22,14 @@ export interface ApprovalTaskItem {
   total_hours: number;
   submitted_at: string;
   week_start_date: string;
+  current_assignee_names?: string;
+  current_nodes?: Array<{
+    node_id: number;
+    node_name: string;
+    scope_type?: string | null;
+    scope_id?: number | null;
+    node_status: string;
+  }>;
 }
 
 export interface ReviewedTaskItem {
@@ -67,6 +76,40 @@ export interface TimesheetDetail {
     assignee_role?: string;
     completed_at?: string;
   }[];
+  approval_chain?: ApprovalChainNode[];
+}
+
+export interface ApprovalChainAssignee {
+  assignee_user_id: number;
+  assignee_name?: string | null;
+  status: string;
+  action?: string | null;
+  comment?: string | null;
+  acted_at?: string | null;
+}
+
+export interface ApprovalChainNode {
+  node_id: number;
+  node_key: string;
+  node_name: string;
+  scope_type?: string | null;
+  scope_id?: number | null;
+  node_status: "waiting" | "active" | "approved" | "rejected" | "cancelled" | "skipped" | string;
+  assignee_role?: string | null;
+  resolver_role?: string | null;
+  approval_policy?: string | null;
+  sort_order: number;
+  activated_at?: string | null;
+  completed_at?: string | null;
+  result_action?: string | null;
+  comment?: string | null;
+  can_current_user_act: boolean;
+  assignees: ApprovalChainAssignee[];
+  blocking_nodes: Array<{
+    node_id: number;
+    node_name: string;
+    status: string;
+  }>;
 }
 
 export interface ApprovalTemplateNode {

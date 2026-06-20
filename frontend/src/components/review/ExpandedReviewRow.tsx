@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ApprovalChain } from "@/components/review/ApprovalChain";
 import { useTimesheetDetail } from "@/hooks/useApprovals";
 import { statusText } from "@/lib/constants";
 
@@ -15,6 +16,12 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
     ? (data?.entries || []).filter((entry) => Number(entry.project_id) === Number(projectId))
     : data?.entries || [];
   const showFullSheet = !projectId;
+  const activeNode = data?.approval_chain?.find((node) => node.node_status === "active");
+  const canAct = Boolean(data?.approval_chain?.some((node) => node.can_current_user_act));
+  const activeAssignees = activeNode?.assignees
+    .filter((assignee) => assignee.status === "pending")
+    .map((assignee) => assignee.assignee_name || `员工 ${assignee.assignee_user_id}`)
+    .join("、");
 
   return (
     <tr className="hover:bg-transparent">
@@ -59,6 +66,13 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                   {statusText[data.status] || data.status}
                 </Badge>
               </div>
+
+              <ApprovalChain nodes={data.approval_chain} />
+              {activeNode && !canAct && (
+                <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {activeAssignees ? `当前待审批：${activeAssignees}` : "尚未轮到你审批"}
+                </div>
+              )}
 
               {/* Daily breakdown table */}
               <table className="w-full text-sm border-collapse">

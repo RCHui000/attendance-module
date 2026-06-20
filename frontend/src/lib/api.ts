@@ -680,7 +680,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     `/timesheets?select=*&id=eq.${timesheetId}&limit=1`,
   ))[0];
   if (!sheet) throw new Error("Timesheet not found");
-  const [entries, overtime, userRows, profRows, reviews] = await Promise.all([
+  const [entries, overtime, userRows, profRows, reviews, approvalChain] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
@@ -689,6 +689,10 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     rest<AnyRow[]>(`/employee_profiles?select=organizations(org_name)&employee_id=eq.${sheet.user_id}&limit=1`),
     rest<AnyRow[]>(`/approval_project_review_records_view?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,last_action_at.desc`)
       .catch(() => []),
+    rest<AnyRow[]>("/rpc/psa_timesheet_approval_chain", {
+      method: "POST",
+      body: JSON.stringify({ p_timesheet_id: Number(sheet.id) }),
+    }).catch(() => []),
   ]);
   const userName = userRows[0]?.name || "";
   const profile = profRows[0];
@@ -715,6 +719,15 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       status: entry.status || "",
     })),
     project_statuses: reviews.length ? projectStatusFromReviews(reviews, sheet.status) : [],
+    approval_chain: approvalChain.map((node) => ({
+      ...node,
+      node_id: Number(node.node_id),
+      scope_id: node.scope_id == null ? null : Number(node.scope_id),
+      sort_order: Number(node.sort_order ?? 9999),
+      can_current_user_act: Boolean(node.can_current_user_act),
+      assignees: Array.isArray(node.assignees) ? node.assignees : [],
+      blocking_nodes: Array.isArray(node.blocking_nodes) ? node.blocking_nodes : [],
+    })),
   };
 }
 
@@ -861,9 +874,10 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const admin = await isAdmin();
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
   const reviewedTaskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const [graphPending, graphReviewed, employees, employeeProfiles, entries] = await Promise.all([
+  const [graphPending, graphReviewed, visibleRows, employees, employeeProfiles, entries] = await Promise.all([
     rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
     rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
+    rest<AnyRow[]>("/approval_visible_timesheets_view?select=*&order=submitted_at.asc").catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,work_date,hours"),
@@ -878,7 +892,8 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   // Fetch ALL timesheets referenced by tasks (not filtered by week)
   const pendingSheetIds = [...new Set(latestPending.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
   const reviewedSheetIds = [...new Set(latestReviewed.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
-  const allSheetIds = [...new Set([...pendingSheetIds, ...reviewedSheetIds])];
+  const visibleSheetIds = [...new Set(visibleRows.map((row: AnyRow) => Number(row.timesheet_id)))].filter(Boolean);
+  const allSheetIds = [...new Set([...pendingSheetIds, ...reviewedSheetIds, ...visibleSheetIds])];
   const sheets = allSheetIds.length > 0
     ? await rest<AnyRow[]>(`/timesheets?select=*&id=in.(${allSheetIds.join(",")})`)
     : [];
@@ -957,6 +972,8 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
       total_hours: projectId ? projectHours.get(`${Number(sheet.id)}:${projectId}`) || 0 : hours.get(Number(sheet.id)) || 0,
       submitted_at: sheet.submitted_at,
       review_comment: source.comment || sheet.review_comment || "",
+      current_assignee_names: source.current_assignee_names || "",
+      current_nodes: Array.isArray(source.current_nodes) ? source.current_nodes : [],
     };
   };
   const pending = latestPending
@@ -969,6 +986,31 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     .filter((item): item is { task: AnyRow; sheet: AnyRow } => !!item.sheet)
     .sort((a, b) => (b.task.completed_at || "").localeCompare(a.task.completed_at || ""))
     .map(({ task, sheet }) => toItem(sheet, task));
+  const pendingSheetSet = new Set(pending.map((item) => Number(item.timesheet_id)));
+  const inProgress = visibleRows
+    .map((row) => ({ row, sheet: sheetMap.get(Number(row.timesheet_id)) }))
+    .filter((item): item is { row: AnyRow; sheet: AnyRow } =>
+      !!item.sheet &&
+      item.sheet.status === "submitted" &&
+      !pendingSheetSet.has(Number(item.sheet.id)),
+    )
+    .sort((a, b) => (a.row.submitted_at || "").localeCompare(b.row.submitted_at || ""))
+    .map(({ row, sheet }) => {
+      const currentAssignees = Array.isArray(row.current_assignees) ? row.current_assignees : [];
+      const names = currentAssignees
+        .map((assignee: AnyRow) => assignee.assignee_name || (assignee.assignee_user_id ? `员工 ${assignee.assignee_user_id}` : ""))
+        .filter(Boolean)
+        .join("、");
+      return toItem(sheet, {
+        target_id: row.timesheet_id,
+        scope_type: "timesheet",
+        scope_id: null,
+        created_at: row.submitted_at,
+        comment: names ? `当前待审批：${names}` : "尚未轮到你审批",
+        current_assignee_names: names,
+        current_nodes: row.current_nodes,
+      });
+    });
   const overtime = overtimeRows
     .filter((o) => o.status === "pending" && Number(o.overtime_hours || 0) > 0)
     .map((o) => ({
@@ -991,7 +1033,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
       status: o.status,
       reject_comment: o.reject_comment || "",
     }));
-  return { timesheets: pending, reviewed, overtime, overtimeReviewed };
+  return { timesheets: pending, inProgress, reviewed, overtime, overtimeReviewed };
 }
 
 async function weeklyReport(startDate: string, endDate: string): Promise<AnyRow> {

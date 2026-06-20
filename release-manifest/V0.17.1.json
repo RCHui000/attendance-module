@@ -1,0 +1,44 @@
+{
+  "version": "V0.17.1",
+  "released_at": "2026-06-20",
+  "base_version": "V0.17",
+  "commit": "66519c17b8331a0b7725379adecc9706dda0c5d1",
+  "summary": "Add timesheet approval visibility, separate actionable pending approvals from visible in-progress approvals, and render an expanded approval chain strip.",
+  "database": {
+    "new_migrations": [
+      "098_timesheet_approval_visibility_chain.sql"
+    ],
+    "notes": [
+      "Adds psa_timesheet_approval_chain for runtime approval node visibility.",
+      "Adds approval_visible_timesheets_view for non-actionable in-progress review visibility.",
+      "Function grant assertions now expect 48 public functions, 0 PostgreSQL PUBLIC EXECUTE grants, and 20 authenticated EXECUTE grants."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.17.1",
+    "notes": [
+      "Approval center now separates 待我审批 from 流转中（未轮到我）.",
+      "Expanded weekly timesheet rows show an approval chain strip above work entries.",
+      "The approval chain strip shows node status, assignees or future roles, action, time, and comments.",
+      "Approval chain load failures show a retry affordance instead of silently hiding the chain."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.17.1 and production VITE variables, sync frontend/dist, apply migrations, rebuild the app image with APP_IMAGE_TAG=V0.17.1, then run pre-deploy and frontend render smoke checks.",
+    "notes": [
+      "Server app directory is overlaid from the GitHub tag archive.",
+      "frontend/dist is built locally because the server does not have npm."
+    ]
+  },
+  "verification": [
+    "Run npm --prefix frontend run check.",
+    "Run duplicate migration prefix check.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud server with EXPECTED_VERSION=V0.17.1.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/.",
+    "Run scripts/assert-function-grants.sql on the cloud database."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

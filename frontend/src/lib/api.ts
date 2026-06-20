@@ -680,7 +680,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     `/timesheets?select=*&id=eq.${timesheetId}&limit=1`,
   ))[0];
   if (!sheet) throw new Error("Timesheet not found");
-  const [entries, overtime, userRows, profRows, reviews, approvalChain] = await Promise.all([
+  const [entries, overtime, userRows, profRows, reviews, approvalChainResult] = await Promise.all([
     rest<AnyRow[]>(
       `/timesheet_entries?select=*,projects(code,name)&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
     ),
@@ -692,7 +692,9 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
     rest<AnyRow[]>("/rpc/psa_timesheet_approval_chain", {
       method: "POST",
       body: JSON.stringify({ p_timesheet_id: Number(sheet.id) }),
-    }).catch(() => []),
+    })
+      .then((data) => ({ data, error: false }))
+      .catch(() => ({ data: [] as AnyRow[], error: true })),
   ]);
   const userName = userRows[0]?.name || "";
   const profile = profRows[0];
@@ -719,7 +721,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       status: entry.status || "",
     })),
     project_statuses: reviews.length ? projectStatusFromReviews(reviews, sheet.status) : [],
-    approval_chain: approvalChain.map((node) => ({
+    approval_chain: approvalChainResult.data.map((node) => ({
       ...node,
       node_id: Number(node.node_id),
       scope_id: node.scope_id == null ? null : Number(node.scope_id),
@@ -728,6 +730,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       assignees: Array.isArray(node.assignees) ? node.assignees : [],
       blocking_nodes: Array.isArray(node.blocking_nodes) ? node.blocking_nodes : [],
     })),
+    approval_chain_error: approvalChainResult.error,
   };
 }
 

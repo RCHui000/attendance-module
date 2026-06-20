@@ -77,6 +77,7 @@ export interface TimesheetDetail {
     completed_at?: string;
   }[];
   approval_chain?: ApprovalChainNode[];
+  approval_chain_error?: boolean;
 }
 
 export interface ApprovalChainAssignee {

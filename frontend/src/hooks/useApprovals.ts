@@ -14,6 +14,10 @@ export function useApprovalTasks(weekStart: string) {
     queryFn: () =>
       api<ApprovalTasks>(`/api/approvals/tasks?weekStart=${weekStart}`),
     enabled: !!weekStart,
+    select: (data) => ({
+      ...data,
+      inProgress: data.inProgress || [],
+    }),
   });
 }
 

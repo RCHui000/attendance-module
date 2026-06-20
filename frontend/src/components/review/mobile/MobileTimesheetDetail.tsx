@@ -10,7 +10,7 @@ interface MobileTimesheetDetailProps {
 }
 
 export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimesheetDetailProps) {
-  const { data, isLoading, isError } = useTimesheetDetail(timesheetId);
+  const { data, isLoading, isError, refetch, isFetching } = useTimesheetDetail(timesheetId);
   const visibleEntries = projectId
     ? (data?.entries || []).filter((entry) => Number(entry.project_id) === Number(projectId))
     : data?.entries || [];
@@ -21,6 +21,10 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
     .filter((assignee) => assignee.status === "pending")
     .map((assignee) => assignee.assignee_name || `员工 ${assignee.assignee_user_id}`)
     .join("、");
+  const chainMissing = Boolean(
+    data &&
+    (data.approval_chain_error || (data.status === "submitted" && !data.approval_chain?.length)),
+  );
 
   if (isLoading) {
     return (
@@ -69,7 +73,23 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
       </div>
 
       <div className="mt-3">
-        <ApprovalChain nodes={data.approval_chain} />
+        {chainMissing ? (
+          <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-3">
+              <span>审批线程图暂未加载</span>
+              <button
+                type="button"
+                className="font-medium text-primary hover:underline disabled:opacity-60"
+                onClick={() => refetch()}
+                disabled={isFetching}
+              >
+                {isFetching ? "加载中" : "重新加载"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <ApprovalChain nodes={data.approval_chain} />
+        )}
       </div>
       {activeNode && !canAct && (
         <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">

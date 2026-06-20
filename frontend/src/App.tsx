@@ -1,18 +1,19 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import type { ReactElement } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { APP_NAME } from "@/lib/constants";
 import { useAuthStore } from "@/stores/authStore";
 import { useRealtime } from "@/hooks/useRealtime";
 import { AppLayout } from "@/components/layout/AppLayout";
-import LoginPage from "@/pages/LoginPage";
-import TimesheetPage from "@/pages/TimesheetPage";
-import DashboardPage from "@/pages/DashboardPage";
-import ReviewPage from "@/pages/ReviewPage";
-import ReportPage from "@/pages/ReportPage";
-import EmployeesPage from "@/pages/EmployeesPage";
-import LeavePage from "@/pages/LeavePage";
-import AppsPage from "@/pages/AppsPage";
+
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const TimesheetPage = lazy(() => import("@/pages/TimesheetPage"));
+const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
+const ReviewPage = lazy(() => import("@/pages/ReviewPage"));
+const ReportPage = lazy(() => import("@/pages/ReportPage"));
+const EmployeesPage = lazy(() => import("@/pages/EmployeesPage"));
+const LeavePage = lazy(() => import("@/pages/LeavePage"));
+const AppsPage = lazy(() => import("@/pages/AppsPage"));
 
 function PermissionRoute({
   resource,
@@ -73,8 +74,16 @@ export default function App() {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage />;
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <LoginPage />
+      </Suspense>
+    );
   }
 
-  return <AuthenticatedApp />;
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <AuthenticatedApp />
+    </Suspense>
+  );
 }

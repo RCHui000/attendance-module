@@ -326,7 +326,6 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.psa_timesheet_action(bigint, text, text, bigint) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.psa_timesheet_action(bigint, text, text, bigint) FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.psa_timesheet_action(bigint, text, text, bigint) TO authenticated;
 GRANT SELECT ON public.approval_project_review_records_view TO authenticated;

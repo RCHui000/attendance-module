@@ -44,6 +44,17 @@ else
   exit 1
 fi
 
+echo "== Frontend quality check =="
+if command -v npm >/dev/null 2>&1; then
+  npm --prefix frontend run lint
+  npm --prefix frontend audit --audit-level=high
+elif [ "${SKIP_FRONTEND_BUILD:-0}" = "1" ]; then
+  echo "npm not found; skipping frontend quality check because SKIP_FRONTEND_BUILD=1 and prebuilt dist is expected."
+else
+  echo "npm not found; cannot run frontend quality check." >&2
+  exit 1
+fi
+
 echo "== Build and start containers =="
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" build
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d
@@ -58,6 +69,9 @@ echo "== Apply GoTrue compatibility views =="
 docker exec -i "${POSTGRES_CONTAINER_NAME:-approval-postgres}" \
   psql -U "${POSTGRES_USER:-psa_admin}" -d "${POSTGRES_DB:-psa}" \
   < deploy/sql/gotrue-public-compat.sql
+
+echo "== Post-deploy verification =="
+bash deploy/scripts/pre-deploy-check.sh
 
 echo "== Container status =="
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" ps

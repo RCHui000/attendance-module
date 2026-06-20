@@ -25,7 +25,6 @@ import {
 } from "@/hooks/useEmployees";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { roleText } from "@/lib/constants";
@@ -168,18 +167,15 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<EmployeeSortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [employeePageTab, setEmployeePageTab] = useState<EmployeePageTab>(
+  const [requestedEmployeePageTab, setRequestedEmployeePageTab] = useState<EmployeePageTab>(
     canReadSystem ? "system" : "permissions",
   );
-
-  useEffect(() => {
-    if (employeePageTab === "system" && !canReadSystem) {
-      setEmployeePageTab("permissions");
-    }
-    if (employeePageTab === "permissions" && !canReadPermissions) {
-      setEmployeePageTab("system");
-    }
-  }, [canReadPermissions, canReadSystem, employeePageTab]);
+  const employeePageTab =
+    requestedEmployeePageTab === "system" && !canReadSystem
+      ? "permissions"
+      : requestedEmployeePageTab === "permissions" && !canReadPermissions
+        ? "system"
+        : requestedEmployeePageTab;
 
   const {
     data: employees = [],
@@ -240,6 +236,10 @@ export default function EmployeesPage() {
   );
 
   const listedEmployees = employeeListView === "active" ? activeEmployees : terminatedEmployees;
+  const currentSelectedId =
+    selectedId && listedEmployees.some((emp) => emp.id === selectedId)
+      ? selectedId
+      : null;
 
   const visibleOrgs = useMemo(
     () => orgs.filter((org) => canReadSystem || visibleOrgIds.has(org.id)),
@@ -275,18 +275,13 @@ export default function EmployeesPage() {
     listedEmployees,
   ]);
 
-  useEffect(() => {
-    if (selectedId && !listedEmployees.some((emp) => emp.id === selectedId)) {
-      setSelectedId(null);
-    }
-  }, [selectedId, listedEmployees]);
-
-  useEffect(() => {
+  const handleEmployeeListViewChange = (value: EmployeeListView) => {
+    setEmployeeListView(value);
     setSelectedId(null);
     setEditingId(null);
     setEditData(null);
     setAutoEmployeeNo(null);
-  }, [employeeListView]);
+  };
 
   const initEditData = useCallback(
     (emp: Employee): EmployeeEditData => ({
@@ -493,19 +488,19 @@ export default function EmployeesPage() {
     try {
       await deleteEmployee.mutateAsync(deleteTarget.id);
       toast.success(`${deleteTarget.name} 已设为离职`);
-      if (selectedId === deleteTarget.id) setSelectedId(null);
+      if (currentSelectedId === deleteTarget.id) setSelectedId(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "设为离职失败");
     }
     setDeleteTarget(null);
-  }, [deleteTarget, deleteEmployee, selectedId]);
+  }, [deleteTarget, deleteEmployee, currentSelectedId]);
 
   const handleDelete = useCallback(() => {
-    if (!selectedId) {
+    if (!currentSelectedId) {
       toast.error("请先在列表中选中要设为离职的人员");
       return;
     }
-    const emp = listedEmployees.find((e) => e.id === selectedId);
+    const emp = listedEmployees.find((e) => e.id === currentSelectedId);
     if (!emp) {
       toast.error("选中的人员不存在，请刷新后重试");
       return;
@@ -515,9 +510,9 @@ export default function EmployeesPage() {
       return;
     }
     setDeleteTarget({ id: emp.id, name: emp.name || String(emp.id) });
-  }, [selectedId, listedEmployees, currentUser]);
+  }, [currentSelectedId, listedEmployees, currentUser]);
 
-  const deleteDisabled = !selectedId || editingId != null;
+  const deleteDisabled = !currentSelectedId || editingId != null;
   const editDialogTitle = editingId === 0 ? "新增员工" : "员工配置";
   const editDialogDescription =
     editingId === 0
@@ -559,7 +554,7 @@ export default function EmployeesPage() {
         <SegmentedPill
           value={employeePageTab}
           items={employeePageSegments}
-          onChange={setEmployeePageTab}
+          onChange={setRequestedEmployeePageTab}
           ariaLabel="员工与组织视图"
         />
       </div>
@@ -571,7 +566,7 @@ export default function EmployeesPage() {
                   <SegmentedPill
                     value={employeeListView}
                     items={employeeListSegments}
-                    onChange={setEmployeeListView}
+                    onChange={handleEmployeeListViewChange}
                   />
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
                     <ReminderFloat employees={activeEmployees} />
@@ -621,7 +616,7 @@ export default function EmployeesPage() {
                 {!isLoading && !isError && (
                   <EmployeeTable
                     employees={filteredEmployees}
-                    selectedId={selectedId}
+                    selectedId={currentSelectedId}
                     onSelect={setSelectedId}
                     onEdit={handleEdit}
                     onReactivate={handleReactivate}

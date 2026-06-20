@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useProjectBase, useSaveProject, useDeleteProject } from "@/hooks/useReport";
+import { useProjectBase, useSaveProject, useDeleteProject, useProjectRoleRequirements } from "@/hooks/useReport";
 import { useEmployees, useOrganizations } from "@/hooks/useEmployees";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/utils/dates";
@@ -27,34 +27,11 @@ import { descendantOrgIds } from "@/utils/orgTree";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { Save, Search, Trash2, X, Plus } from "lucide-react";
 import type { Employee, Organization } from "@/types/employee";
-import type { ProjectBase, ProjectBusinessType, ProjectRoleKey } from "@/types/project";
+import type { ProjectBase, ProjectBusinessType, ProjectRoleKey, ProjectRoleRequirement } from "@/types/project";
 import { toast } from "sonner";
 
 const NONE = "none";
 const serviceTypes: ProjectBusinessType[] = ["PM", "CC", "PMCC"];
-
-const roleLabels: Record<ProjectRoleKey, string> = {
-  cc_civil_project_owner: "CC土建负责人",
-  cc_mep_project_owner: "CC机电负责人",
-  cc_project_owner: "CC项目负责人",
-  cc_department_owner: "CC部门负责人",
-  pm_cost_department_owner: "PM成本负责人",
-  pm_project_owner: "PM项目负责人",
-  pm_department_owner: "PM部门负责人",
-};
-
-const rolesByServiceType: Record<ProjectBusinessType, ProjectRoleKey[]> = {
-  PM: ["pm_project_owner", "pm_department_owner"],
-  CC: ["cc_civil_project_owner", "cc_mep_project_owner", "cc_department_owner"],
-  PMCC: [
-    "cc_civil_project_owner",
-    "cc_mep_project_owner",
-    "pm_cost_department_owner",
-    "cc_department_owner",
-    "pm_project_owner",
-    "pm_department_owner",
-  ],
-};
 
 const ccRoleKeys = new Set<ProjectRoleKey>([
   "cc_civil_project_owner",
@@ -151,12 +128,24 @@ function inferBusinessType(code: string): ProjectBusinessType | "" {
   return "";
 }
 
-function roleValues(project: ProjectBase | null, roleKey: ProjectRoleKey) {
+function projectRoleRequirementsFor(
+  businessType: ProjectBusinessType | "",
+  requirements: ProjectRoleRequirement[],
+) {
+  if (!businessType) return [];
+  return requirements.filter((requirement) => requirement.business_type === businessType);
+}
+
+function roleValues(
+  project: ProjectBase | null,
+  roleKey: ProjectRoleKey,
+  fallbackRoleKey?: ProjectRoleKey | null,
+) {
   const roles = project?.project_roles || [];
   const direct = roles.find((role) => role.role_key === roleKey && role.user_id);
   if (direct) return String(direct.user_id);
-  if (roleKey === "cc_civil_project_owner" || roleKey === "cc_mep_project_owner") {
-    const legacy = roles.find((role) => role.role_key === "cc_project_owner" && role.user_id);
+  if (fallbackRoleKey) {
+    const legacy = roles.find((role) => role.role_key === fallbackRoleKey && role.user_id);
     if (legacy) return String(legacy.user_id);
   }
   return "";
@@ -169,17 +158,17 @@ function serviceBadgeClass(type: ProjectBusinessType | "") {
   return "border-border bg-muted text-muted-foreground";
 }
 
-function projectSummary(project: ProjectBase) {
+function projectSummary(project: ProjectBase, roleRequirements: ProjectRoleRequirement[]) {
   const businessType = project.business_type || inferBusinessType(project.code);
-  const roles = businessType ? rolesByServiceType[businessType] : [];
+  const requirements = projectRoleRequirementsFor(businessType, roleRequirements);
   const names = new Map<string, string[]>();
   for (const role of project.project_roles || []) {
     const list = names.get(role.role_key) || [];
     list.push(role.user_name || "未配置");
     names.set(role.role_key, list);
   }
-  return roles
-    .flatMap((role) => names.get(role) || (role === "cc_civil_project_owner" || role === "cc_mep_project_owner" ? names.get("cc_project_owner") || [] : ["未配置"]))
+  return requirements
+    .flatMap((requirement) => names.get(requirement.role_key) || (requirement.fallback_role_key ? names.get(requirement.fallback_role_key) || [] : ["未配置"]))
     .filter(Boolean)
     .slice(0, 3)
     .join(" / ");
@@ -203,6 +192,20 @@ export function ProjectList() {
     () => projects.filter((project) => project.status !== "deleted"),
     [projects],
   );
+  const selectedProject = selectedId === "new" ? null : activeProjects.find((project) => project.id === selectedId) || null;
+  const businessType = editData.businessType || inferBusinessType(editData.code);
+  const { data: roleRequirements = [] } = useProjectRoleRequirements(businessType || null);
+  const { data: allRoleRequirements = [] } = useProjectRoleRequirements();
+  const visibleRoles = useMemo(
+    () => roleRequirements.map((requirement) => requirement.role_key),
+    [roleRequirements],
+  );
+  const roleLabels = useMemo(
+    () => Object.fromEntries(
+      roleRequirements.map((requirement) => [requirement.role_key, requirement.role_label]),
+    ) as Record<ProjectRoleKey, string>,
+    [roleRequirements],
+  );
   const directoryProjects = useMemo(() => {
     const keyword = projectSearch.trim().toLowerCase();
     return activeProjects
@@ -213,15 +216,12 @@ export function ProjectList() {
           project.code,
           project.name,
           type,
-          projectSummary(project),
+          projectSummary(project, allRoleRequirements),
         ].join(" ").toLowerCase();
         return text.includes(keyword);
       })
       .sort((a, b) => a.code.localeCompare(b.code, "zh-CN", { numeric: true }));
-  }, [activeProjects, projectSearch]);
-  const selectedProject = selectedId === "new" ? null : activeProjects.find((project) => project.id === selectedId) || null;
-  const businessType = editData.businessType || inferBusinessType(editData.code);
-  const visibleRoles = businessType ? rolesByServiceType[businessType] : [];
+  }, [activeProjects, allRoleRequirements, projectSearch]);
   const employeeById = useMemo(() => new Map(employees.map((employee) => [String(employee.id), employee])), [employees]);
 
   const roleCandidates = (role: ProjectRoleKey) => {
@@ -245,7 +245,9 @@ export function ProjectList() {
   const selectProject = (project: ProjectBase) => {
     const type = project.business_type || inferBusinessType(project.code);
     const roles: Record<string, string> = {};
-    for (const role of type ? rolesByServiceType[type] : []) roles[role] = roleValues(project, role);
+    for (const requirement of projectRoleRequirementsFor(type, allRoleRequirements)) {
+      roles[requirement.role_key] = roleValues(project, requirement.role_key, requirement.fallback_role_key);
+    }
     setSelectedId(project.id);
     setAutoProjectCode(null);
     setEditData({
@@ -314,11 +316,16 @@ export function ProjectList() {
         user_id: Number(editData.roles[roleKey] || 0),
       }))
       .filter((role) => role.user_id);
-    const ccFallbackOwner =
-      Number(editData.roles.cc_civil_project_owner || 0) ||
-      Number(editData.roles.cc_mep_project_owner || 0);
-    if (ccFallbackOwner && businessType !== "PM") {
-      projectRoles.push({ role_key: "cc_project_owner", user_id: ccFallbackOwner });
+    for (const requirement of roleRequirements) {
+      if (!requirement.fallback_role_key) continue;
+      if (projectRoles.some((role) => role.role_key === requirement.fallback_role_key)) continue;
+      const fallbackUserId = Number(editData.roles[requirement.role_key] || 0);
+      if (fallbackUserId) {
+        projectRoles.push({
+          role_key: requirement.fallback_role_key,
+          user_id: fallbackUserId,
+        });
+      }
     }
 
     saveProject.mutate(
@@ -414,7 +421,7 @@ export function ProjectList() {
                   </span>
                 </div>
                 <div className="mt-1 truncate text-sm">{project.name}</div>
-                <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{projectSummary(project) || "未配置负责人"}</div>
+                <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{projectSummary(project, allRoleRequirements) || "未配置负责人"}</div>
               </button>
             );
           })}

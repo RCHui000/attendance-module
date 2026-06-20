@@ -11,6 +11,18 @@ if [ ! -d "${MIGRATIONS_DIR}" ]; then
   exit 1
 fi
 
+duplicate_prefixes="$(
+  for file in "${MIGRATIONS_DIR}"/*.sql; do
+    basename "${file}"
+  done | sed -n 's/^\([0-9][0-9][0-9]\)_.*/\1/p' | sort | uniq -d
+)"
+
+if [ -n "${duplicate_prefixes}" ]; then
+  echo "Duplicate migration numeric prefixes found:" >&2
+  echo "${duplicate_prefixes}" >&2
+  exit 1
+fi
+
 psql_exec() {
   docker exec -i "${POSTGRES_CONTAINER_NAME}" \
     psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" "$@"

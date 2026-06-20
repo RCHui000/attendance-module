@@ -43,6 +43,10 @@ icacls $pem /inheritance:r /grant:r "$($env:USERNAME):R" /remove:g "*S-1-5-11" "
 
 Do not print, paste, or commit production secrets. Treat `/opt/approval-app/env/production.env` as sensitive.
 
+### Local SSH Key Handling
+
+Codex may use a local SSH private key to deploy to the cloud server. Keep that key outside release archives and Docker build context. The repository `.gitignore` and `.dockerignore` both exclude `*.pem`, but the preferred long-term location is a machine-local deployment key directory outside the application source tree.
+
 ## Versioning
 
 Check the latest tags and choose the next patch version unless the change clearly requires a minor version:
@@ -200,6 +204,21 @@ docker compose --env-file /opt/approval-app/env/production.env -f docker-compose
 ```
 
 Build only the `app` service. A full `docker compose build` can trigger Docker Hub metadata fetches for base services and fail because of network timeouts. Use the old Docker builder flags shown above for the same reason.
+
+### Migration Prefix Guard
+
+Before applying migrations, confirm no duplicate numeric prefixes exist:
+
+```bash
+for file in supabase-psa/migrations/*.sql; do basename "$file"; done \
+  | sed -n 's/^\([0-9][0-9][0-9]\)_.*/\1/p' \
+  | sort \
+  | uniq -d
+```
+
+Expected output is empty.
+
+After deploying this remediation, verify both withdraw and organization-manager migrations are present in `public.schema_migrations` according to the target ledger type.
 
 ## Post-Deploy Checks
 

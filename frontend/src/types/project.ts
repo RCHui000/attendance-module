@@ -85,6 +85,17 @@ export type ProjectRoleKey =
   | "pm_project_owner"
   | "pm_department_owner";
 
+export interface ProjectRoleRequirement {
+  id: number;
+  business_type: ProjectBusinessType;
+  role_key: ProjectRoleKey;
+  role_label: string;
+  sort_order: number;
+  is_required: boolean;
+  fallback_role_key?: ProjectRoleKey | null;
+  is_active: boolean;
+}
+
 export interface ProjectBase {
   id: number;
   code: string;

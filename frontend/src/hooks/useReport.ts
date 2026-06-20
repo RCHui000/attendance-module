@@ -6,6 +6,7 @@ import type {
   ReportData,
   ProjectBase,
   ProjectDetailEmployee,
+  ProjectRoleRequirement,
 } from "@/types/project";
 
 export function useWeeklyReport(params: {
@@ -28,6 +29,17 @@ export function useProjectBase() {
     queryKey: ["project-base"],
     queryFn: () => api<ProjectBase[]>("/api/projects"),
     refetchInterval: 30_000,
+  });
+}
+
+export function useProjectRoleRequirements(businessType?: "PM" | "CC" | "PMCC" | null) {
+  return useQuery({
+    queryKey: ["project-role-requirements", businessType || "all"],
+    queryFn: () =>
+      api<ProjectRoleRequirement[]>(
+        `/api/project-role-requirements${businessType ? `?businessType=${businessType}` : ""}`,
+      ),
+    refetchInterval: 60_000,
   });
 }
 

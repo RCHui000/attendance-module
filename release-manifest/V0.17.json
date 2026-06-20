@@ -1,0 +1,56 @@
+{
+  "version": "V0.17",
+  "released_at": "2026-06-20",
+  "base_version": "V0.16.49",
+  "summary": "Harden cloud auth routing, move critical writes behind guarded RPCs, add migration/release quality gates, split route bundles, and drive project role requirements from database configuration.",
+  "database": {
+    "new_migrations": [
+      "090_account_active_guard_and_auth_proxy.sql",
+      "091_timesheet_withdraw_submitted.sql",
+      "092_approval_template_save_rpc.sql",
+      "093_project_save_rpc.sql",
+      "094_project_role_transaction_rpc.sql",
+      "095_employee_update_rpc.sql",
+      "096_project_role_requirements.sql",
+      "097_v017_rpc_public_execute_hardening.sql"
+    ],
+    "renamed_migrations": [
+      "087_timesheet_withdraw_submitted.sql -> 091_timesheet_withdraw_submitted.sql"
+    ],
+    "notes": [
+      "Auth/RLS helper functions now reject inactive or terminated employees.",
+      "Approval template, project, project assignment, and employee update writes now use authenticated SECURITY DEFINER RPCs.",
+      "Project role requirements for PM/CC/PMCC are stored in public.project_role_requirements.",
+      "Function grant assertions now expect 47 public functions, 0 PostgreSQL PUBLIC EXECUTE grants, and 19 authenticated EXECUTE grants."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.17",
+    "notes": [
+      "Routes are lazy-loaded with React Suspense to split page bundles.",
+      "The Supabase REST compatibility layer now shares a dedicated restClient module.",
+      "Project owner role labels, ordering, and fallback rules now come from database configuration.",
+      "Vite and @vitejs/plugin-react were upgraded; frontend check now runs lint, build, and high-severity audit."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.17 and production VITE variables, sync frontend/dist, rebuild the app image with APP_IMAGE_TAG=V0.17, apply migrations, then run pre-deploy and frontend render smoke checks.",
+    "notes": [
+      "deploy-aliyun.sh runs frontend lint/audit when npm is available and preserves the SKIP_FRONTEND_BUILD=1 prebuilt-dist path for servers without npm.",
+      "apply-migrations.sh fails early when duplicate three-digit migration prefixes are present.",
+      ".dockerignore excludes local secrets, env files, node_modules, backups, and test reports."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run duplicate migration prefix check.",
+    "Run npm --prefix frontend run check.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.17 and production VITE variables.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud server.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

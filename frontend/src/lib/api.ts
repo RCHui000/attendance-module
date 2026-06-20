@@ -1,4 +1,5 @@
 import { getStoredToken, clearStoredToken } from "./supabase";
+import { accessRank, decodeJwt, payload, rest, type AnyRow } from "./restClient";
 import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
 import { regularWorkdayCapacity } from "@/utils/validation";
 
@@ -6,31 +7,9 @@ const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
   : `${Date.now()}-${Math.random()}`;
 
-const AUTH_URL =
-  import.meta.env.VITE_SUPABASE_AUTH_URL ||
-  import.meta.env.VITE_SUPABASE_URL ||
-  "/auth";
-
-const REST_URL =
-  import.meta.env.VITE_SUPABASE_REST_URL ||
-  (AUTH_URL.startsWith("http")
-    ? AUTH_URL.replace(":8777", ":8779").replace(/\/auth\/v1\/?$/, "/rest/v1")
-    : "/rest");
-
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
-
-// PostgREST embeds related rows dynamically, so this compatibility layer keeps row shapes open.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyRow = Record<string, any>;
 const REPORTABLE_TIMESHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
 const MAX_TIMESHEET_DAY_HOURS = 1;
 const TIMESHEET_HOURS_EPSILON = 0.0001;
-
-function accessRank(access: string | undefined): number {
-  if (access === "write") return 2;
-  if (access === "read") return 1;
-  return 0;
-}
 
 function formatApiHours(value: number): string {
   const roundedToOne = Number(value.toFixed(1));
@@ -71,62 +50,6 @@ function assertTimesheetHoursWithinLimits(entries: AnyRow[], days: string[]): vo
     throw new Error(
       `本周普通工日合计 ${formatApiHours(weekly)}，超过 ${formatApiHours(maxRegularWorkdays)} 工日`,
     );
-  }
-}
-
-function authHeaders(json = true): Record<string, string> {
-  const token = getStoredToken();
-  return {
-    ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(ANON_KEY ? { apikey: ANON_KEY } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${REST_URL}${path}`, {
-    ...init,
-    headers: {
-      ...authHeaders(init.body != null),
-      ...(init.headers as Record<string, string> | undefined),
-    },
-  });
-  const text = await response.text();
-  let data: AnyRow | null = null;
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = null;
-    }
-  }
-  if (!response.ok) {
-    const message = data?.message || data?.hint || data?.details || (text && text !== "{}" ? text : "");
-    if (
-      response.status === 401 ||
-      /JWSInvalidSignature|JWSError|invalid signature|invalid jwt|JWT/i.test(message)
-    ) {
-      clearStoredToken();
-    }
-    throw new Error(message || `Supabase request failed (${response.status})`);
-  }
-  return data as T;
-}
-
-function payload(options: RequestInit): AnyRow {
-  if (!options.body) return {};
-  return typeof options.body === "string" ? JSON.parse(options.body) : options.body as AnyRow;
-}
-
-function decodeJwt(): AnyRow | null {
-  const token = getStoredToken();
-  if (!token) return null;
-  try {
-    const [, body] = token.split(".");
-    const json = atob(body.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decodeURIComponent(escape(json)));
-  } catch {
-    return null;
   }
 }
 
@@ -327,7 +250,6 @@ async function currentUser(): Promise<AnyRow | null> {
   if (!row) return null;
   if (row.is_active === false) return null;
 
-  let department = "";
   const profile = (await rest<AnyRow[]>(
     `/employee_profiles?select=org_id,employment_status&employee_id=eq.${row.id}&limit=1`,
   ).catch(() => []))[0];
@@ -335,14 +257,12 @@ async function currentUser(): Promise<AnyRow | null> {
   if (["terminated", "inactive", "resigned", "离职", "已离职"].includes(employmentStatus)) return null;
 
   const roles = await rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`);
-  try {
+  const department = await (async () => {
     const orgRows = profile?.org_id
       ? await rest<AnyRow[]>(`/organizations?select=org_name&id=eq.${profile.org_id}&limit=1`)
       : [];
-    department = orgRows[0]?.org_name || "";
-  } catch {
-    department = "";
-  }
+    return String(orgRows[0]?.org_name || "");
+  })().catch(() => "");
   const roleRow = roles[0];
   const permissions = roleRow?.role ? await currentUserPermissions(roleRow.role) : {};
   const sidebarOrder = roleRow?.role ? await currentUserSidebarOrder(roleRow.role) : {};
@@ -528,7 +448,9 @@ async function savePermissionConfig(body: AnyRow): Promise<AnyRow> {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown permission save error";
-      throw new Error(`Permission save failed for ${roleKey}/${resourceKey}: ${message}`);
+      throw new Error(`Permission save failed for ${roleKey}/${resourceKey}: ${message}`, {
+        cause: error,
+      });
     }
   }
   return { ok: true, ...(await permissionConfig()) };
@@ -693,6 +615,15 @@ async function projects(): Promise<AnyRow[]> {
       total_labor_cost: 0,
     };
   });
+}
+
+async function projectRoleRequirements(businessType?: string | null): Promise<AnyRow[]> {
+  const filter = businessType
+    ? `&business_type=eq.${encodeURIComponent(businessType)}`
+    : "";
+  return rest<AnyRow[]>(
+    `/project_role_requirements?select=*&is_active=eq.true${filter}&order=business_type.asc,sort_order.asc`,
+  );
 }
 
 async function getTimesheet(weekStart: string): Promise<AnyRow> {
@@ -1255,71 +1186,6 @@ async function saveProjectDepartmentOwners(projectId: number, owners: AnyRow[] =
   }
 }
 
-async function saveProjectRoles(projectId: number, roles: AnyRow[] = []): Promise<void> {
-  const roleKeys = [
-    "cc_civil_project_owner",
-    "cc_mep_project_owner",
-    "cc_project_owner",
-    "cc_department_owner",
-    "pm_cost_department_owner",
-    "pm_project_owner",
-    "pm_department_owner",
-  ];
-  const current = await rest<AnyRow[]>(
-    `/project_roles?select=*&project_id=eq.${projectId}&role_key=in.(${roleKeys.join(",")})&status=eq.active`,
-  ).catch(() => []);
-  const activeIds = new Set<number>();
-  const seen = new Set<string>();
-  const employeeOrgMap = new Map<number, number | null>();
-
-  for (const role of roles) {
-    const roleKey = String(role.role_key || role.roleKey || "");
-    const userId = Number(role.user_id || role.userId || role.employee_id || role.employeeId || 0);
-    const dedupeKey = roleKey;
-    if (!roleKeys.includes(roleKey) || !userId || seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
-    if (!employeeOrgMap.has(userId)) {
-      const profile = (await rest<AnyRow[]>(
-        `/employee_profiles?select=org_id&employee_id=eq.${userId}&limit=1`,
-      ).catch(() => []))[0];
-      employeeOrgMap.set(userId, profile?.org_id ? Number(profile.org_id) : null);
-    }
-    const row = {
-      project_id: projectId,
-      role_key: roleKey,
-      employee_id: userId,
-      user_id: userId,
-      org_id: employeeOrgMap.get(userId),
-      status: "active",
-    };
-    const existing = current.find((item) => String(item.role_key) === roleKey);
-    if (existing?.id) {
-      activeIds.add(Number(existing.id));
-      await rest(`/project_roles?id=eq.${existing.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(row),
-      });
-    } else {
-      const inserted = await rest<AnyRow[]>("/project_roles", {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify([row]),
-      });
-      if (inserted[0]?.id) activeIds.add(Number(inserted[0].id));
-    }
-  }
-
-  const deactivateIds = current
-    .map((role) => Number(role.id))
-    .filter((id) => id && !activeIds.has(id));
-  if (deactivateIds.length) {
-    await rest(`/project_roles?id=in.(${deactivateIds.join(",")})`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "inactive" }),
-    });
-  }
-}
-
 async function approvalTemplates(): Promise<AnyRow[]> {
   const [templates, nodes, edges] = await Promise.all([
     rest<AnyRow[]>("/approval_templates?select=*&document_type=in.(contract,contract_approval)&order=business_type.asc,template_key.asc"),
@@ -1334,31 +1200,18 @@ async function approvalTemplates(): Promise<AnyRow[]> {
 }
 
 async function saveApprovalTemplate(body: AnyRow): Promise<AnyRow> {
-  if (!(await isAdmin())) throw new Error("Only admin can edit approval templates");
   const templateId = Number(body.id || 0);
   if (!templateId) throw new Error("Template id is required");
-  await rest(`/approval_templates?id=eq.${templateId}`, {
-    method: "PATCH",
+  await rest("/rpc/psa_save_approval_template", {
+    method: "POST",
     body: JSON.stringify({
-      name: body.name,
-      status: body.status || "active",
-      version: Number(body.version || 1),
+      p_template_id: templateId,
+      p_name: body.name,
+      p_status: body.status || "active",
+      p_version: Number(body.version || 1),
+      p_nodes: body.nodes || [],
     }),
   });
-  for (const node of body.nodes || []) {
-    if (!node.id) continue;
-    await rest(`/approval_template_nodes?id=eq.${Number(node.id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        node_name: node.node_name,
-        resolver_type: node.resolver_type,
-        resolver_role: node.resolver_role || null,
-        approval_policy: node.approval_policy || "single",
-        reject_policy: node.reject_policy || "back_to_creator",
-        sort_order: Number(node.sort_order || 0),
-      }),
-    });
-  }
   return { ok: true, templates: await approvalTemplates() };
 }
 
@@ -1393,11 +1246,16 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     status: "active",
   };
   if (projectId) {
-    await rest(`/projects?id=eq.${projectId}`, { method: "PATCH", body: JSON.stringify(row) });
+    await rest("/rpc/psa_save_project", {
+      method: "POST",
+      body: JSON.stringify({
+        p_project: { id: projectId, ...row },
+        p_department_owners: body.departmentOwners || body.department_owners || [],
+        p_project_roles: body.projectRoles || body.project_roles || [],
+      }),
+    });
     const previousOwnerId = existingProject[0]?.project_owner_id ? Number(existingProject[0].project_owner_id) : null;
     const nextOwnerId = row.project_owner_id ? Number(row.project_owner_id) : null;
-    await saveProjectDepartmentOwners(projectId, body.departmentOwners || body.department_owners || []);
-    await saveProjectRoles(projectId, body.projectRoles || body.project_roles || []);
     if (previousOwnerId !== nextOwnerId || body.departmentOwners || body.department_owners || body.projectRoles || body.project_roles) {
       await refreshProjectRoutes(projectId, "Route refreshed after project owner change");
     }
@@ -1409,10 +1267,18 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     if (existing.length > 0) {
       throw new Error(`项目代码「${row.code}」已存在，请更换代码后重试`);
     }
-    const newProjectId = await nextId("projects");
-    await rest("/projects", { method: "POST", body: JSON.stringify([{ id: newProjectId, ...row }]) });
-    await saveProjectDepartmentOwners(newProjectId, body.departmentOwners || body.department_owners || []);
-    await saveProjectRoles(newProjectId, body.projectRoles || body.project_roles || []);
+    const saved = await rest<{ project_id: number }>("/rpc/psa_save_project", {
+      method: "POST",
+      body: JSON.stringify({
+        p_project: row,
+        p_department_owners: body.departmentOwners || body.department_owners || [],
+        p_project_roles: body.projectRoles || body.project_roles || [],
+      }),
+    });
+    const newProjectId = Number(saved.project_id);
+    if (newProjectId && (body.departmentOwners || body.department_owners || body.projectRoles || body.project_roles)) {
+      await refreshProjectRoutes(newProjectId, "Route refreshed after project creation");
+    }
   }
   return { ok: true, projects: await projects() };
 }
@@ -1526,41 +1392,28 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
     };
   }
 
-  // Edit existing employee: direct PostgREST writes
   const id = Number(body.id);
-  const canEditRoles = await currentUserCanAccessResource("permission_config", "write");
-  const contractType = body.contractType || body.contract_type || "labor";
-  await rest(`/employees?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ name, employee_no: body.employeeNo || body.employee_no || `QS${String(id).padStart(6, "0")}`, is_active: (body.status || "active") !== "terminated" }) });
-  await rest("/employee_profiles?on_conflict=employee_id", {
+  await rest("/rpc/psa_update_employee", {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify([{
-      employee_id: id,
-      org_id: body.orgId || body.org_id || null,
-      position_name: body.positionName || body.position_name || "",
-      cost_specialty: body.costSpecialty || body.cost_specialty || null,
-      employment_status: body.status || "active",
-      manager_user_id: body.managerUserId || body.manager_user_id || null,
-      hire_date: body.hireDate || body.hire_date || null,
-    }]),
+    body: JSON.stringify({
+      p_employee: {
+        id,
+        name,
+        employee_no: body.employeeNo || body.employee_no || `QS${String(id).padStart(6, "0")}`,
+        org_id: body.orgId || body.org_id || null,
+        position_name: body.positionName || body.position_name || "",
+        cost_specialty: body.costSpecialty || body.cost_specialty || null,
+        status: body.status || "active",
+        manager_user_id: body.managerUserId || body.manager_user_id || null,
+        hire_date: body.hireDate || body.hire_date || null,
+        contract_type: body.contractType || body.contract_type || "labor",
+        employment_type: body.employmentType || body.employment_type || "labor",
+        monthly_salary: body.monthlySalary || body.monthly_salary || 0,
+        daily_wage: body.dailyWage || body.daily_wage || 0,
+        role: body.role || "employee",
+      },
+    }),
   });
-  await rest(`/employee_contracts?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
-  await rest("/employee_contracts", { method: "POST", body: JSON.stringify([{ employee_id: id, contract_type: contractType, employment_type: body.employmentType || body.employment_type || "labor", is_current: true }]) });
-  await rest(`/employee_salary_profiles?employee_id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ is_current: false }) });
-  await rest("/employee_salary_profiles", { method: "POST", body: JSON.stringify([{ employee_id: id, salary_mode: contractType === "service" ? "daily_wage" : "monthly_salary", monthly_salary: contractType === "service" ? 0 : Number(body.monthlySalary || body.monthly_salary || 0), daily_wage: contractType === "service" ? Number(body.dailyWage || body.daily_wage || 0) : 0, is_current: true }]) });
-  if (canEditRoles) {
-    const user = await currentUser();
-    const nextRole = body.role || "employee";
-    if (user?.id === id && nextRole !== "admin") {
-      throw new Error("不能移除当前登录管理员自己的 admin 权限");
-    }
-    await rest("/user_roles?on_conflict=employee_id,role", {
-      method: "POST",
-      headers: { Prefer: "resolution=ignore-duplicates" },
-      body: JSON.stringify([{ employee_id: id, role: nextRole }]),
-    });
-    await rest(`/user_roles?employee_id=eq.${id}&role=neq.${encodeURIComponent(nextRole)}`, { method: "DELETE" });
-  }
   return { ok: true, employees: await listEmployees() };
 }
 
@@ -1600,6 +1453,9 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/permissions") return permissionConfig() as T;
   if (url.pathname === "/api/apps") return appCenterItems() as T;
   if (url.pathname === "/api/projects") return projects() as T;
+  if (url.pathname === "/api/project-role-requirements") {
+    return projectRoleRequirements(url.searchParams.get("businessType")) as T;
+  }
   if (url.pathname === "/api/numbering/employee") {
     return { code: await nextEmployeeNo(Number(url.searchParams.get("orgId") || 0)) } as T;
   }

@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
-import { cn } from "@/lib/utils";
 import { getTimesheetPeriodEnd } from "@/utils/dates";
 import {
   AlertDialog,

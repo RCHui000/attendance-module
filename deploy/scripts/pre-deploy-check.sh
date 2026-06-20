@@ -191,6 +191,26 @@ if [ "${resolve_status}" != "200" ]; then
 fi
 ok "psa_resolve_login_email returned HTTP 200 with ANON_KEY."
 
+info "Auth token endpoint goes through guarded app proxy"
+auth_guard_body="${TMP_DIR}/auth_guard.json"
+if ! auth_guard_status="$(
+  curl -sS -L \
+    --connect-timeout "${CURL_CONNECT_TIMEOUT}" \
+    --max-time "${CURL_MAX_TIME}" \
+    -o "${auth_guard_body}" \
+    -w '%{http_code}' \
+    -X POST \
+    -H "Content-Type: application/json" \
+    --data '{"email":"__pre_deploy_check__@psa.local","password":"wrong","gotrue_meta_security":{}}' \
+    "${APP_URL%/}/auth/token?grant_type=password"
+)"; then
+  die "curl failed for guarded /auth/token endpoint."
+fi
+if [ "${auth_guard_status}" != "400" ] && [ "${auth_guard_status}" != "403" ]; then
+  die "/auth/token returned HTTP ${auth_guard_status}; expected 400 or 403. Body: $(body_preview "${auth_guard_body}")"
+fi
+ok "/auth/token is reachable only through the guarded public path."
+
 psql_at() {
   local sql="$1"
   docker exec -i "${POSTGRES_CONTAINER_NAME}" \

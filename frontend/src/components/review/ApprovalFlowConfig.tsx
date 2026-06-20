@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,6 +30,10 @@ const roleLabel: Record<string, string> = {
 
 function orderedNodes(template: ApprovalTemplate | null) {
   return [...(template?.nodes || [])].sort((a, b) => a.sort_order - b.sort_order);
+}
+
+function cloneTemplate(template: ApprovalTemplate): ApprovalTemplate {
+  return JSON.parse(JSON.stringify(template)) as ApprovalTemplate;
 }
 
 function FlowPreview({ template }: { template: ApprovalTemplate | null }) {
@@ -131,28 +135,23 @@ export function ApprovalFlowConfig() {
     [templates],
   );
 
-  useEffect(() => {
-    const selected = contractTemplates.find((template) => template.id === selectedId) || contractTemplates[0];
-    if (selected && (!draft || selected.id !== draft.id)) {
-      setSelectedId(selected.id);
-      setDraft(JSON.parse(JSON.stringify(selected)));
-    }
-  }, [contractTemplates, selectedId, draft]);
+  const selectedTemplate = contractTemplates.find((template) => template.id === selectedId) || contractTemplates[0] || null;
+  const activeDraft = draft?.id === selectedTemplate?.id ? draft : selectedTemplate;
 
   const updateNode = (nodeId: number, patch: Partial<ApprovalTemplateNode>) => {
     setDraft((current) =>
-      current
+      (current || activeDraft)
         ? {
-            ...current,
-            nodes: current.nodes.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)),
+            ...(current || activeDraft)!,
+            nodes: (current || activeDraft)!.nodes.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)),
           }
-        : current,
+        : null,
     );
   };
 
   const handleSave = () => {
-    if (!draft) return;
-    saveTemplate.mutate(draft, {
+    if (!activeDraft) return;
+    saveTemplate.mutate(activeDraft, {
       onSuccess: () => toast.success("审批模板已保存"),
       onError: (error) => toast.error(error instanceof Error ? error.message : "审批模板保存失败"),
     });
@@ -170,11 +169,11 @@ export function ApprovalFlowConfig() {
             type="button"
             className={cn(
               "mb-1 w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
-              draft?.id === template.id && "bg-muted font-semibold",
+              activeDraft?.id === template.id && "bg-muted font-semibold",
             )}
             onClick={() => {
               setSelectedId(template.id);
-              setDraft(JSON.parse(JSON.stringify(template)));
+              setDraft(cloneTemplate(template));
             }}
           >
             <div>{template.business_type || "通用"} 合同</div>
@@ -187,16 +186,22 @@ export function ApprovalFlowConfig() {
         <div className="flex items-center gap-2">
           <Input
             className="h-9 max-w-[420px]"
-            value={draft?.name || ""}
-            onChange={(event) => setDraft((current) => (current ? { ...current, name: event.target.value } : current))}
+            value={activeDraft?.name || ""}
+            onChange={(event) =>
+              setDraft((current) =>
+                current || activeDraft
+                  ? { ...(current || activeDraft)!, name: event.target.value }
+                  : current,
+              )
+            }
           />
-          <Button size="sm" onClick={handleSave} disabled={!draft || saveTemplate.isPending}>
+          <Button size="sm" onClick={handleSave} disabled={!activeDraft || saveTemplate.isPending}>
             <Save className="mr-1 size-3.5" />
             保存模板
           </Button>
         </div>
 
-        <FlowPreview template={draft} />
+        <FlowPreview template={activeDraft} />
 
         <div className="space-y-2">
           <div className="grid grid-cols-[72px_1.2fr_1fr_1fr_112px] gap-2 px-2 text-xs font-semibold text-muted-foreground">
@@ -206,7 +211,7 @@ export function ApprovalFlowConfig() {
             <span>角色键</span>
             <span>策略</span>
           </div>
-          {orderedNodes(draft).map((node) => (
+          {orderedNodes(activeDraft).map((node) => (
             <NodeEditor key={node.id} node={node} onChange={(patch) => updateNode(node.id, patch)} />
           ))}
         </div>

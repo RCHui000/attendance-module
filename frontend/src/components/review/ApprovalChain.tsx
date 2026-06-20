@@ -70,68 +70,78 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
   if (!nodes.length) return null;
 
   return (
-    <section aria-label="审批链路" className="mb-3 rounded-md border border-border bg-card/60 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <strong className="text-xs text-muted-foreground">审批链路</strong>
+    <section aria-label="审批链路" className="mb-3 rounded-md border border-border bg-card px-3 py-2.5">
+      <div className="mb-2 flex items-center gap-2">
+        <strong className="text-xs text-foreground">审批链路</strong>
+        <span className="text-[11px] text-muted-foreground">{nodes.length} 个节点</span>
       </div>
-      <div className="grid gap-2 md:grid-cols-[repeat(auto-fit,minmax(160px,1fr))]">
-        {nodes.map((node) => {
+      <div className="overflow-x-auto pb-1">
+        <ol className="flex min-w-max items-stretch">
+          {nodes.map((node, index) => {
           const assignees = fallbackAssignees(node);
           const blockingNodes = node.blocking_nodes.map((item) => item.node_name).join("、");
 
           return (
-            <div
-              className={cn(
-                "min-h-[88px] rounded-md border bg-background p-2.5 text-xs",
-                node.node_status === "active" && "border-primary/60 shadow-sm",
-                node.node_status === "rejected" && "border-destructive/50",
-              )}
-              key={node.node_id}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <strong className="min-w-0 text-sm leading-5 text-foreground">
-                  {node.node_name}
-                </strong>
-                <Badge variant={statusVariant[node.node_status] || "secondary"} className="shrink-0 text-[10px]">
-                  {statusLabel[node.node_status] || node.node_status}
-                </Badge>
-              </div>
-              <ul className="mt-2 space-y-1.5">
-                {assignees.map((assignee) => {
-                  const assigneeName = assignee.assignee_name || `员工 ${assignee.assignee_user_id}`;
-                  const actedAt = formatDateTime(assignee.acted_at);
-                  const statusText = assigneeStatusLabel[assignee.status] || assignee.status;
-                  const actionText = assignee.action ? actionLabel[assignee.action] || assignee.action : "";
-                  const key = `${node.node_id}-${assignee.assignee_user_id}-${assignee.status}-${assignee.acted_at || ""}`;
+            <li className="flex items-stretch" key={node.node_id}>
+              <div
+                className={cn(
+                  "relative w-[220px] rounded-md border bg-background p-2.5 text-xs",
+                  node.node_status === "active" && "border-primary/70 shadow-sm ring-2 ring-primary/10",
+                  node.node_status === "rejected" && "border-destructive/50",
+                )}
+              >
+                <div className="absolute -left-1 top-3 size-2 rounded-full bg-border" />
+                <div className="flex items-start justify-between gap-2">
+                  <strong className="min-w-0 text-sm leading-5 text-foreground">
+                    {node.node_name}
+                  </strong>
+                  <Badge variant={statusVariant[node.node_status] || "secondary"} className="shrink-0 text-[10px]">
+                    {statusLabel[node.node_status] || node.node_status}
+                  </Badge>
+                </div>
+                <ul className="mt-2 space-y-1.5">
+                  {assignees.map((assignee) => {
+                    const assigneeName = assignee.assignee_name || `员工 ${assignee.assignee_user_id}`;
+                    const actedAt = formatDateTime(assignee.acted_at);
+                    const statusText = assigneeStatusLabel[assignee.status] || assignee.status;
+                    const actionText = assignee.action ? actionLabel[assignee.action] || assignee.action : "";
+                    const key = `${node.node_id}-${assignee.assignee_user_id}-${assignee.status}-${assignee.acted_at || ""}`;
 
-                  return (
-                    <li key={key} className="rounded-sm bg-muted/40 px-2 py-1.5 leading-5">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-medium text-foreground">{assigneeName}</span>
-                        <span className="text-muted-foreground">{statusText}</span>
-                        {actionText ? <span className="text-muted-foreground">{actionText}</span> : null}
-                        {actedAt ? (
-                          <time className="text-muted-foreground" dateTime={assignee.acted_at || undefined}>
-                            {actedAt}
-                          </time>
+                    return (
+                      <li key={key} className="rounded-sm bg-muted/40 px-2 py-1.5 leading-5">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-medium text-foreground">{assigneeName}</span>
+                          <span className="text-muted-foreground">{statusText}</span>
+                          {actionText ? <span className="text-muted-foreground">{actionText}</span> : null}
+                          {actedAt ? (
+                            <time className="text-muted-foreground" dateTime={assignee.acted_at || undefined}>
+                              {actedAt}
+                            </time>
+                          ) : null}
+                        </div>
+                        {assignee.comment ? (
+                          <p className="mt-1 line-clamp-2 text-muted-foreground">{assignee.comment}</p>
                         ) : null}
-                      </div>
-                      {assignee.comment ? (
-                        <p className="mt-1 line-clamp-2 text-muted-foreground">{assignee.comment}</p>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-              {blockingNodes ? (
-                <p className="mt-2 leading-5 text-muted-foreground">等待：{blockingNodes}</p>
-              ) : null}
-              {node.comment ? (
-                <p className="mt-2 line-clamp-2 leading-5 text-muted-foreground">{node.comment}</p>
-              ) : null}
-            </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {blockingNodes ? (
+                  <p className="mt-2 leading-5 text-muted-foreground">等待：{blockingNodes}</p>
+                ) : null}
+                {node.comment ? (
+                  <p className="mt-2 line-clamp-2 leading-5 text-muted-foreground">{node.comment}</p>
+                ) : null}
+              </div>
+              {index < nodes.length - 1 && (
+                <div className="flex w-8 items-center" aria-hidden="true">
+                  <div className="h-px w-full bg-border" />
+                </div>
+              )}
+            </li>
           );
-        })}
+          })}
+        </ol>
       </div>
     </section>
   );

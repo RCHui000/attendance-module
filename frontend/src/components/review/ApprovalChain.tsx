@@ -67,8 +67,7 @@ function formatDateTime(value?: string | null) {
 }
 
 function nodeTitle(node: ApprovalChainNode) {
-  const projectTitle = [node.project_code, node.project_name].filter(Boolean).join(" ");
-  return projectTitle || node.node_name;
+  return node.node_name;
 }
 
 function routeRefreshReason(comment?: string | null) {
@@ -129,16 +128,26 @@ function ChainCard({
       <ul className="mt-2 space-y-1.5">
         {assignees.map((assignee) => {
           const assigneeName = assignee.assignee_name || `员工 ${assignee.assignee_user_id}`;
+          const projectLabel = [assignee.project_code, assignee.project_name].filter(Boolean).join(" ");
           const actedAt = formatDateTime(assignee.acted_at);
           const statusText = assigneeStatusLabel[assignee.status] || assignee.status;
+          const nodeStatusText = assignee.node_status
+            ? statusLabel[assignee.node_status] || assignee.node_status
+            : "";
           const actionText = assignee.action ? actionLabel[assignee.action] || assignee.action : "";
-          const key = `${node.node_id}-${assignee.assignee_user_id}-${assignee.status}-${assignee.acted_at || ""}`;
+          const key = `${node.node_id}-${assignee.node_id || assignee.assignee_user_id}-${assignee.status}-${assignee.acted_at || ""}`;
 
           return (
             <li key={key} className="rounded-sm bg-muted/40 px-2 py-1.5 leading-5">
+              {projectLabel ? (
+                <div className="mb-1 text-muted-foreground">{projectLabel}</div>
+              ) : null}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="font-medium text-foreground">{assigneeName}</span>
                 <span className="text-muted-foreground">{statusText}</span>
+                {nodeStatusText && nodeStatusText !== statusText ? (
+                  <span className="text-muted-foreground">{nodeStatusText}</span>
+                ) : null}
                 {actionText ? <span className="text-muted-foreground">{actionText}</span> : null}
                 {actedAt ? (
                   <time className="text-muted-foreground" dateTime={assignee.acted_at || undefined}>
@@ -178,7 +187,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
   const effectiveNodes = nodes.filter((node) => node.node_status !== "cancelled");
   const historicalNodes = nodes.filter((node) => node.node_status === "cancelled");
   const hasRejected = effectiveNodes.some((node) => node.node_status === "rejected");
-  const submitHint = hasRejected ? "退回后需提交人修改并重新提交" : "提交后进入项目块审批";
+  const submitHint = hasRejected ? "退回后需提交人修改并重新提交" : "提交后进入审批模板节点";
 
   return (
     <section
@@ -188,7 +197,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <strong className="text-xs text-foreground">审批链路</strong>
         <span className="text-[11px] text-muted-foreground">
-          当前链路 {effectiveNodes.length + 1} 个节点（含提交节点）
+          模板链路 {effectiveNodes.length + 1} 个节点（含提交节点）
           {historicalNodes.length ? `；历史作废 ${historicalNodes.length} 个` : ""}
         </span>
         {hasRejected && (
@@ -198,7 +207,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
         )}
       </div>
       <p className="mb-2 text-[11px] leading-5 text-muted-foreground">
-        节点多是因为周表按项目块生成审批：每个项目会按项目负责人、成本负责人、部门负责人等角色形成节点；多个项目块会串联显示。已作废历史路线来自负责人变更或路线刷新，不参与当前审批。
+        节点来自当前周表绑定的审批模板；项目块、审批人和历史作废记录会归到对应模板节点下面，不再把项目块摊平成主链路。
       </p>
       <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1">
         <ol className="flex min-w-max items-stretch">

@@ -4,8 +4,8 @@
 --   docker exec -i approval-postgres psql -U psa_admin -d psa \
 --     < scripts/assert-function-grants.sql
 --
--- Expected baseline after V0.16.46:
---   public schema functions: 48
+-- Expected baseline after V0.18:
+--   public schema functions: 49
 --   PostgreSQL PUBLIC EXECUTE grants: 0
 --   anon EXECUTE grants: 3
 --   authenticated EXECUTE grants: 20
@@ -73,8 +73,8 @@ BEGIN
   SELECT * INTO v_summary
   FROM function_grant_assertion_summary;
 
-  IF v_summary.public_schema_functions <> 48 THEN
-    RAISE EXCEPTION 'Expected 48 public schema functions, got %', v_summary.public_schema_functions;
+  IF v_summary.public_schema_functions <> 49 THEN
+    RAISE EXCEPTION 'Expected 49 public schema functions, got %', v_summary.public_schema_functions;
   END IF;
 
   IF v_summary.pg_public_execute <> 0 THEN

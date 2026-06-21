@@ -81,6 +81,12 @@ export interface TimesheetDetail {
 }
 
 export interface ApprovalChainAssignee {
+  node_id?: number;
+  node_name?: string | null;
+  node_status?: string | null;
+  project_id?: number | null;
+  project_code?: string;
+  project_name?: string;
   assignee_user_id: number;
   assignee_name?: string | null;
   status: string;

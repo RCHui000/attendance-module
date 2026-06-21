@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval";
@@ -73,9 +74,37 @@ function nodeHint(node: ApprovalChainNode, blockingNodes: string) {
   return "";
 }
 
+function assigneeNames(node: ApprovalChainNode) {
+  return fallbackAssignees(node)
+    .map((assignee) => assignee.assignee_name || `员工 ${assignee.assignee_user_id}`)
+    .join("、");
+}
+
+function nodeCount(nodes: ApprovalChainNode[], status: string) {
+  return nodes.filter((node) => node.node_status === status).length;
+}
+
+function summarizedNodes(nodes: ApprovalChainNode[]) {
+  const important = nodes.filter((node) => ["active", "rejected"].includes(node.node_status));
+  if (important.length) return important;
+
+  const lastDone = [...nodes].reverse().find((node) => ["approved", "skipped"].includes(node.node_status));
+  const firstWaiting = nodes.find((node) => node.node_status === "waiting");
+  return [lastDone, firstWaiting].filter(Boolean) as ApprovalChainNode[];
+}
+
 export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
+  const [showFullChain, setShowFullChain] = useState(false);
   if (!nodes.length) return null;
+  const shouldSummarize = nodes.length > 6;
+  const visibleNodes = shouldSummarize && !showFullChain
+    ? summarizedNodes(nodes)
+    : nodes;
   const hasRejected = nodes.some((node) => node.node_status === "rejected");
+  const activeNodes = nodes.filter((node) => node.node_status === "active");
+  const rejectedNodes = nodes.filter((node) => node.node_status === "rejected");
+  const waitingCount = nodeCount(nodes, "waiting");
+  const approvedCount = nodeCount(nodes, "approved") + nodeCount(nodes, "skipped");
 
   return (
     <section
@@ -91,9 +120,38 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
           </span>
         )}
       </div>
+      {shouldSummarize && (
+        <div className="mb-2 grid gap-2 md:grid-cols-[1fr_auto]">
+          <div className="flex flex-wrap gap-1.5 text-[11px]">
+            <span className="rounded-md bg-status-approved-bg px-2 py-1 text-status-approved-text">
+              已完成 {approvedCount}
+            </span>
+            <span className="rounded-md bg-muted px-2 py-1 text-muted-foreground">
+              等待 {waitingCount}
+            </span>
+            {activeNodes.length > 0 && (
+              <span className="rounded-md bg-primary/10 px-2 py-1 text-primary">
+                当前：{activeNodes.map((node) => `${node.node_name}（${assigneeNames(node)}）`).join("、")}
+              </span>
+            )}
+            {rejectedNodes.length > 0 && (
+              <span className="rounded-md bg-destructive/10 px-2 py-1 text-destructive">
+                退回：{rejectedNodes.map((node) => `${node.node_name}（${assigneeNames(node)}）`).join("、")}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="justify-self-start rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted md:justify-self-end"
+            onClick={() => setShowFullChain((value) => !value)}
+          >
+            {showFullChain ? "收起完整链路" : `展开完整链路（${nodes.length}）`}
+          </button>
+        </div>
+      )}
       <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1">
         <ol className="flex min-w-max items-stretch">
-          {nodes.map((node, index) => {
+          {visibleNodes.map((node, index) => {
           const assignees = fallbackAssignees(node);
           const blockingNodes = node.blocking_nodes.map((item) => item.node_name).join("、");
           const hint = nodeHint(node, blockingNodes);
@@ -153,7 +211,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
                   <p className="mt-2 line-clamp-2 leading-5 text-muted-foreground">{node.comment}</p>
                 ) : null}
               </div>
-              {index < nodes.length - 1 && (
+              {index < visibleNodes.length - 1 && (
                 <div className="flex w-8 items-center" aria-hidden="true">
                   <div className="h-px w-full bg-border" />
                 </div>

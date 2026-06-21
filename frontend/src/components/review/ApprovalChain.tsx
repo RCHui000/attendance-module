@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval";
@@ -8,9 +7,9 @@ interface ApprovalChainProps {
 }
 
 const statusLabel: Record<string, string> = {
-  waiting: "等待前序",
-  active: "当前审批",
-  approved: "已通过",
+  waiting: "待审核",
+  active: "审核中",
+  approved: "已审核",
   rejected: "已退回",
   cancelled: "已取消/撤回",
   skipped: "已跳过",
@@ -26,8 +25,8 @@ const statusVariant: Record<string, "default" | "secondary" | "success" | "destr
 };
 
 const assigneeStatusLabel: Record<string, string> = {
-  pending: "待审批",
-  approved: "已通过",
+  pending: "待审核",
+  approved: "已审核",
   rejected: "已退回",
   cancelled: "已取消/撤回",
   skipped: "已跳过",
@@ -68,43 +67,16 @@ function formatDateTime(value?: string | null) {
 }
 
 function nodeHint(node: ApprovalChainNode, blockingNodes: string) {
-  if (node.node_status === "rejected") return "此处退回，提交人修改后重新流转";
+  if (node.node_status === "rejected") return `退回流向：${node.node_name} -> 节点1 待提交`;
   if (node.node_status === "waiting" && blockingNodes) return "前序未完成，暂不进入待办";
   if (node.node_status === "active") return "当前处理节点";
   return "";
 }
 
-function assigneeNames(node: ApprovalChainNode) {
-  return fallbackAssignees(node)
-    .map((assignee) => assignee.assignee_name || `员工 ${assignee.assignee_user_id}`)
-    .join("、");
-}
-
-function nodeCount(nodes: ApprovalChainNode[], status: string) {
-  return nodes.filter((node) => node.node_status === status).length;
-}
-
-function summarizedNodes(nodes: ApprovalChainNode[]) {
-  const important = nodes.filter((node) => ["active", "rejected"].includes(node.node_status));
-  if (important.length) return important;
-
-  const lastDone = [...nodes].reverse().find((node) => ["approved", "skipped"].includes(node.node_status));
-  const firstWaiting = nodes.find((node) => node.node_status === "waiting");
-  return [lastDone, firstWaiting].filter(Boolean) as ApprovalChainNode[];
-}
-
 export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
-  const [showFullChain, setShowFullChain] = useState(false);
   if (!nodes.length) return null;
-  const shouldSummarize = nodes.length > 6;
-  const visibleNodes = shouldSummarize && !showFullChain
-    ? summarizedNodes(nodes)
-    : nodes;
   const hasRejected = nodes.some((node) => node.node_status === "rejected");
-  const activeNodes = nodes.filter((node) => node.node_status === "active");
-  const rejectedNodes = nodes.filter((node) => node.node_status === "rejected");
-  const waitingCount = nodeCount(nodes, "waiting");
-  const approvedCount = nodeCount(nodes, "approved") + nodeCount(nodes, "skipped");
+  const submitHint = hasRejected ? "退回后需提交人修改并重新提交" : "提交后进入项目块审批";
 
   return (
     <section
@@ -113,48 +85,42 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
     >
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <strong className="text-xs text-foreground">审批链路</strong>
-        <span className="text-[11px] text-muted-foreground">{nodes.length} 个节点</span>
+        <span className="text-[11px] text-muted-foreground">{nodes.length + 1} 个节点（含提交节点）</span>
         {hasRejected && (
           <span className="text-[11px] text-destructive">
-            退回表示从该节点打回提交人，后续节点等待重新提交
+            退回会回到节点1“待提交”，后续节点等待重新提交后再流转
           </span>
         )}
       </div>
-      {shouldSummarize && (
-        <div className="mb-2 grid gap-2 md:grid-cols-[1fr_auto]">
-          <div className="flex flex-wrap gap-1.5 text-[11px]">
-            <span className="rounded-md bg-status-approved-bg px-2 py-1 text-status-approved-text">
-              已完成 {approvedCount}
-            </span>
-            <span className="rounded-md bg-muted px-2 py-1 text-muted-foreground">
-              等待 {waitingCount}
-            </span>
-            {activeNodes.length > 0 && (
-              <span className="rounded-md bg-primary/10 px-2 py-1 text-primary">
-                当前：{activeNodes.map((node) => `${node.node_name}（${assigneeNames(node)}）`).join("、")}
-              </span>
-            )}
-            {rejectedNodes.length > 0 && (
-              <span className="rounded-md bg-destructive/10 px-2 py-1 text-destructive">
-                退回：{rejectedNodes.map((node) => `${node.node_name}（${assigneeNames(node)}）`).join("、")}
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            className="justify-self-start rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted md:justify-self-end"
-            onClick={() => setShowFullChain((value) => !value)}
-          >
-            {showFullChain ? "收起完整链路" : `展开完整链路（${nodes.length}）`}
-          </button>
-        </div>
-      )}
+      <p className="mb-2 text-[11px] leading-5 text-muted-foreground">
+        节点多是因为周表按项目块生成审批：每个项目会按配置的项目负责人、成本负责人、部门负责人等角色形成节点；多个项目块会串联显示，不代表有 {nodes.length + 1} 级领导。
+      </p>
       <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1">
         <ol className="flex min-w-max items-stretch">
-          {visibleNodes.map((node, index) => {
+          <li className="flex items-stretch">
+            <div className="relative w-[220px] rounded-md border bg-background p-2.5 text-xs">
+              <div className="absolute -left-1 top-3 size-2 rounded-full bg-border" />
+              <div className="flex items-start justify-between gap-2">
+                <strong className="min-w-0 text-sm leading-5 text-foreground">
+                  节点1：待提交
+                </strong>
+                <Badge variant={hasRejected ? "destructive" : "secondary"} className="shrink-0 text-[10px]">
+                  {hasRejected ? "待重新提交" : "已提交"}
+                </Badge>
+              </div>
+              <p className="mt-2 rounded-sm bg-muted/40 px-2 py-1.5 leading-5 text-muted-foreground">
+                {submitHint}
+              </p>
+            </div>
+            <div className="flex w-8 items-center" aria-hidden="true">
+              <div className="h-px w-full bg-border" />
+            </div>
+          </li>
+          {nodes.map((node, index) => {
           const assignees = fallbackAssignees(node);
           const blockingNodes = node.blocking_nodes.map((item) => item.node_name).join("、");
           const hint = nodeHint(node, blockingNodes);
+          const nodeNumber = index + 2;
 
           return (
             <li className="flex items-stretch" key={node.node_id}>
@@ -168,7 +134,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
                 <div className="absolute -left-1 top-3 size-2 rounded-full bg-border" />
                 <div className="flex items-start justify-between gap-2">
                   <strong className="min-w-0 text-sm leading-5 text-foreground">
-                    {node.node_name}
+                    节点{nodeNumber}：{node.node_name}
                   </strong>
                   <Badge variant={statusVariant[node.node_status] || "secondary"} className="shrink-0 text-[10px]">
                     {statusLabel[node.node_status] || node.node_status}
@@ -211,7 +177,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
                   <p className="mt-2 line-clamp-2 leading-5 text-muted-foreground">{node.comment}</p>
                 ) : null}
               </div>
-              {index < visibleNodes.length - 1 && (
+              {index < nodes.length - 1 && (
                 <div className="flex w-8 items-center" aria-hidden="true">
                   <div className="h-px w-full bg-border" />
                 </div>

@@ -99,6 +99,8 @@ export interface ApprovalChainNode {
   assignee_role?: string | null;
   resolver_role?: string | null;
   approval_policy?: string | null;
+  project_code?: string;
+  project_name?: string;
   sort_order: number;
   activated_at?: string | null;
   completed_at?: string | null;

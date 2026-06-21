@@ -698,6 +698,15 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
   ]);
   const userName = userRows[0]?.name || "";
   const profile = profRows[0];
+  const projectInfoById = new Map<number, { code: string; name: string }>();
+  for (const entry of entries) {
+    const projectId = Number(entry.project_id);
+    if (!projectId || projectInfoById.has(projectId)) continue;
+    projectInfoById.set(projectId, {
+      code: entry.projects?.code || "",
+      name: entry.projects?.name || "",
+    });
+  }
   return {
     id: Number(sheet.id),
     user_name: userName,
@@ -721,15 +730,21 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       status: entry.status || "",
     })),
     project_statuses: reviews.length ? projectStatusFromReviews(reviews, sheet.status) : [],
-    approval_chain: approvalChainResult.data.map((node) => ({
-      ...node,
-      node_id: Number(node.node_id),
-      scope_id: node.scope_id == null ? null : Number(node.scope_id),
-      sort_order: Number(node.sort_order ?? 9999),
-      can_current_user_act: Boolean(node.can_current_user_act),
-      assignees: Array.isArray(node.assignees) ? node.assignees : [],
-      blocking_nodes: Array.isArray(node.blocking_nodes) ? node.blocking_nodes : [],
-    })),
+    approval_chain: approvalChainResult.data.map((node) => {
+      const scopeId = node.scope_id == null ? null : Number(node.scope_id);
+      const projectInfo = node.scope_type === "project" && scopeId ? projectInfoById.get(scopeId) : null;
+      return {
+        ...node,
+        node_id: Number(node.node_id),
+        scope_id: scopeId,
+        project_code: projectInfo?.code || "",
+        project_name: projectInfo?.name || "",
+        sort_order: Number(node.sort_order ?? 9999),
+        can_current_user_act: Boolean(node.can_current_user_act),
+        assignees: Array.isArray(node.assignees) ? node.assignees : [],
+        blocking_nodes: Array.isArray(node.blocking_nodes) ? node.blocking_nodes : [],
+      };
+    }),
     approval_chain_error: approvalChainResult.error,
   };
 }

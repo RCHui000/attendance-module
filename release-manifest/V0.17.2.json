@@ -1,0 +1,40 @@
+{
+  "version": "V0.17.2",
+  "released_at": "2026-06-22",
+  "base_version": "V0.17.1",
+  "commit": "5af56be3682161ef1eb6fa116e79696176a065c1",
+  "summary": "Clarify timesheet approval chain rendering by separating active approval nodes from cancelled historical route nodes.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema changes.",
+      "Approval chain data continues to come from psa_timesheet_approval_chain."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.17.2",
+    "notes": [
+      "Expanded approval chains now show the current effective route separately from historical cancelled route nodes.",
+      "Cancelled nodes are labeled as historical and marked as not participating in current approval.",
+      "Project-scoped approval nodes display project code and project name when available.",
+      "Rejected nodes explicitly show their rollback path to node 1 pending submission."
+    ]
+  },
+  "deployment": {
+    "cloud": "Build frontend with VITE_APP_VERSION=V0.17.2 and production VITE variables, sync frontend/dist, rebuild the app image with APP_IMAGE_TAG=V0.17.2, then run pre-deploy and frontend render smoke checks.",
+    "notes": [
+      "Server app directory is overlaid from the GitHub tag archive.",
+      "frontend/dist is built locally because the server does not have npm."
+    ]
+  },
+  "verification": [
+    "Run npm --prefix frontend run check.",
+    "Run duplicate migration prefix check.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud server with EXPECTED_VERSION=V0.17.2.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

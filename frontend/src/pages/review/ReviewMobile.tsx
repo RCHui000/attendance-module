@@ -48,7 +48,7 @@ export function ReviewMobile({
               }`}
               onClick={() => onTabChange(tab)}
             >
-              {tab === "pending" ? "待审核" : "已审核"}
+              {tab === "pending" ? "待审批" : "已审核"}
               <span className="ml-1 text-xs tabular-nums text-muted-foreground">
                 {counts[tab]}
               </span>

@@ -10,8 +10,8 @@ const statusLabel: Record<string, string> = {
   waiting: "等待前序",
   active: "当前审批",
   approved: "已通过",
-  rejected: "已拒绝",
-  cancelled: "已取消",
+  rejected: "已退回",
+  cancelled: "已取消/撤回",
   skipped: "已跳过",
 };
 
@@ -27,8 +27,8 @@ const statusVariant: Record<string, "default" | "secondary" | "success" | "destr
 const assigneeStatusLabel: Record<string, string> = {
   pending: "待审批",
   approved: "已通过",
-  rejected: "已拒绝",
-  cancelled: "已取消",
+  rejected: "已退回",
+  cancelled: "已取消/撤回",
   skipped: "已跳过",
 };
 
@@ -66,20 +66,37 @@ function formatDateTime(value?: string | null) {
   });
 }
 
+function nodeHint(node: ApprovalChainNode, blockingNodes: string) {
+  if (node.node_status === "rejected") return "此处退回，提交人修改后重新流转";
+  if (node.node_status === "waiting" && blockingNodes) return "前序未完成，暂不进入待办";
+  if (node.node_status === "active") return "当前处理节点";
+  return "";
+}
+
 export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
   if (!nodes.length) return null;
+  const hasRejected = nodes.some((node) => node.node_status === "rejected");
 
   return (
-    <section aria-label="审批链路" className="mb-3 rounded-md border border-border bg-card px-3 py-2.5">
-      <div className="mb-2 flex items-center gap-2">
+    <section
+      aria-label="审批链路"
+      className="mb-3 w-[calc(100vw-4rem)] max-w-full overflow-hidden rounded-md border border-border bg-card px-3 py-2.5"
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <strong className="text-xs text-foreground">审批链路</strong>
         <span className="text-[11px] text-muted-foreground">{nodes.length} 个节点</span>
+        {hasRejected && (
+          <span className="text-[11px] text-destructive">
+            退回表示从该节点打回提交人，后续节点等待重新提交
+          </span>
+        )}
       </div>
-      <div className="overflow-x-auto pb-1">
+      <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1">
         <ol className="flex min-w-max items-stretch">
           {nodes.map((node, index) => {
           const assignees = fallbackAssignees(node);
           const blockingNodes = node.blocking_nodes.map((item) => item.node_name).join("、");
+          const hint = nodeHint(node, blockingNodes);
 
           return (
             <li className="flex items-stretch" key={node.node_id}>
@@ -128,6 +145,9 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
                 </ul>
                 {blockingNodes ? (
                   <p className="mt-2 leading-5 text-muted-foreground">等待：{blockingNodes}</p>
+                ) : null}
+                {hint ? (
+                  <p className="mt-2 rounded-sm bg-muted/40 px-2 py-1 leading-5 text-muted-foreground">{hint}</p>
                 ) : null}
                 {node.comment ? (
                   <p className="mt-2 line-clamp-2 leading-5 text-muted-foreground">{node.comment}</p>

@@ -58,7 +58,7 @@ export function ApprovalTable({
   const overtimeAction = useOvertimeAction();
   const inProgress = data.inProgress || [];
   const approvalTabs = [
-    { value: "pending" as const, label: "待我审批" },
+    { value: "pending" as const, label: "待审批" },
     { value: "reviewed" as const, label: "已审核" },
   ];
 
@@ -141,7 +141,7 @@ export function ApprovalTable({
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-2">
             <strong className="text-sm">周表</strong>
-            <span className="text-xs text-muted-foreground">待我审批 / 流转中可见</span>
+            <span className="text-xs text-muted-foreground">待审批 / 流转中可见</span>
           </div>
 
           {approvalTab === "pending" && (

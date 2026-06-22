@@ -120,7 +120,18 @@ BEGIN
           OR n.scope_source <> 'timesheet_projects'
           OR n.runtime_scope_type <> 'project'
           OR n.runtime_node_key_template <> 'project_{scope_id}_{node_key}'
-          OR n.missing_assignee_policy <> 'skip'
+          OR (
+            n.node_key = 'special_department_owner'
+            AND (
+              n.resolver_type <> 'org_manager'
+              OR n.resolver_role <> 'department_owner'
+              OR n.missing_assignee_policy <> 'required'
+            )
+          )
+          OR (
+            n.node_key <> 'special_department_owner'
+            AND n.missing_assignee_policy <> 'skip'
+          )
         )
       )
     );

@@ -626,20 +626,34 @@ async function projectRoleRequirements(businessType?: string | null): Promise<An
   );
 }
 
+async function findTimesheet(userId: number, periodStart: string): Promise<AnyRow | null> {
+  return (await rest<AnyRow[]>(
+    `/timesheets?select=*&user_id=eq.${userId}&week_start_date=eq.${periodStart}&limit=1`,
+  ))[0] || null;
+}
+
+function isTimesheetInsertConflict(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /duplicate key value violates unique constraint|timesheets_pkey|timesheets_user_id_week_start_date_key/i.test(message);
+}
+
 async function getTimesheet(weekStart: string): Promise<AnyRow> {
   const periodStart = timesheetPeriodStartOfDate(weekStart);
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated");
-  let sheet = (await rest<AnyRow[]>(
-    `/timesheets?select=*&user_id=eq.${user.id}&week_start_date=eq.${periodStart}&limit=1`,
-  ))[0];
+  let sheet = await findTimesheet(user.id, periodStart);
   if (!sheet) {
-    const id = await nextId("timesheets");
-    sheet = (await rest<AnyRow[]>("/timesheets", {
-      method: "POST",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify([{ id, user_id: user.id, week_start_date: periodStart }]),
-    }))[0];
+    try {
+      sheet = (await rest<AnyRow[]>("/timesheets", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([{ user_id: user.id, week_start_date: periodStart }]),
+      }))[0];
+    } catch (error) {
+      if (!isTimesheetInsertConflict(error)) throw error;
+      sheet = await findTimesheet(user.id, periodStart);
+      if (!sheet) throw error;
+    }
   }
   const [entries, overtime, reviews] = await Promise.all([
     rest<AnyRow[]>(

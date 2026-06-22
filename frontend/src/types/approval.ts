@@ -80,17 +80,44 @@ export interface TimesheetDetail {
   approval_chain_error?: boolean;
 }
 
+export type ApprovalChainStatus =
+  | "waiting"
+  | "active"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "skipped"
+  | "waiting_revision"
+  | "needs_revision"
+  | "needs_reapproval";
+
+export type ApprovalChainAction =
+  | "approve"
+  | "approved"
+  | "reject"
+  | "rejected"
+  | "delegate"
+  | "delegated"
+  | "skip"
+  | "skipped"
+  | "cancel"
+  | "cancelled"
+  | "submit"
+  | "withdraw"
+  | "reopen";
+
 export interface ApprovalChainAssignee {
-  node_id?: number;
+  node_id?: number | null;
   node_name?: string | null;
-  node_status?: string | null;
+  node_status?: ApprovalChainStatus | string | null;
   project_id?: number | null;
-  project_code?: string;
-  project_name?: string;
+  project_code?: string | null;
+  project_name?: string | null;
   assignee_user_id: number;
   assignee_name?: string | null;
-  status: string;
-  action?: string | null;
+  status: ApprovalChainStatus | string;
+  action?: ApprovalChainAction | string | null;
   comment?: string | null;
   acted_at?: string | null;
 }
@@ -101,23 +128,23 @@ export interface ApprovalChainNode {
   node_name: string;
   scope_type?: string | null;
   scope_id?: number | null;
-  node_status: "waiting" | "active" | "approved" | "rejected" | "cancelled" | "skipped" | string;
+  node_status: ApprovalChainStatus | string;
   assignee_role?: string | null;
   resolver_role?: string | null;
   approval_policy?: string | null;
-  project_code?: string;
-  project_name?: string;
+  project_code?: string | null;
+  project_name?: string | null;
   sort_order: number;
   activated_at?: string | null;
   completed_at?: string | null;
-  result_action?: string | null;
+  result_action?: ApprovalChainAction | string | null;
   comment?: string | null;
   can_current_user_act: boolean;
   assignees: ApprovalChainAssignee[];
   blocking_nodes: Array<{
     node_id: number;
     node_name: string;
-    status: string;
+    status: ApprovalChainStatus | string;
   }>;
 }
 

@@ -1,0 +1,45 @@
+{
+  "version": "V0.18.0",
+  "released_at": "2026-06-22",
+  "base_version": "V0.17.2",
+  "summary": "Fix browser-side timesheet id allocation, make timesheet approval generation data-driven, and improve approval-chain readability.",
+  "database": {
+    "new_migrations": [
+      "100_timesheet_id_sequence_safety.sql",
+      "101_timesheet_data_driven_approval_engine.sql"
+    ],
+    "notes": [
+      "timesheets.id is owned by public.timesheets_id_seq and the sequence is kept ahead of existing rows.",
+      "Timesheet business type inference, template routing, runtime node expansion, role aliases, and missing-assignee behavior are stored in database configuration.",
+      "submit_document now delegates template selection to psa_select_approval_template and graph expansion to psa_expand_approval_template.",
+      "Internal approval helpers remain ungranted to authenticated users."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.0",
+    "notes": [
+      "Timesheet creation no longer sends an explicit id from the browser.",
+      "Concurrent same-user same-period timesheet creation retries by reading the existing unique user/week row.",
+      "Approval-chain cards show template node key, role, project details, node status, assignee status, action, comments, and time.",
+      "Long approval chains scroll inside the chain panel instead of widening the whole page."
+    ]
+  },
+  "verification": [
+    "Run powershell -ExecutionPolicy Bypass -File scripts/assert-timesheet-client-id-allocation.ps1.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run check.",
+    "Run migration rollback canary for 101 plus a transaction-only submit.",
+    "After deploy, run scripts/assert-timesheet-sequence.sql.",
+    "After deploy, run scripts/assert-timesheet-data-driven-approval.sql.",
+    "After deploy, run scripts/assert-timesheet-template-routing.sql.",
+    "After deploy, run scripts/smoke-timesheet-special-day-create-no-pkey.sql.",
+    "After deploy, run scripts/smoke-timesheet-submit-contract-routing.sql.",
+    "After deploy, run scripts/assert-function-grants.sql.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.0.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

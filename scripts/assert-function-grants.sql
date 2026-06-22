@@ -5,7 +5,7 @@
 --     < scripts/assert-function-grants.sql
 --
 -- Expected baseline after V0.18:
---   public schema functions: 49
+--   public schema functions: 54
 --   PostgreSQL PUBLIC EXECUTE grants: 0
 --   anon EXECUTE grants: 3
 --   authenticated EXECUTE grants: 20
@@ -73,8 +73,8 @@ BEGIN
   SELECT * INTO v_summary
   FROM function_grant_assertion_summary;
 
-  IF v_summary.public_schema_functions <> 49 THEN
-    RAISE EXCEPTION 'Expected 49 public schema functions, got %', v_summary.public_schema_functions;
+  IF v_summary.public_schema_functions <> 54 THEN
+    RAISE EXCEPTION 'Expected 54 public schema functions, got %', v_summary.public_schema_functions;
   END IF;
 
   IF v_summary.pg_public_execute <> 0 THEN
@@ -96,7 +96,14 @@ BEGIN
       AND d.function_name = ANY (ARRAY[
         'approve_node',
         'reject_node',
-        'submit_document'
+        'submit_document',
+        'psa_activate_ready_nodes',
+        'psa_expand_approval_template',
+        'psa_resolve_document_business_type',
+        'psa_resolve_graph_assignees',
+        'psa_resolve_role_candidates',
+        'psa_select_approval_template',
+        'psa_timesheet_business_type'
       ])
     ORDER BY d.function_name
   ) INTO v_unexpected_authenticated;

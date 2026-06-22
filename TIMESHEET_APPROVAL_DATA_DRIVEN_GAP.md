@@ -1,58 +1,47 @@
-# Timesheet Approval Template Routing And Data-Driven Gap
+# Timesheet Approval Data-Driven Gap
 
-## Current Fix
+## Current State
 
-Timesheet approvals now route through the configured `contract_approval` templates:
+Timesheet approvals now use the three configured `contract_approval` templates:
 
 - `contract_approval_pm_v1`
 - `contract_approval_cc_v1`
 - `contract_approval_pmcc_v1`
 
-`submit_document('timesheet', ...)` still keeps `approval_instances.target_type = 'timesheet'`, but selects the template from `document_type = 'contract_approval'` according to the inferred PM/CC/PMCC business type. Runtime nodes now write `template_node_key` values that match the selected template nodes.
+Migration `099_timesheet_contract_approval_template_routing.sql` fixed the first bug: submitted/running weekly timesheets are routed to these templates and the approval-chain UI groups runtime project nodes under template nodes.
 
-The approval-chain RPC now exposes a template-node view. Project blocks and assignees are aggregated under the corresponding template node instead of becoming top-level chain nodes.
+Migration `101_timesheet_data_driven_approval_engine.sql` moves the remaining runtime decisions into database configuration:
 
-## Verified Production State After Migration 099
+- business type inference: `approval_business_type_source_rules` and `approval_business_type_merge_rules`;
+- template routing: `approval_template_routing_rules`;
+- node expansion: `approval_template_nodes.scope_strategy` and related runtime fields;
+- role aliases: `approval_role_aliases`;
+- optional behavior: `approval_template_nodes.missing_assignee_policy`, copied to `approval_nodes.missing_assignee_policy`.
 
-- Submitted/running timesheet instances use `contract_approval` templates.
-- Current distribution: CC = 2, PMCC = 11, PM = 0.
-- Pending timesheet tasks are attached to `contract_approval_cc_v1` or `contract_approval_pmcc_v1`.
-- A transaction-only submit smoke for draft timesheet `166` selected `contract_approval_pmcc_v1`, created 15 runtime nodes, and mapped all 15 to template nodes.
+`submit_document()` now selects templates via `psa_select_approval_template()` and creates runtime nodes via `psa_expand_approval_template()`.
 
-## Remaining Data-Driven Gap
+## Closed Gaps
 
-The system is now template-selected and template-displayed, but not fully template-generated.
+1. Business type inference is no longer hardcoded only inside `psa_timesheet_business_type()`.
+   The old behavior remains as fallback, but the primary path reads source and merge rules.
 
-### 1. Business Type Inference Is Still Code
+2. Runtime node expansion is no longer hand-coded inside `submit_document()`.
+   Template nodes declare whether they are virtual submitter nodes, once-per-document nodes, or per-project nodes.
 
-`psa_timesheet_business_type()` infers PM/CC/PMCC from project `business_type` or project-code prefixes. This is better centralized in the database than frontend logic, but still code-driven.
+3. Role alias handling is data-backed.
+   `cc_project_owner` and related aliases are seeded in `approval_role_aliases`.
 
-Target direction: make the selection rule explicit data, for example a `timesheet_template_routing_rules` table with priority and match conditions.
+4. Optional project approver behavior is data-backed.
+   Missing project approvers use `missing_assignee_policy = 'skip'`, and skip mode disables admin fallback.
 
-### 2. Runtime Node Expansion Still Has Timesheet-Specific Logic
+5. Template edges are de-duplicated and protected by a unique index on template path.
 
-New timesheet submissions expand non-submitter template nodes once per project. That uses template nodes, but the expansion rule itself is still hardcoded in `submit_document`.
+## Remaining Gap
 
-Target direction: move expansion mode into template node data, such as `scope_strategy = per_project | once_per_document | submitter_virtual`.
+The runtime engine is now data-driven, but the admin editor is not yet fully data-driven:
 
-### 3. Role Alias Handling Is Still Code
+- the approval-template page does not expose `scope_strategy`, `scope_source`, `runtime_scope_type`, `runtime_node_key_template`, or `missing_assignee_policy`;
+- routing rules, business type rules, and role aliases are seeded by migration, not managed in UI;
+- historical completed approval graphs are preserved as audit records and are not rebuilt.
 
-`cc_project_owner` maps to specialized project roles such as `cc_mep_project_owner` and `cc_civil_project_owner` in resolver code.
-
-Target direction: move role aliases/fallbacks into a table, reusing or extending `project_role_requirements`.
-
-### 4. Optional Node Behavior Is Still Code
-
-Timesheet project nodes are generated as optional so missing project-role assignments skip instead of blocking submission. That policy is currently encoded in `submit_document`.
-
-Target direction: add an explicit template-node flag or policy field for optional/required behavior.
-
-### 5. Existing Historical Nodes Are Backfilled, Not Rebuilt
-
-Migration 099 backfills running submitted instances so their nodes map to selected templates. It does not reconstruct historical completed approval graphs.
-
-Target direction: leave historical graphs as audit records unless a full archival normalization project is needed.
-
-## Practical Assessment
-
-After this fix, the approval center should behave according to the configured three-template model for current and future timesheet approvals. The largest remaining gap is not display; it is the runtime expansion engine. The next meaningful data-driven step is to make template nodes declare how they expand and which role aliases/fallbacks they accept.
+This is acceptable for the current release because new submissions follow the data-driven engine, while historical graphs remain stable.

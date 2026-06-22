@@ -25,3 +25,8 @@ supabase-psa/.env
 *.pfx
 id_rsa
 id_ed25519
+
+# Local agent scratch plans
+implement plan.md
+implementation_plan.md
+immplement_plan.md

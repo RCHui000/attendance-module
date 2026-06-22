@@ -1,0 +1,34 @@
+{
+  "version": "V0.18.4",
+  "released_at": "2026-06-23",
+  "base_version": "V0.18.3",
+  "summary": "Simplify timesheet approval chains to match configured templates and remove historical repair comments from live approval progress.",
+  "database": {
+    "new_migrations": [
+      "103_clean_timesheet_chain_repair_comments.sql"
+    ],
+    "notes": [
+      "Clears exact system repair comments equal to 'V0.15 premature summary repair' from approval nodes and assignees.",
+      "Does not remove business approval opinions or approval records."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.4",
+    "notes": [
+      "Approval chain cards now show only template node, node status, approver names, and optional project-block context.",
+      "Action, opinion, timestamp, and historical-route log details are no longer shown in the approval progress chain.",
+      "The chain count is based on the current configured template plus the submit node."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run check.",
+    "Apply migration 103 through deploy/scripts/apply-migrations.sh.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.4.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "version": "V0.18.2",
+  "released_at": "2026-06-22",
+  "base_version": "V0.18.1",
+  "summary": "Route PMCC timesheet approvals by submitter department so design-side submitters do not enter cost-side approval nodes.",
+  "database": {
+    "new_migrations": [
+      "102_timesheet_submitter_org_route_rules.sql"
+    ],
+    "notes": [
+      "Adds approval_submitter_business_type_route_rules for submitter-organization overrides.",
+      "PM_DESIGN + PMCC and PM-family + PMCC timesheets route as PM-side approvals.",
+      "CC + PMCC timesheets continue to route through the PMCC cross-department chain.",
+      "Existing running PM_DESIGN + PMCC approval instances are repaired from the PMCC template to the PM template."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.2",
+    "notes": [
+      "No frontend behavior change is required; the approval center reads the corrected approval-chain data from the database."
+    ]
+  },
+  "verification": [
+    "Run scripts/assert-timesheet-submitter-org-routing.sql before migration to confirm the red case.",
+    "Apply migration 102 and insert schema_migrations version 102.",
+    "Run scripts/assert-timesheet-submitter-org-routing.sql after migration.",
+    "Run scripts/assert-timesheet-data-driven-approval.sql.",
+    "Run scripts/assert-timesheet-template-routing.sql.",
+    "Run scripts/assert-function-grants.sql.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run check.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.2.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

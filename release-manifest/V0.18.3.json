@@ -1,0 +1,33 @@
+{
+  "version": "V0.18.3",
+  "released_at": "2026-06-23",
+  "base_version": "V0.18.2",
+  "summary": "Restore weekly timesheet detail as the primary expanded approval view and make project-scoped approval tasks clearer for admins.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database migration is included in this release."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.3",
+    "notes": [
+      "Expanded review rows now show the timesheet day-by-project detail before the approval chain.",
+      "Project-scoped pending tasks are labeled as project blocks, while department summary tasks are labeled as weekly-sheet summary tasks.",
+      "Pending week dividers show task-node count and distinct timesheet count when one weekly sheet is split into multiple approval nodes.",
+      "Admin in-progress visibility wording no longer says 'not my turn'; it is labeled as visible flow that does not require action.",
+      "Mobile review cards use the same wording and expanded-detail ordering as desktop."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run check.",
+    "Do not block deployment on local Playwright because production credentials are required; run production smoke after deployment.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.3.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

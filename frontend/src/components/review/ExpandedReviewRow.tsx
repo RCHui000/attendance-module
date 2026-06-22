@@ -57,6 +57,11 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                   {data.week_start_date} 至{" "}
                   {data.days?.[data.days.length - 1]}
                 </span>
+                {projectId && (
+                  <Badge variant="outline" className="max-w-full whitespace-normal text-[10px] leading-4">
+                    当前审批项目块：{visibleEntries[0]?.project_name || `项目 #${projectId}`}
+                  </Badge>
+                )}
                 <Badge
                   variant={
                     data.status === "approved"
@@ -70,29 +75,6 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                   {statusText[data.status] || data.status}
                 </Badge>
               </div>
-
-              {chainMissing ? (
-                <div className="mb-3 rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>审批线程图暂未加载</span>
-                    <button
-                      type="button"
-                      className="font-medium text-primary hover:underline disabled:opacity-60"
-                      onClick={() => refetch()}
-                      disabled={isFetching}
-                    >
-                      {isFetching ? "加载中" : "重新加载"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <ApprovalChain nodes={data.approval_chain} />
-              )}
-              {activeNode && !canAct && (
-                <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  {activeAssignees ? `当前待审批：${activeAssignees}` : "尚未轮到你审批"}
-                </div>
-              )}
 
               {/* Daily breakdown table */}
               <div className="max-w-full overflow-x-auto overscroll-x-contain">
@@ -235,6 +217,32 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                   </div>
                 </>
               )}
+
+              <Separator className="my-3" />
+              <div className="min-w-0 max-w-full">
+                {chainMissing ? (
+                  <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>审批链路暂未加载</span>
+                      <button
+                        type="button"
+                        className="font-medium text-primary hover:underline disabled:opacity-60"
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                      >
+                        {isFetching ? "加载中" : "重新加载"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <ApprovalChain nodes={data.approval_chain} />
+                )}
+                {activeNode && !canAct && (
+                  <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    {activeAssignees ? `当前待审批：${activeAssignees}` : "尚未轮到你审批"}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

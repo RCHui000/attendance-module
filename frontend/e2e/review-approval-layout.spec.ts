@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const ADMIN_LOGIN = process.env.E2E_ADMIN_LOGIN || "admin";
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "123456";
+const ACCESS_TOKEN = process.env.E2E_ACCESS_TOKEN;
 
 async function clearSession(page: Page) {
   await page.goto("/");
@@ -10,6 +11,12 @@ async function clearSession(page: Page) {
 
 async function login(page: Page) {
   await clearSession(page);
+  if (ACCESS_TOKEN) {
+    await page.evaluate((token) => localStorage.setItem("psa_access_token", token), ACCESS_TOKEN);
+    await page.goto("/dashboard");
+    await expect(page.locator('input[name="login"]')).toHaveCount(0, { timeout: 20_000 });
+    return;
+  }
   await page.reload();
   await expect(page.locator('input[name="login"]')).toBeVisible();
   await page.locator('input[name="login"]').fill(ADMIN_LOGIN);
@@ -78,6 +85,13 @@ test("admin review rows stay contained and do not duplicate identical pending ta
   await firstRow.click();
   const expandedRows = page.locator("tbody tr").filter({ has: page.locator("section[aria-label='审批链路']") });
   await expect(expandedRows).toHaveCount(1);
+  const detailBeforeChain = await expandedRows.first().evaluate((row) => {
+    const detailTable = row.querySelector("td table");
+    const approvalChain = row.querySelector("section[aria-label='审批链路']");
+    if (!detailTable || !approvalChain) return false;
+    return Boolean(detailTable.compareDocumentPosition(approvalChain) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(detailBeforeChain).toBe(true);
   await expectNoDocumentOverflow(page, "expanded review row");
 
   await firstRow.click();

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { statusText } from "@/lib/constants";
 import { useReviewAction, useOvertimeAction } from "@/hooks/useApprovals";
+import { useAuthStore } from "@/stores/authStore";
 import type {
   ApprovalTasks,
   ApprovalTaskItem,
@@ -56,7 +57,9 @@ export function ApprovalTable({
 
   const reviewAction = useReviewAction();
   const overtimeAction = useOvertimeAction();
+  const isAdmin = useAuthStore((state) => state.isAdmin);
   const inProgress = data.inProgress || [];
+  const inProgressLabel = isAdmin ? "流转中可见（无需处理）" : "流转中（未轮到我）";
   const approvalTabs = [
     { value: "pending" as const, label: "待审批" },
     { value: "reviewed" as const, label: "已审核" },
@@ -144,7 +147,7 @@ export function ApprovalTable({
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-2">
             <strong className="text-sm">周表</strong>
-            <span className="text-xs text-muted-foreground">待审批 / 流转中可见</span>
+            <span className="text-xs text-muted-foreground">待处理节点 / 流转中可见</span>
           </div>
 
           {approvalTab === "pending" && (
@@ -189,7 +192,7 @@ export function ApprovalTable({
                                 {week} 至 {weekEnd}
                               </span>
                               <span className="text-xs text-muted-foreground ml-2">
-                                {items.length} 份周表
+                                {pendingGroupMeta(items)}
                               </span>
                             </TableCell>
                           </TableRow>,
@@ -227,7 +230,7 @@ export function ApprovalTable({
                       <TableRow className="bg-table-header hover:bg-table-header">
                         <TableCell colSpan={7} className="py-1.5 px-3">
                           <span className="text-xs font-bold text-muted-foreground">
-                            流转中（未轮到我）
+                            {inProgressLabel}
                           </span>
                           <span className="text-xs text-muted-foreground ml-2">
                             {inProgress.length} 份周表
@@ -243,6 +246,7 @@ export function ApprovalTable({
                           <InProgressRow
                             item={item}
                             isExpanded={isExpanded}
+                            isAdmin={isAdmin}
                             onToggle={() =>
                               setExpandedKey(isExpanded ? null : itemKey)
                             }
@@ -449,6 +453,12 @@ export function ApprovalTable({
   );
 }
 
+function pendingGroupMeta(items: ApprovalTaskItem[]) {
+  const sheetCount = new Set(items.map((item) => item.timesheet_id)).size;
+  if (items.length === sheetCount) return `${sheetCount} 份周表`;
+  return `${items.length} 个待处理节点 / ${sheetCount} 份周表`;
+}
+
 /** Pending row sub-component */
 function ApprovalRow({
   item,
@@ -463,10 +473,13 @@ function ApprovalRow({
   onApprove: (item: ApprovalTaskItem) => void;
   onReject: (item: ApprovalTaskItem) => void;
 }) {
+  const isProjectScope = item.scope_type === "project";
   const scopeLabel =
-    item.scope_type === "project"
-      ? `${item.project_code || ""} ${item.project_name || "项目审批"}`.trim()
-      : "部门汇总确认";
+    isProjectScope
+      ? `项目块：${`${item.project_code || ""} ${item.project_name || "项目审批"}`.trim()}`
+      : item.scope_type === "department_summary"
+        ? "周表：部门汇总确认"
+        : "周表";
   return (
     <TableRow
       className="hover:bg-row-hover cursor-pointer"
@@ -485,13 +498,16 @@ function ApprovalRow({
       <TableCell className="text-sm text-muted-foreground">
         {item.department || "—"}
       </TableCell>
-      <TableCell>
-        <Badge variant={item.scope_type === "department_summary" ? "default" : "secondary"} className="text-xs">
+      <TableCell className="whitespace-normal">
+        <Badge
+          variant={item.scope_type === "department_summary" ? "default" : "secondary"}
+          className="max-w-full whitespace-normal break-words text-xs leading-4"
+        >
           {scopeLabel}
         </Badge>
       </TableCell>
       <TableCell className="text-sm text-right tabular-nums">
-        {item.total_hours?.toFixed(item.scope_type === "project" ? 2 : 1)}
+        {item.total_hours?.toFixed(isProjectScope ? 2 : 1)}
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
         {item.submitted_at
@@ -536,12 +552,19 @@ function ApprovalRow({
 function InProgressRow({
   item,
   isExpanded,
+  isAdmin,
   onToggle,
 }: {
   item: ApprovalTaskItem;
   isExpanded: boolean;
+  isAdmin: boolean;
   onToggle: () => void;
 }) {
+  const currentText = item.current_assignee_names
+    ? `${isAdmin ? "当前处理人" : "当前待审批"}：${item.current_assignee_names}`
+    : isAdmin
+      ? "流转中可见"
+      : "尚未轮到你";
   return (
     <TableRow
       className="hover:bg-row-hover cursor-pointer"
@@ -560,9 +583,9 @@ function InProgressRow({
       <TableCell className="text-sm text-muted-foreground">
         {item.department || "—"}
       </TableCell>
-      <TableCell>
-        <Badge variant="outline" className="text-xs">
-          {item.current_assignee_names ? `当前待审批：${item.current_assignee_names}` : "尚未轮到你"}
+      <TableCell className="whitespace-normal">
+        <Badge variant="outline" className="max-w-full whitespace-normal break-words text-xs leading-4">
+          {currentText}
         </Badge>
       </TableCell>
       <TableCell className="text-sm text-right tabular-nums">
@@ -579,7 +602,7 @@ function InProgressRow({
           : "—"}
       </TableCell>
       <TableCell className="text-right text-xs text-muted-foreground">
-        仅查看
+        {isAdmin ? "无需处理" : "仅查看"}
       </TableCell>
     </TableRow>
   );

@@ -16,6 +16,7 @@ import { MobileTimesheetDetail } from "@/components/review/mobile/MobileTimeshee
 import { useOvertimeAction, useReviewAction } from "@/hooks/useApprovals";
 import { statusText } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/authStore";
 import type {
   ApprovalOvertimeItem,
   ApprovalTaskItem,
@@ -41,6 +42,8 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const reviewAction = useReviewAction();
   const overtimeAction = useOvertimeAction();
+  const isAdmin = useAuthStore((state) => state.isAdmin);
+  const inProgressTitle = isAdmin ? "流转中可见（无需处理）" : "流转中（未轮到我）";
 
   const pendingWeeks = useMemo(() => groupByWeek(data.timesheets), [data.timesheets]);
   const inProgress = useMemo(() => data.inProgress || [], [data.inProgress]);
@@ -86,7 +89,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
             <section key={week} className="space-y-2">
               <SectionTitle
                 title={`${week} 至 ${getTimesheetPeriodEnd(week)}`}
-                meta={`${items.length} 份周表`}
+                meta={pendingGroupMeta(items)}
               />
               <div className="space-y-2">
                 {items.map((item) => {
@@ -122,7 +125,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
           inProgressWeeks.map(([week, items]) => (
             <section key={`visible-${week}`} className="space-y-2">
               <SectionTitle
-                title="流转中（未轮到我）"
+                title={inProgressTitle}
                 meta={`${week} 至 ${getTimesheetPeriodEnd(week)} · ${items.length} 份`}
               />
               <div className="space-y-2">
@@ -134,6 +137,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
                       key={itemKey}
                       item={item}
                       mode="inProgress"
+                      isAdmin={isAdmin}
                       isExpanded={isExpanded}
                       onToggle={() => setExpandedKey(isExpanded ? null : itemKey)}
                     />
@@ -236,6 +240,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
 function TimesheetCard({
   item,
   mode,
+  isAdmin = false,
   isExpanded,
   onToggle,
   onApprove,
@@ -245,6 +250,7 @@ function TimesheetCard({
 }: {
   item: ApprovalTaskItem | ReviewedTaskItem;
   mode: "pending" | "inProgress" | "reviewed";
+  isAdmin?: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   onApprove?: () => void;
@@ -254,8 +260,16 @@ function TimesheetCard({
 }) {
   const scopeLabel =
     item.scope_type === "project"
-      ? `${item.project_code || ""} ${item.project_name || "项目审批"}`.trim()
-      : "部门汇总确认";
+      ? `项目块：${`${item.project_code || ""} ${item.project_name || "项目审批"}`.trim()}`
+      : item.scope_type === "department_summary"
+        ? "周表：部门汇总确认"
+        : "周表";
+  const inProgressText =
+    mode === "inProgress" && "current_assignee_names" in item && item.current_assignee_names
+      ? `${isAdmin ? "当前处理人" : "当前待审批"}：${item.current_assignee_names}`
+      : isAdmin
+        ? "流转中可见"
+        : "尚未轮到你";
   const status = mode === "reviewed" ? item.status : item.scope_type || "timesheet";
   const variant =
     item.status === "approved"
@@ -285,11 +299,14 @@ function TimesheetCard({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge variant={mode === "reviewed" ? variant : "secondary"} className="max-w-full">
+          <Badge
+            variant={mode === "reviewed" ? variant : "secondary"}
+            className="max-w-full whitespace-normal break-words leading-4"
+          >
             {mode === "reviewed"
               ? statusText[status] || status
-              : mode === "inProgress" && "current_assignee_names" in item && item.current_assignee_names
-                ? `当前待审批：${item.current_assignee_names}`
+              : mode === "inProgress"
+                ? inProgressText
                 : scopeLabel}
           </Badge>
           <span className="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
@@ -343,7 +360,7 @@ function TimesheetCard({
           </Button>
         ) : (
           <div className="col-span-2 rounded-md bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
-            仅查看，尚未轮到你审批
+            {isAdmin ? "仅查看，无需处理" : "仅查看，尚未轮到你审批"}
           </div>
         )}
       </div>
@@ -426,6 +443,12 @@ function EmptyState({ title, description }: { title: string; description: string
       <p className="mt-1 text-xs text-muted-foreground">{description}</p>
     </div>
   );
+}
+
+function pendingGroupMeta(items: ApprovalTaskItem[]) {
+  const sheetCount = new Set(items.map((item) => item.timesheet_id)).size;
+  if (items.length === sheetCount) return `${sheetCount} 份周表`;
+  return `${items.length} 个待处理节点 / ${sheetCount} 份周表`;
 }
 
 function groupByWeek(items: ApprovalTaskItem[]) {

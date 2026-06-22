@@ -29,8 +29,8 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
 
   return (
     <tr className="hover:bg-transparent">
-      <td colSpan={colSpan} className="p-0 border-b">
-        <div className="px-4 py-3 bg-[#f8fafc]">
+      <td colSpan={colSpan} className="max-w-0 p-0 border-b">
+        <div className="min-w-0 max-w-full overflow-hidden bg-[#f8fafc] px-4 py-3">
           {isLoading && (
             <span className="text-sm text-muted-foreground">加载中…</span>
           )}
@@ -46,7 +46,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
           {!isLoading && !isError && data && visibleEntries.length > 0 && (
             <>
               {/* Header strip */}
-              <div className="flex items-center gap-2 mb-2">
+              <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
                 <span className="text-sm font-bold text-foreground">
                   {data.user_name}
                 </span>
@@ -95,7 +95,8 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
               )}
 
               {/* Daily breakdown table */}
-              <table className="w-full text-sm border-collapse">
+              <div className="max-w-full overflow-x-auto overscroll-x-contain">
+                <table className="min-w-[680px] w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left py-1.5 text-xs font-bold text-muted-foreground">
@@ -219,7 +220,8 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                   </tr>
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
 
               {/* Remark */}
               {data.remark && (

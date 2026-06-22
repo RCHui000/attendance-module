@@ -1,0 +1,33 @@
+{
+  "version": "V0.18.1",
+  "released_at": "2026-06-22",
+  "base_version": "V0.18.0",
+  "summary": "Fix approval-center duplicate admin pending rows and contain expanded approval-chain width.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No schema or data migration is required.",
+      "Production diagnosis confirmed the reported duplicate row came from one active approval node with multiple pending assignees, not duplicate timesheets."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.1",
+    "notes": [
+      "Admin pending tasks are deduplicated by approval node while preserving the actionable task id.",
+      "Expanded review rows constrain table-cell width so approval-chain cards scroll inside the detail area.",
+      "Pending, in-progress, and reviewed row expansion keys are isolated to prevent React state/key collisions.",
+      "Added a Playwright regression for duplicate review rows, expand/collapse behavior, and document-level horizontal overflow."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run check.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.1.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/.",
+    "After deploy, run the review-approval-layout Playwright regression against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

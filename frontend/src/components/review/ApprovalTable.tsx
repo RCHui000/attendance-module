@@ -62,8 +62,11 @@ export function ApprovalTable({
     { value: "reviewed" as const, label: "已审核" },
   ];
 
-  const getTaskKey = (item: ApprovalTaskItem | ReviewedTaskItem) =>
-    `${item.task_id || item.timesheet_id}:${item.scope_type || "timesheet"}:${item.scope_id || "all"}`;
+  const getTaskKey = (item: ApprovalTaskItem | ReviewedTaskItem) => {
+    const scopeId = item.scope_id == null ? "all" : item.scope_id;
+    const taskPart = item.task_id ? `task-${item.task_id}` : `sheet-${item.timesheet_id}`;
+    return `${taskPart}:${item.timesheet_id}:${item.scope_type || "timesheet"}:${scopeId}`;
+  };
 
   // ---- Timesheet actions ----
   const handleApprove = (item: ApprovalTaskItem) => {
@@ -122,7 +125,7 @@ export function ApprovalTable({
 
   return (
     <>
-      <div>
+      <div className="min-w-0 max-w-full overflow-hidden">
         <div className="flex items-center justify-between mb-3">
           <SegmentedPill
             value={approvalTab}
@@ -145,9 +148,9 @@ export function ApprovalTable({
           </div>
 
           {approvalTab === "pending" && (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="overflow-auto max-h-[40vh]">
-                <Table>
+            <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
+              <div className="max-h-[40vh] max-w-full overflow-auto">
+                <Table className="min-w-[760px] table-fixed">
                   <TableHeader className="sticky top-0 bg-table-header">
                     <TableRow>
                       <TableHead className="text-xs font-bold w-7" />
@@ -192,7 +195,7 @@ export function ApprovalTable({
                           </TableRow>,
                         );
                         for (const item of items) {
-                          const itemKey = getTaskKey(item);
+                          const itemKey = `pending-${getTaskKey(item)}`;
                           const isExpanded = expandedKey === itemKey;
                           rows.push(
                             <ApprovalRow
@@ -262,9 +265,9 @@ export function ApprovalTable({
           )}
 
           {approvalTab === "reviewed" && (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="overflow-auto max-h-[40vh]">
-                <Table>
+            <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
+              <div className="max-h-[40vh] max-w-full overflow-auto">
+                <Table className="min-w-[760px] table-fixed">
                   <TableHeader className="sticky top-0 bg-table-header">
                     <TableRow>
                       <TableHead className="text-xs font-bold w-7" />
@@ -285,7 +288,7 @@ export function ApprovalTable({
                       </TableRow>
                     )}
                     {data.reviewed.map((item) => {
-                      const itemKey = getTaskKey(item);
+                      const itemKey = `reviewed-${getTaskKey(item)}`;
                       const isExpanded = expandedKey === itemKey;
                       return (
                         <Fragment key={itemKey}>
@@ -322,9 +325,9 @@ export function ApprovalTable({
             <span className="text-xs text-muted-foreground">待处理</span>
           </div>
 
-          <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-auto max-h-[30vh]">
-              <Table>
+          <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
+            <div className="max-h-[30vh] max-w-full overflow-auto">
+              <Table className="min-w-[680px] table-fixed">
                 <TableHeader className="sticky top-0 bg-table-header">
                   <TableRow>
                     <TableHead className="text-xs font-bold">员工</TableHead>

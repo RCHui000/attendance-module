@@ -128,17 +128,25 @@ function normalizedApprovalTask(task: AnyRow): AnyRow {
 function latestPendingTasks(tasks: AnyRow[]): AnyRow[] {
   const latest = new Map<string, AnyRow>();
   for (const task of tasks) {
-    const key = `${Number(task.target_id)}:${task.scope_type || "timesheet"}:${Number(task.scope_id || 0)}:${Number(task.assignee_user_id || 0)}`;
+    const taskId = Number(task.task_id || task.id || 0);
+    const key = taskId
+      ? `node:${taskId}`
+      : `${Number(task.target_id)}:${task.scope_type || "timesheet"}:${Number(task.scope_id || 0)}`;
     const current = latest.get(key);
     const currentTime = Date.parse(current?.created_at || "") || 0;
     const nextTime = Date.parse(task.created_at || "") || 0;
-    if (
+    const currentAssigneeIds = Array.isArray(current?.assignee_user_ids)
+      ? current.assignee_user_ids.map(Number).filter(Boolean)
+      : [];
+    const nextAssigneeId = Number(task.assignee_user_id || 0);
+    const assignee_user_ids = Array.from(
+      new Set([...currentAssigneeIds, ...(nextAssigneeId ? [nextAssigneeId] : [])]),
+    );
+    const shouldUseNext =
       !current ||
       nextTime > currentTime ||
-      (nextTime === currentTime && Number(task.id || 0) > Number(current.id || 0))
-    ) {
-      latest.set(key, task);
-    }
+      (nextTime === currentTime && Number(task.id || 0) > Number(current.id || 0));
+    latest.set(key, { ...(shouldUseNext ? task : current), assignee_user_ids });
   }
   return Array.from(latest.values());
 }
@@ -979,6 +987,12 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     const profile = employeeProfileMap.get(Number(sheet.user_id));
     const projectId = source.scope_type === "project" ? Number(source.scope_id) : null;
     const project = projectId ? projectMap.get(projectId) : null;
+    const assigneeNames = Array.isArray(source.assignee_user_ids)
+      ? source.assignee_user_ids
+          .map((id: number) => employeeMap.get(Number(id))?.name || `Employee ${id}`)
+          .filter(Boolean)
+          .join("、")
+      : "";
     const action = String(source.result_action || "");
     const reviewStatus = ["rejected", "revision_required"].includes(String(sheet.status || ""))
       ? "rejected"
@@ -1004,7 +1018,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
       total_hours: projectId ? projectHours.get(`${Number(sheet.id)}:${projectId}`) || 0 : hours.get(Number(sheet.id)) || 0,
       submitted_at: sheet.submitted_at,
       review_comment: source.comment || sheet.review_comment || "",
-      current_assignee_names: source.current_assignee_names || "",
+      current_assignee_names: source.current_assignee_names || assigneeNames,
       current_nodes: Array.isArray(source.current_nodes) ? source.current_nodes : [],
     };
   };

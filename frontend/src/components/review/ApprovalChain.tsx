@@ -288,6 +288,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
     <section
       aria-label="审批链路"
       className="mb-3 min-w-0 max-w-full overflow-hidden rounded-md border border-border bg-card px-3 py-2.5"
+      style={{ contain: "inline-size" }}
     >
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <strong className="text-xs text-foreground">审批链路</strong>
@@ -304,8 +305,8 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
       <p className="mb-2 text-[11px] leading-5 text-muted-foreground">
         节点来自当前周表绑定的审批模板；项目块、审批人和历史作废记录会归到对应模板节点下面，不再把项目块摊平成主链路。
       </p>
-      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain pb-1">
-        <ol className="flex w-max max-w-none items-stretch">
+      <div className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1">
+        <ol className="inline-flex min-w-max max-w-none items-stretch">
           <li className="flex items-stretch">
             <div className={chainCardClass}>
               <div className="absolute -left-1 top-3 size-2 rounded-full bg-border" />
@@ -340,8 +341,8 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
               这些节点保留用于审计，通常来自负责人变更、路线刷新或历史数据修复。
             </span>
           </div>
-          <div className="w-full max-w-full overflow-x-auto overscroll-x-contain pb-1">
-            <ol className="flex w-max max-w-none items-stretch">
+          <div className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1">
+            <ol className="inline-flex min-w-max max-w-none items-stretch">
               {historicalNodes.map((node, index) => (
                 <li className="flex items-stretch" key={node.node_id}>
                   <ChainCard node={node} nodeNumber={`历史${index + 1}`} muted />

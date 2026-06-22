@@ -1,0 +1,32 @@
+{
+  "version": "V0.18.5",
+  "released_at": "2026-06-23",
+  "base_version": "V0.18.4",
+  "summary": "Fix the approval-chain cleanup migration to respect NOT NULL comment columns and deploy the simplified template-progress chain.",
+  "database": {
+    "new_migrations": [
+      "103_clean_timesheet_chain_repair_comments.sql"
+    ],
+    "notes": [
+      "Migration 103 clears exact system repair comments to an empty string because approval_nodes.comment is NOT NULL.",
+      "The failed V0.18.4 attempt did not record migration 103 in schema_migrations."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.5",
+    "notes": [
+      "Same user-facing chain simplification as V0.18.4."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run check.",
+    "Apply migration 103 through deploy/scripts/apply-migrations.sh.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.5.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/."
+  ],
+  "known_warnings": [
+    "ESLint still reports existing warnings in dashboard/ui/TimesheetPage files, but exits 0.",
+    "Vite still warns that the main index chunk is larger than 500 kB."
+  ]
+}

@@ -80,8 +80,8 @@ function uniqueAssigneeNames(node: ApprovalChainNode) {
   return Array.from(names.values());
 }
 
-function projectSummary(node: ApprovalChainNode) {
-  const projects = new Map<string, string>();
+function projectRows(node: ApprovalChainNode) {
+  const projects = new Map<string, ApprovalChainAssignee>();
   fallbackAssignees(node).forEach((assignee) => {
     const projectId = assignee.project_id ? String(assignee.project_id) : "";
     const code = textValue(assignee.project_code);
@@ -89,12 +89,16 @@ function projectSummary(node: ApprovalChainNode) {
     if (!projectId && !code && !name) return;
     if (!projectId && code === "未关联" && name === "未关联") return;
     const label = [code, name].filter(Boolean).join(" ");
-    projects.set(projectId || label, label || `项目 ${projectId}`);
+    if (!projects.has(projectId || label)) projects.set(projectId || label, assignee);
   });
-  const values = Array.from(projects.values()).filter(Boolean);
-  if (!values.length) return "";
-  if (values.length <= 2) return values.join("、");
-  return `${values.slice(0, 2).join("、")} 等 ${values.length} 个项目块`;
+  return Array.from(projects.values());
+}
+
+function projectLabel(assignee: ApprovalChainAssignee) {
+  const projectId = assignee.project_id ? String(assignee.project_id) : "";
+  const code = textValue(assignee.project_code);
+  const name = textValue(assignee.project_name);
+  return [code, name].filter(Boolean).join(" ") || `项目 ${projectId}`;
 }
 
 function blockingLabel(node: ApprovalChainNode) {
@@ -122,7 +126,7 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
   const assigneeNames = uniqueAssigneeNames(node);
   const blockingNodes = blockingLabel(node);
   const hint = nodeHint(node, nodeNumber, blockingNodes);
-  const projects = projectSummary(node);
+  const projects = projectRows(node);
 
   return (
     <div
@@ -153,10 +157,28 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
             {assigneeNames.length ? assigneeNames.join("、") : "待解析"}
           </span>
         </div>
-        {projects ? (
-          <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2">
-            <span className="text-muted-foreground">项目块</span>
-            <span className="min-w-0 break-words text-muted-foreground">{projects}</span>
+        {projects.length ? (
+          <div className="space-y-1">
+            <div className="text-muted-foreground">项目块</div>
+            <div className="space-y-1">
+              {projects.map((project) => {
+                const rowStatus = String(project.status || project.node_status || node.node_status);
+                return (
+                  <div
+                    key={`${project.project_id || projectLabel(project)}-${rowStatus}`}
+                    className="grid grid-cols-[minmax(0,1fr)_3.75rem] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5"
+                  >
+                    <span className="min-w-0 break-words leading-5 text-foreground">{projectLabel(project)}</span>
+                    <Badge
+                      variant={statusVariant[rowStatus] || "secondary"}
+                      className="justify-center whitespace-normal text-center text-[10px] leading-4"
+                    >
+                      {readableStatus(rowStatus)}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : null}
         {hint ? (

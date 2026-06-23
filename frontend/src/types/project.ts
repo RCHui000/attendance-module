@@ -80,8 +80,10 @@ export type ProjectRoleKey =
   | "cc_civil_project_owner"
   | "cc_mep_project_owner"
   | "cc_project_owner"
+  | "cc_design_project_owner"
   | "cc_department_owner"
   | "pm_cost_department_owner"
+  | "pm_design_project_owner"
   | "pm_project_owner"
   | "pm_department_owner";
 

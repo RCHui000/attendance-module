@@ -33,16 +33,25 @@ import { toast } from "sonner";
 const NONE = "none";
 const serviceTypes: ProjectBusinessType[] = ["PM", "CC", "PMCC"];
 
-const ccRoleKeys = new Set<ProjectRoleKey>([
-  "cc_civil_project_owner",
-  "cc_mep_project_owner",
-  "cc_project_owner",
-  "cc_department_owner",
-]);
-
-function normalizedOrgName(org?: Organization | null) {
-  return `${org?.org_code || ""} ${org?.org_name || ""}`.toUpperCase();
-}
+const roleGroups: Array<{
+  key: "teo" | "pm";
+  title: string;
+  subtitle: string;
+  roles: ProjectRoleKey[];
+}> = [
+  {
+    key: "teo",
+    title: "总工办",
+    subtitle: "造价咨询部 / 设计咨询部",
+    roles: ["cc_civil_project_owner", "cc_mep_project_owner", "cc_department_owner", "cc_design_project_owner"],
+  },
+  {
+    key: "pm",
+    title: "项目管理部",
+    subtitle: "成本合约 / 设计管理 / 工程管理",
+    roles: ["pm_cost_department_owner", "pm_design_project_owner", "pm_project_owner", "pm_department_owner"],
+  },
+];
 
 function findOrgId(orgs: Organization[], matcher: (org: Organization) => boolean) {
   return orgs.find(matcher)?.id ?? null;
@@ -55,29 +64,20 @@ function orgScopeIds(orgs: Organization[], rootId: number | null) {
   return ids;
 }
 
-function orgScopes(orgs: Organization[], matcher: (org: Organization) => boolean) {
-  const ids = new Set<number>();
-  orgs.filter(matcher).forEach((org) => {
-    orgScopeIds(orgs, org.id).forEach((id) => ids.add(id));
-  });
-  return ids;
-}
-
 function roleOrgScope(role: ProjectRoleKey, orgs: Organization[]) {
-  const pmRoot = findOrgId(orgs, (org) => {
-    const text = normalizedOrgName(org);
-    return (text.includes("PM") || org.org_name.includes("项目管理")) && !org.parent_id;
-  });
+  const pmRoot = findOrgId(orgs, (org) => org.org_code === "PM" || (org.org_name.includes("项目管理") && !org.parent_id));
+  const qsOrg = findOrgId(orgs, (org) => org.org_code === "CC" || org.org_name.includes("造价咨询"));
+  const teoDesign = findOrgId(orgs, (org) => org.org_code === "PM_DESIGN" || org.org_name.includes("设计咨询"));
   const pmCost = findOrgId(orgs, (org) => org.org_code === "PM_COST" || org.org_name === "成本");
+  const pmDesign = findOrgId(orgs, (org) => org.org_code === "D019" || org.org_name.includes("设计管理"));
   const pmManage = findOrgId(orgs, (org) => org.org_code === "PM_MANAGE" || org.org_name === "管理");
 
-  if (ccRoleKeys.has(role)) {
-    return orgScopes(orgs, (org) => {
-      const text = normalizedOrgName(org);
-      return text.includes("CC") || org.org_name.includes("造价");
-    });
+  if (role === "cc_civil_project_owner" || role === "cc_mep_project_owner" || role === "cc_department_owner") {
+    return orgScopeIds(orgs, qsOrg);
   }
+  if (role === "cc_design_project_owner") return orgScopeIds(orgs, teoDesign);
   if (role === "pm_cost_department_owner") return orgScopeIds(orgs, pmCost || pmRoot);
+  if (role === "pm_design_project_owner") return orgScopeIds(orgs, pmDesign || teoDesign || pmRoot);
   if (role === "pm_project_owner") return orgScopeIds(orgs, pmManage || pmRoot);
   if (role === "pm_department_owner") return orgScopeIds(orgs, pmRoot);
   return new Set<number>();
@@ -91,10 +91,10 @@ function employeeMatchesRole(employee: Employee, role: ProjectRoleKey, scope: Se
   if (!isActiveEmployee(employee)) return false;
   if (scope.size > 0 && (!employee.org_id || !scope.has(employee.org_id))) return false;
   if (role === "cc_civil_project_owner") {
-    return employee.cost_specialty === "civil" || employee.cost_specialty === "all" || !employee.cost_specialty;
+    return employee.cost_specialty === "civil" || employee.cost_specialty === "all" || employee.position_name?.includes("土建");
   }
   if (role === "cc_mep_project_owner") {
-    return employee.cost_specialty === "mep" || employee.cost_specialty === "all" || !employee.cost_specialty;
+    return employee.cost_specialty === "mep" || employee.cost_specialty === "all" || employee.position_name?.includes("机电");
   }
   return true;
 }
@@ -174,6 +174,16 @@ function projectSummary(project: ProjectBase, roleRequirements: ProjectRoleRequi
     .join(" / ");
 }
 
+function groupedVisibleRoles(visibleRoles: ProjectRoleKey[]) {
+  const visible = new Set(visibleRoles);
+  return roleGroups
+    .map((group) => ({
+      ...group,
+      roles: group.roles.filter((role) => visible.has(role)),
+    }))
+    .filter((group) => group.roles.length > 0);
+}
+
 export function ProjectList() {
   const isMobile = useIsMobile();
   const { data: projects = [], isLoading, isError } = useProjectBase();
@@ -200,6 +210,7 @@ export function ProjectList() {
     () => roleRequirements.map((requirement) => requirement.role_key),
     [roleRequirements],
   );
+  const visibleRoleGroups = useMemo(() => groupedVisibleRoles(visibleRoles), [visibleRoles]);
   const roleLabels = useMemo(
     () => Object.fromEntries(
       roleRequirements.map((requirement) => [requirement.role_key, requirement.role_label]),
@@ -515,28 +526,43 @@ export function ProjectList() {
 
             <div>
               <div className="mb-2 text-sm font-semibold">负责人配置</div>
-              <div className="grid grid-cols-2 gap-3">
-                {visibleRoles.map((role) => {
-                  const userId = editData.roles[role] || "";
-                  return (
-                    <div key={role} className="space-y-2 text-sm">
-                      <span className="text-xs font-medium text-muted-foreground">{roleLabels[role]}</span>
-                      <Select value={userId || NONE} onValueChange={(value) => updateRole(role, value || NONE)}>
-                        <SelectTrigger>
-                          {userId ? employeeLabel(employeeById.get(userId)) : <SelectValue placeholder={roleLabels[role]} />}
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={NONE}>未配置</SelectItem>
-                          {roleCandidates(role).map((employee) => (
-                            <SelectItem key={employee.id} value={String(employee.id)}>
-                              {employeeLabel(employee)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              <div className="grid grid-cols-2 gap-3 max-[1180px]:grid-cols-1">
+                {visibleRoleGroups.map((group) => (
+                  <section key={group.key} className="rounded-md border border-border bg-muted/20 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-border/70 pb-2">
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">{group.title}</div>
+                        <div className="text-xs text-muted-foreground">{group.subtitle}</div>
+                      </div>
+                      <span className="rounded border border-border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {group.roles.length} 项
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className="grid gap-3">
+                      {group.roles.map((role) => {
+                        const userId = editData.roles[role] || "";
+                        return (
+                          <div key={role} className="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-2 text-sm max-[520px]:grid-cols-1">
+                            <span className="text-xs font-medium text-muted-foreground">{roleLabels[role]}</span>
+                            <Select value={userId || NONE} onValueChange={(value) => updateRole(role, value || NONE)}>
+                              <SelectTrigger className="min-w-0">
+                                {userId ? employeeLabel(employeeById.get(userId)) : <SelectValue placeholder={roleLabels[role]} />}
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NONE}>未配置</SelectItem>
+                                {roleCandidates(role).map((employee) => (
+                                  <SelectItem key={employee.id} value={String(employee.id)}>
+                                    {employeeLabel(employee)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
             </div>
 

@@ -203,9 +203,12 @@ export function ProjectList() {
     [projects],
   );
   const selectedProject = selectedId === "new" ? null : activeProjects.find((project) => project.id === selectedId) || null;
-  const businessType = editData.businessType || inferBusinessType(editData.code);
-  const { data: roleRequirements = [] } = useProjectRoleRequirements(businessType || null);
   const { data: allRoleRequirements = [] } = useProjectRoleRequirements();
+  const businessType = editData.businessType || inferBusinessType(editData.code);
+  const roleRequirements = useMemo(
+    () => projectRoleRequirementsFor(businessType, allRoleRequirements),
+    [allRoleRequirements, businessType],
+  );
   const visibleRoles = useMemo(
     () => roleRequirements.map((requirement) => requirement.role_key),
     [roleRequirements],

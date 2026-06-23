@@ -42,6 +42,8 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const reviewAction = useReviewAction();
   const overtimeAction = useOvertimeAction();
+  const pendingReviewAction = reviewAction.isPending ? reviewAction.variables : null;
+  const pendingOvertimeAction = overtimeAction.isPending ? overtimeAction.variables : null;
   const isAdmin = useAuthStore((state) => state.isAdmin);
   const inProgressTitle = isAdmin ? "流转中可见（无需处理）" : "流转中（未轮到我）";
 
@@ -113,7 +115,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
                         setRejectTarget({ kind: "timesheet", item });
                         setRejectComment("");
                       }}
-                      actionPending={reviewAction.isPending}
+                      actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
                     />
                   );
                 })}
@@ -161,7 +163,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
                     setRejectTarget({ kind: "overtime", item });
                     setRejectComment("");
                   }}
-                  actionPending={overtimeAction.isPending}
+                  actionPending={overtimeActionMatchesItem(pendingOvertimeAction, item.id)}
                 />
               ))}
             </div>
@@ -193,7 +195,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
                         comment: "重新打开",
                       })
                     }
-                    actionPending={reviewAction.isPending}
+                    actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
                   />
                 );
               })}
@@ -462,4 +464,21 @@ function groupByWeek(items: ApprovalTaskItem[]) {
 
 function taskKey(item: ApprovalTaskItem | ReviewedTaskItem) {
   return `${item.task_id || item.timesheet_id}:${item.scope_type || "timesheet"}:${item.scope_id || "all"}`;
+}
+
+function reviewActionMatchesItem(
+  action: { timesheetId: number; taskId?: number } | null | undefined,
+  item: ApprovalTaskItem | ReviewedTaskItem,
+) {
+  if (!action) return false;
+  if (action.timesheetId !== item.timesheet_id) return false;
+  if (action.taskId == null) return true;
+  return action.taskId === item.task_id;
+}
+
+function overtimeActionMatchesItem(
+  action: { id: number } | null | undefined,
+  overtimeId: number,
+) {
+  return Boolean(action && action.id === overtimeId);
 }

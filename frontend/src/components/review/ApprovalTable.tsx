@@ -57,6 +57,8 @@ export function ApprovalTable({
 
   const reviewAction = useReviewAction();
   const overtimeAction = useOvertimeAction();
+  const pendingReviewAction = reviewAction.isPending ? reviewAction.variables : null;
+  const pendingOvertimeAction = overtimeAction.isPending ? overtimeAction.variables : null;
   const isAdmin = useAuthStore((state) => state.isAdmin);
   const inProgress = data.inProgress || [];
   const inProgressLabel = isAdmin ? "流转中可见（无需处理）" : "流转中（未轮到我）";
@@ -205,6 +207,7 @@ export function ApprovalTable({
                               key={itemKey}
                               item={item}
                               isExpanded={isExpanded}
+                              actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
                               onToggle={() =>
                                 setExpandedKey(isExpanded ? null : itemKey)
                               }
@@ -299,6 +302,7 @@ export function ApprovalTable({
                           <ReviewedRow
                             item={item}
                             isExpanded={isExpanded}
+                            actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
                             onToggle={() =>
                               setExpandedKey(isExpanded ? null : itemKey)
                             }
@@ -367,6 +371,7 @@ export function ApprovalTable({
                             size="sm"
                             variant="outline"
                             className="h-7 text-success"
+                            disabled={overtimeActionMatchesItem(pendingOvertimeAction, item.id)}
                             onClick={() => handleOTApprove(item.id)}
                           >
                             <Check className="size-3" />
@@ -375,6 +380,7 @@ export function ApprovalTable({
                             size="sm"
                             variant="outline"
                             className="h-7 text-destructive"
+                            disabled={overtimeActionMatchesItem(pendingOvertimeAction, item.id)}
                             onClick={() => handleOTReject(item.id)}
                           >
                             <X className="size-3" />
@@ -463,12 +469,14 @@ function pendingGroupMeta(items: ApprovalTaskItem[]) {
 function ApprovalRow({
   item,
   isExpanded,
+  actionPending,
   onToggle,
   onApprove,
   onReject,
 }: {
   item: ApprovalTaskItem;
   isExpanded: boolean;
+  actionPending: boolean;
   onToggle: () => void;
   onApprove: (item: ApprovalTaskItem) => void;
   onReject: (item: ApprovalTaskItem) => void;
@@ -482,7 +490,7 @@ function ApprovalRow({
         : "周表";
   return (
     <TableRow
-      className="hover:bg-row-hover cursor-pointer"
+      className={`hover:bg-row-hover cursor-pointer ${actionPending ? "opacity-60" : ""}`}
       onClick={onToggle}
     >
       <TableCell className="w-7 p-0">
@@ -525,6 +533,7 @@ function ApprovalRow({
             size="sm"
             variant="outline"
             className="h-7 text-success"
+            disabled={actionPending}
             onClick={(e) => {
               e.stopPropagation();
               onApprove(item);
@@ -536,6 +545,7 @@ function ApprovalRow({
             size="sm"
             variant="outline"
             className="h-7 text-destructive"
+            disabled={actionPending}
             onClick={(e) => {
               e.stopPropagation();
               onReject(item);
@@ -612,11 +622,13 @@ function InProgressRow({
 function ReviewedRow({
   item,
   isExpanded,
+  actionPending,
   onToggle,
   onReopen,
 }: {
   item: ReviewedTaskItem;
   isExpanded: boolean;
+  actionPending: boolean;
   onToggle: () => void;
   onReopen: (id: number) => void;
 }) {
@@ -630,7 +642,7 @@ function ReviewedRow({
 
   return (
     <TableRow
-      className="hover:bg-row-hover cursor-pointer"
+      className={`hover:bg-row-hover cursor-pointer ${actionPending ? "opacity-60" : ""}`}
       onClick={onToggle}
     >
       <TableCell className="w-7 p-0">
@@ -663,6 +675,7 @@ function ReviewedRow({
             size="sm"
             variant="outline"
             className="h-7"
+            disabled={actionPending}
             onClick={(e) => {
               e.stopPropagation();
               onReopen(item.timesheet_id);
@@ -674,4 +687,21 @@ function ReviewedRow({
       </TableCell>
     </TableRow>
   );
+}
+
+function reviewActionMatchesItem(
+  action: { timesheetId: number; taskId?: number } | null | undefined,
+  item: ApprovalTaskItem | ReviewedTaskItem,
+) {
+  if (!action) return false;
+  if (action.timesheetId !== item.timesheet_id) return false;
+  if (action.taskId == null) return true;
+  return action.taskId === item.task_id;
+}
+
+function overtimeActionMatchesItem(
+  action: { id: number } | null | undefined,
+  overtimeId: number,
+) {
+  return Boolean(action && action.id === overtimeId);
 }

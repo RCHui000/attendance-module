@@ -1,0 +1,33 @@
+{
+  "version": "V0.18.7",
+  "released_at": "2026-06-23",
+  "base_version": "V0.18.6",
+  "summary": "Improve configuration-center and approval-center interaction performance without splitting APIs.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database migration is included in this release."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.7",
+    "notes": [
+      "Project configuration now filters already-loaded role requirements locally when service type changes.",
+      "Project saves optimistically patch project list caches and defer heavy approval/report/dashboard refreshes.",
+      "Approval actions now refresh approval data and the affected timesheet detail first, with report/dashboard calibration delayed in the background.",
+      "Desktop and mobile approval centers use row-level pending state so one action does not disable the whole list.",
+      "Realtime project and approval events no longer immediately fan out to report/dashboard refreshes."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.7.",
+    "Run deploy/scripts/verify-jwt-keys.sh on the cloud host.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host before deployment.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.7.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.7."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB."
+  ]
+}

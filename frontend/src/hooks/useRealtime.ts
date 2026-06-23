@@ -28,16 +28,16 @@ const TABLE_MODULES: Record<string, SyncModule[]> = {
   timesheets: ["timesheet", "approvals", "reports", "dashboard"],
   timesheet_entries: ["timesheet", "reports", "dashboard"],
   overtime_entries: ["timesheet", "approvals", "reports", "dashboard"],
-  approval_nodes: ["timesheet", "approvals", "reports", "dashboard"],
-  approval_node_assignees: ["timesheet", "approvals", "reports", "dashboard"],
-  approval_events: ["approvals", "dashboard"],
-  approval_instances: ["approvals", "dashboard"],
-  timesheet_project_reviews: ["timesheet", "approvals", "reports", "dashboard"],
-  projects: ["projects", "reports", "dashboard"],
-  project_department_owners: ["projects", "timesheet", "approvals", "reports", "dashboard"],
-  employees: ["employees", "organizations", "approvals", "dashboard"],
-  employee_profiles: ["employees", "organizations", "approvals", "dashboard"],
-  organizations: ["organizations", "employees", "dashboard"],
+  approval_nodes: ["timesheet", "approvals"],
+  approval_node_assignees: ["timesheet", "approvals"],
+  approval_events: ["approvals"],
+  approval_instances: ["approvals"],
+  timesheet_project_reviews: ["timesheet", "approvals"],
+  projects: ["projects"],
+  project_department_owners: ["projects", "approvals"],
+  employees: ["employees", "organizations", "approvals"],
+  employee_profiles: ["employees", "organizations", "approvals"],
+  organizations: ["organizations", "employees"],
   user_roles: ["employees", "organizations", "approvals"],
   app_center_items: ["apps"],
 };
@@ -54,6 +54,7 @@ function invalidateModules(
   if (modules.includes("organizations")) queryClient.invalidateQueries({ queryKey: ["organizations"] });
   if (modules.includes("projects")) queryClient.invalidateQueries({ queryKey: ["projects"] });
   if (modules.includes("projects")) queryClient.invalidateQueries({ queryKey: ["project-base"] });
+  if (modules.includes("projects")) queryClient.invalidateQueries({ queryKey: ["all-projects"] });
   if (modules.includes("apps")) queryClient.invalidateQueries({ queryKey: ["app-center"] });
 }
 

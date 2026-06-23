@@ -7,7 +7,6 @@ import { SheetWarnings } from "@/components/timesheet/SheetWarnings";
 import { SheetActions } from "@/components/timesheet/SheetActions";
 import { useTimesheetStore } from "@/stores/timesheetStore";
 import { useAppStore } from "@/stores/appStore";
-import { useAuthStore } from "@/stores/authStore";
 import {
   useTimesheet,
   useSaveTimesheet,
@@ -58,7 +57,6 @@ function needsWorkIntentSlot(rows: TimesheetRow[], weekDays: string[]): boolean 
 
 export default function TimesheetPage() {
   const { currentWeek, setCurrentWeek } = useAppStore();
-  const { user } = useAuthStore();
   const store = useTimesheetStore();
 
   const { data: timesheet, isLoading, refetch } = useTimesheet(currentWeek);
@@ -267,12 +265,9 @@ export default function TimesheetPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between mb-4 max-[900px]:flex-col max-[900px]:gap-3">
-        <div>
-          <span className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
-            {user?.name}
-          </span>
-          <div className="flex items-center gap-3 mt-1">
+      <div className="mb-4">
+        <div className="flex items-center justify-between gap-3 max-[900px]:flex-col max-[900px]:items-start">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-[22px] font-bold leading-tight">
               {currentWeek} 至 {getTimesheetPeriodEnd(currentWeek)}
             </h2>
@@ -281,25 +276,25 @@ export default function TimesheetPage() {
               onWeekChange={setCurrentWeek}
             />
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={
-              status === "approved"
-                ? "success"
-                : status === "rejected"
-                  ? "destructive"
-                  : status === "submitted"
-                    ? "default"
-                    : "secondary"
-            }
-            className="text-xs"
-          >
-            {statusText[status] || status}
-          </Badge>
-          <strong className="text-lg tabular-nums">
-            {formatWorkdays(weekWorkdaysVal)} 工日
-          </strong>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                status === "approved"
+                  ? "success"
+                  : status === "rejected"
+                    ? "destructive"
+                    : status === "submitted"
+                      ? "default"
+                      : "secondary"
+              }
+              className="text-xs"
+            >
+              {statusText[status] || status}
+            </Badge>
+            <strong className="text-lg tabular-nums">
+              {formatWorkdays(weekWorkdaysVal)} 工日
+            </strong>
+          </div>
         </div>
       </div>
 

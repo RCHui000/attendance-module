@@ -94,6 +94,17 @@ function projectRows(node: ApprovalChainNode) {
   return Array.from(projects.values());
 }
 
+function isDepartmentSummaryNode(node: ApprovalChainNode) {
+  return node.scope_type === "department_summary";
+}
+
+function displayNodeName(node: ApprovalChainNode) {
+  if (isDepartmentSummaryNode(node) && !node.node_name.includes("汇总")) {
+    return `${node.node_name} 汇总确认`;
+  }
+  return node.node_name;
+}
+
 function projectLabel(assignee: ApprovalChainAssignee) {
   const projectId = assignee.project_id ? String(assignee.project_id) : "";
   const code = textValue(assignee.project_code);
@@ -127,6 +138,7 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
   const blockingNodes = blockingLabel(node);
   const hint = nodeHint(node, nodeNumber, blockingNodes);
   const projects = projectRows(node);
+  const showSummaryRow = isDepartmentSummaryNode(node) && projects.length === 0;
 
   return (
     <div
@@ -140,7 +152,7 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
       <div className="absolute -left-1 top-3 size-2 rounded-full bg-border" />
       <div className="flex items-start justify-between gap-2">
         <strong className="min-w-0 break-words text-sm leading-5 text-foreground">
-          {nodeNumber}：{node.node_name}
+          {nodeNumber}：{displayNodeName(node)}
         </strong>
         <Badge
           variant={statusVariant[node.node_status] || "secondary"}
@@ -157,10 +169,21 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
             {assigneeNames.length ? assigneeNames.join("、") : "待解析"}
           </span>
         </div>
-        {projects.length ? (
+        {projects.length || showSummaryRow ? (
           <div className="space-y-1">
-            <div className="text-muted-foreground">项目块</div>
+            <div className="text-muted-foreground">{showSummaryRow ? "汇总" : "项目块"}</div>
             <div className="space-y-1">
+              {showSummaryRow ? (
+                <div className="grid grid-cols-[minmax(0,1fr)_3.75rem] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5">
+                  <span className="min-w-0 break-words leading-5 text-foreground">部门汇总确认（全部项目块）</span>
+                  <Badge
+                    variant={statusVariant[node.node_status] || "secondary"}
+                    className="justify-center whitespace-normal text-center text-[10px] leading-4"
+                  >
+                    {readableStatus(node.node_status)}
+                  </Badge>
+                </div>
+              ) : null}
               {projects.map((project) => {
                 const rowStatus = String(project.status || project.node_status || node.node_status);
                 return (

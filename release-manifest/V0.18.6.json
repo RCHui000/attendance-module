@@ -1,0 +1,35 @@
+{
+  "version": "V0.18.6",
+  "released_at": "2026-06-23",
+  "base_version": "V0.18.5",
+  "summary": "Add responsive sidebar width tiers and close direct EXECUTE grants on internal approval graph primitives.",
+  "database": {
+    "new_migrations": [
+      "109_revoke_internal_approval_primitive_grants.sql"
+    ],
+    "notes": [
+      "Migration 109 revokes authenticated/anon direct EXECUTE grants from internal approval graph primitives, including approve_node.",
+      "Domain RPCs such as psa_timesheet_action continue to invoke approval primitives through SECURITY DEFINER functions."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.6",
+    "notes": [
+      "Desktop sidebar width is reduced from 232px to 216px.",
+      "Tablet and narrow desktop widths use a 64px icon-only rail with accessible labels and hover/focus tooltips.",
+      "Main content padding is reduced at medium widths to preserve usable workspace."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.6.",
+    "Run scripts/assert-function-grants.sql after applying migration 109.",
+    "Run deploy/scripts/verify-jwt-keys.sh on the cloud host.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host before deployment.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.6.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.6."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB."
+  ]
+}

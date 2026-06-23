@@ -6,7 +6,7 @@ export function DesktopLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 p-[30px_36px]">
+      <main className="min-w-0 flex-1 p-[30px_36px] max-[1179px]:p-5 max-[900px]:p-4">
         <Topbar />
         {children}
       </main>

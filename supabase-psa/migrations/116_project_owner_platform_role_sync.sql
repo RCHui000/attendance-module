@@ -11,7 +11,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF session_user <> 'postgres' AND NOT (
+  IF session_user NOT IN ('postgres', 'psa_admin') AND NOT (
     public.current_user_can_access_resource('report', 'write')
     OR public.current_user_can_access_resource('permission_config', 'write')
   ) THEN

@@ -1,0 +1,27 @@
+{
+  "version": "V0.18.13",
+  "released_at": "2026-06-24",
+  "base_version": "V0.18.12",
+  "summary": "Patch the project owner platform-role synchronization migration to allow the production migration user to run the backfill.",
+  "database": {
+    "updated_pending_migrations": [
+      "116_project_owner_platform_role_sync.sql"
+    ],
+    "notes": [
+      "psa_sync_project_platform_roles now treats psa_admin as a trusted migration/maintenance executor, matching the production apply-migrations user.",
+      "Migration 116 had not been recorded in production schema_migrations before this patch because the previous attempt failed inside its transaction."
+    ]
+  },
+  "verification": [
+    "Run static project-role platform sync migration coverage check.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.13.",
+    "Run deploy/scripts/pre-deploy-check.sh on production with EXPECTED_VERSION=V0.18.13.",
+    "Run scripts/assert-project-role-platform-sync.sql on production.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.13."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB.",
+    "Git may warn that LF will be converted to CRLF on this Windows workstation."
+  ]
+}

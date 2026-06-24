@@ -172,8 +172,8 @@ export function useSaveProject() {
         queryClient.invalidateQueries({ queryKey: ["all-projects"] });
       }
 
-      invalidateLater(queryClient, [["approvals"], ["reports"], ["dashboard"]]);
-      publishLocalSync(["projects"]);
+      invalidateLater(queryClient, [["employees"], ["approvals"], ["reports"], ["dashboard"]]);
+      publishLocalSync(["projects", "employees"]);
     },
   });
 }

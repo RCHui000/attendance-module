@@ -58,7 +58,7 @@ PostgreSQL role `PUBLIC` execute grants must remain `0`.
 | `psa_resolve_timesheet_project_assignees(bigint)` | `INTERNAL` | no | none | Project-block assignee resolver used by approval-chain construction. |
 | `psa_save_role_permission(text,text,text)` | `AUTH` | frontend RPC | `authenticated` | Permission matrix save endpoint. |
 | `psa_save_role_sidebar_order(text,text,integer)` | `AUTH` | frontend RPC | `authenticated` | Permission sidebar order save endpoint. |
-| `psa_sync_project_platform_roles(bigint[])` | `SYSTEM` | no | none | Maintenance/backfill sync for project/platform roles. |
+| `psa_sync_business_platform_roles(bigint[])` | `SYSTEM` | no | none | Maintenance/backfill sync from department/project owner assignments to platform roles. |
 | `psa_sync_timesheet_project_review_task_trigger()` | `SYSTEM` | legacy trigger | none | Legacy `workflow_tasks` sync trigger candidate. Verify before removal. |
 | `psa_sync_timesheet_project_revisions(bigint,jsonb)` | `AUTH` | frontend RPC | `authenticated` | Rejected project-block revision save endpoint. |
 | `psa_template_snapshot(bigint)` | `INTERNAL` | no | none | Approval template snapshot helper. |

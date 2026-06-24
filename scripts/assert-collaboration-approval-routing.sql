@@ -1,6 +1,7 @@
 DO $$
 DECLARE
   v_bad_edges integer;
+  v_bad_department_resolver integer;
   v_doc_id bigint;
   v_assignee bigint;
   v_route_source text;
@@ -29,7 +30,22 @@ BEGIN
   FROM diff;
 
   IF v_bad_edges <> 0 THEN
-    RAISE EXCEPTION 'PMCC collaboration template edge set is not the expected source-side then PM-side chain';
+    RAISE EXCEPTION 'Collaboration template edge set is not the expected source-side then PM-side chain';
+  END IF;
+
+  SELECT count(*) INTO v_bad_department_resolver
+  FROM public.approval_template_nodes n
+  JOIN public.approval_templates t ON t.id = n.template_id
+  WHERE t.template_key = 'contract_approval_pmcc_v1'
+    AND n.node_key = 'cc_department_owner'
+    AND (
+      n.node_name <> '发起部门负责人'
+      OR n.resolver_type <> 'org_manager'
+      OR n.resolver_role <> 'department_owner'
+    );
+
+  IF v_bad_department_resolver <> 0 THEN
+    RAISE EXCEPTION 'Collaboration source department owner must use org_manager/department_owner';
   END IF;
 
   SELECT bd.id INTO v_doc_id

@@ -14,19 +14,73 @@ import type { ApprovalTemplate, ApprovalTemplateNode } from "@/types/approval";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 
-const policyOptions = ["single", "all", "any", "auto_pass"];
-const resolverOptions = ["document_creator", "project_role", "org_manager", "fixed_user", "expression_limited"];
+const NONE_VALUE = "__none__";
+
+const policyOptions = [
+  { value: "single", label: "单人审批" },
+  { value: "all", label: "全部通过" },
+  { value: "any", label: "任一通过" },
+  { value: "auto_pass", label: "自动通过" },
+];
+
+const resolverOptions = [
+  { value: "document_creator", label: "提交人" },
+  { value: "project_role", label: "项目负责人配置" },
+  { value: "org_manager", label: "组织负责人配置" },
+  { value: "fixed_user", label: "固定人员" },
+  { value: "expression_limited", label: "表达式限定" },
+];
 
 const roleLabel: Record<string, string> = {
   submitter: "提交人",
-  cc_civil_project_owner: "CC土建项目负责人",
-  cc_mep_project_owner: "CC机电项目负责人",
-  cc_project_owner: "CC项目负责人",
-  cc_department_owner: "CC部门负责人",
-  pm_cost_department_owner: "PM成本部负责人",
+  department_owner: "发起部门负责人",
+  cc_civil_project_owner: "QS土建负责人",
+  cc_mep_project_owner: "QS机电负责人",
+  cc_project_owner: "发起部门项目负责人",
+  cc_department_owner: "发起部门负责人",
+  cc_design_project_owner: "设计咨询负责人",
+  pm_cost_department_owner: "PM成本/设计负责人",
+  pm_design_project_owner: "PM设计负责人",
   pm_project_owner: "PM项目负责人",
   pm_department_owner: "PM部门负责人",
 };
+
+const roleOptions = [
+  "submitter",
+  "department_owner",
+  "cc_civil_project_owner",
+  "cc_mep_project_owner",
+  "cc_project_owner",
+  "cc_department_owner",
+  "cc_design_project_owner",
+  "pm_cost_department_owner",
+  "pm_design_project_owner",
+  "pm_project_owner",
+  "pm_department_owner",
+];
+
+const businessTypeLabel: Record<string, string> = {
+  PM: "项目管理审批",
+  CC: "QS/设计侧审批",
+  PMCC: "总工办/项目管理部协作审批",
+};
+
+function resolverTypeLabel(value: string) {
+  return resolverOptions.find((option) => option.value === value)?.label || value || "未配置";
+}
+
+function approvalPolicyLabel(value: string) {
+  return policyOptions.find((option) => option.value === value)?.label || value || "未配置";
+}
+
+function roleDisplayLabel(value?: string | null) {
+  if (!value) return "未配置";
+  return roleLabel[value] || value;
+}
+
+function templateDisplayName(template: ApprovalTemplate) {
+  return businessTypeLabel[template.business_type || ""] || template.name || template.business_type || "通用审批";
+}
 
 function orderedNodes(template: ApprovalTemplate | null) {
   return [...(template?.nodes || [])].sort((a, b) => a.sort_order - b.sort_order);
@@ -48,7 +102,7 @@ function FlowPreview({ template }: { template: ApprovalTemplate | null }) {
           <div key={node.id} className="flex items-center gap-2">
             <div
               className={cn(
-                "w-[168px] rounded-lg border bg-white px-3 py-3 shadow-sm",
+                "w-[180px] rounded-lg border bg-card px-3 py-3 shadow-sm",
                 template.business_type === "PM" && "border-sky-200",
                 template.business_type === "CC" && "border-emerald-200",
                 template.business_type === "PMCC" && "border-amber-200",
@@ -56,8 +110,9 @@ function FlowPreview({ template }: { template: ApprovalTemplate | null }) {
             >
               <div className="text-sm font-semibold">{node.node_name}</div>
               <div className="mt-1 text-xs text-muted-foreground">
-                {roleLabel[node.resolver_role || ""] || node.resolver_role || node.resolver_type}
+                {node.resolver_role ? roleDisplayLabel(node.resolver_role) : resolverTypeLabel(node.resolver_type)}
               </div>
+              <div className="mt-2 truncate text-[11px] text-muted-foreground/70">{node.node_key}</div>
             </div>
             {index < nodes.length - 1 && <div className="text-lg text-muted-foreground">→</div>}
           </div>
@@ -77,7 +132,7 @@ function NodeEditor({
   onChange: (patch: Partial<ApprovalTemplateNode>) => void;
 }) {
   return (
-    <div className="grid grid-cols-[72px_1.2fr_1fr_1fr_112px] items-center gap-2 rounded-md border border-border bg-white p-2">
+    <div className="grid grid-cols-[72px_1.2fr_1fr_1fr_112px] items-start gap-2 rounded-md border border-border bg-card p-2">
       <Input
         className="h-8 text-sm"
         type="number"
@@ -93,31 +148,44 @@ function NodeEditor({
       />
       <Select value={node.resolver_type} disabled={!canWrite} onValueChange={(value) => onChange({ resolver_type: value || "" })}>
         <SelectTrigger className="h-8 text-sm">
-          <SelectValue />
+          <SelectValue>{resolverTypeLabel(node.resolver_type)}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {resolverOptions.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <Input
-        className="h-8 text-sm"
-        value={node.resolver_role || ""}
-        disabled={!canWrite}
-        onChange={(event) => onChange({ resolver_role: event.target.value })}
-        placeholder="resolver role"
-      />
+      <div className="min-w-0">
+        <Select
+          value={node.resolver_role || NONE_VALUE}
+          disabled={!canWrite}
+          onValueChange={(value) => onChange({ resolver_role: value === NONE_VALUE ? null : value })}
+        >
+          <SelectTrigger className="h-8 w-full text-sm">
+            <SelectValue>{roleDisplayLabel(node.resolver_role)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE_VALUE}>未配置</SelectItem>
+            {roleOptions.map((option) => (
+              <SelectItem key={option} value={option}>
+                {roleLabel[option] || option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="mt-1 truncate text-[11px] text-muted-foreground">{node.resolver_role || node.resolver_type}</div>
+      </div>
       <Select value={node.approval_policy} disabled={!canWrite} onValueChange={(value) => onChange({ approval_policy: value || "single" })}>
         <SelectTrigger className="h-8 text-sm">
-          <SelectValue />
+          <SelectValue>{approvalPolicyLabel(node.approval_policy)}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {policyOptions.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -167,7 +235,7 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="grid grid-cols-[220px_minmax(0,1fr)] gap-4">
-      <div className="rounded-lg border border-border bg-white p-2">
+      <div className="rounded-lg border border-border bg-card p-2">
         {contractTemplates.map((template) => (
           <button
             key={template.id}
@@ -181,7 +249,7 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
               setDraft(cloneTemplate(template));
             }}
           >
-            <div>{template.business_type || "通用"} 合同</div>
+            <div>{templateDisplayName(template)}</div>
             <div className="text-xs text-muted-foreground">{template.template_key}</div>
           </button>
         ))}
@@ -213,8 +281,8 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
           <div className="grid grid-cols-[72px_1.2fr_1fr_1fr_112px] gap-2 px-2 text-xs font-semibold text-muted-foreground">
             <span>顺序</span>
             <span>节点名称</span>
-            <span>解析器</span>
-            <span>角色键</span>
+            <span>解析来源</span>
+            <span>负责人角色</span>
             <span>策略</span>
           </div>
           {orderedNodes(activeDraft).map((node) => (

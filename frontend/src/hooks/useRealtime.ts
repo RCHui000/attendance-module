@@ -34,6 +34,7 @@ const TABLE_MODULES: Record<string, SyncModule[]> = {
   approval_instances: ["approvals"],
   timesheet_project_reviews: ["timesheet", "approvals"],
   projects: ["projects"],
+  project_roles: ["projects", "approvals"],
   project_department_owners: ["projects", "approvals"],
   employees: ["employees", "organizations", "approvals"],
   employee_profiles: ["employees", "organizations", "approvals"],

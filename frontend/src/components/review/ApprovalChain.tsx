@@ -56,7 +56,7 @@ function fallbackAssignees(node: ApprovalChainNode): ApprovalChainAssignee[] {
       project_code: node.project_code || "",
       project_name: node.project_name || "",
       assignee_user_id: 0,
-      assignee_name: node.assignee_role || node.resolver_role || "待解析审批人",
+      assignee_name: "",
       status: node.node_status === "active" ? "pending" : node.node_status,
       action: null,
       comment: null,
@@ -166,7 +166,7 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
         <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2">
           <span className="text-muted-foreground">审批人</span>
           <span className={cn("min-w-0 break-words", assigneeNames.length ? "text-foreground" : "text-muted-foreground")}>
-            {assigneeNames.length ? assigneeNames.join("、") : "待解析"}
+            {assigneeNames.length ? assigneeNames.join("、") : "未配置"}
           </span>
         </div>
         {projects.length || showSummaryRow ? (

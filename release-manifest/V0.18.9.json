@@ -1,0 +1,35 @@
+{
+  "version": "V0.18.9",
+  "released_at": "2026-06-24",
+  "base_version": "V0.18.8",
+  "summary": "Resolve approval-chain assignees dynamically from current project configuration and refresh approval views when project roles change.",
+  "database": {
+    "new_migrations": [
+      "113_dynamic_approval_chain_assignees.sql"
+    ],
+    "notes": [
+      "Approval-chain projection now fills waiting, active, reapproval, and historically skipped empty assignees from the current data-driven graph resolver.",
+      "Future approval nodes no longer display unresolved assignees when the project owner configuration already has a matching employee.",
+      "Historical empty assignee records with assignee_user_id=0 are supplemented by current role resolution for display."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.9",
+    "notes": [
+      "Approval-chain cards no longer show the internal fallback label '待解析'. Truly missing configuration is shown as '未配置'.",
+      "Realtime invalidation now refreshes approval views when project_roles changes."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.9.",
+    "Run scripts/assert-approval-chain-assignees-resolved.sql on production.",
+    "Run deploy/scripts/verify-jwt-keys.sh on the cloud host.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host before deployment.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.9.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.9."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB."
+  ]
+}

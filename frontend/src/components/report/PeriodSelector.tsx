@@ -106,7 +106,7 @@ export function PeriodSelector({
 
       <div className="flex-1" />
 
-      <Button variant="outline" size="sm" onClick={onExport}>
+      <Button variant="outline" size="sm" className="rounded-full" onClick={onExport}>
         <Download className="size-3.5 mr-1" />
         导出项目工日
       </Button>

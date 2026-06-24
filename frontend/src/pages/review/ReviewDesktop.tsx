@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { ApprovalFlowConfig } from "@/components/review/ApprovalFlowConfig";
 import { ApprovalTable } from "@/components/review/ApprovalTable";
-import { Button } from "@/components/ui/button";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { useAuthStore } from "@/stores/authStore";
 import type { ApprovalTasks } from "@/types/approval";
-import { RefreshCw } from "lucide-react";
 
 interface ReviewDesktopProps {
   data?: ApprovalTasks;
@@ -13,7 +11,6 @@ interface ReviewDesktopProps {
   isError: boolean;
   approvalTab: "pending" | "reviewed";
   onTabChange: (tab: "pending" | "reviewed") => void;
-  onRefresh: () => void;
 }
 
 export function ReviewDesktop({
@@ -22,7 +19,6 @@ export function ReviewDesktop({
   isError,
   approvalTab,
   onTabChange,
-  onRefresh,
 }: ReviewDesktopProps) {
   const { isAdmin } = useAuthStore();
   const [pageTab, setPageTab] = useState<"tasks" | "templates">("tasks");
@@ -33,17 +29,13 @@ export function ReviewDesktop({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-2">
+      <div className="mb-4 flex items-center gap-2">
         <SegmentedPill
           value={pageTab}
           items={pageTabs}
           onChange={setPageTab}
           ariaLabel="审批页面视图"
         />
-        <Button variant="outline" size="sm" onClick={onRefresh}>
-          <RefreshCw className="mr-1 size-3.5" />
-          刷新
-        </Button>
       </div>
 
       {pageTab === "templates" && isAdmin && <ApprovalFlowConfig />}
@@ -54,7 +46,7 @@ export function ReviewDesktop({
 
       {pageTab === "tasks" && isError && (
         <div className="py-16 text-center text-sm text-destructive">
-          数据加载失败，请点击刷新重试
+          数据加载失败，请稍后重试
         </div>
       )}
 

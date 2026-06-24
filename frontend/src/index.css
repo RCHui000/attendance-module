@@ -78,13 +78,42 @@
 body {
   margin: 0;
   min-height: 100vh;
-  color: hsl(220 23% 12%);
-  background: linear-gradient(180deg, #ffffff 0%, hsl(220 14% 97%) 100%);
+  color: var(--color-foreground);
+  background: linear-gradient(180deg, var(--color-card) 0%, var(--color-background) 100%);
   font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
   font-size: 14px;
   letter-spacing: 0;
   -webkit-tap-highlight-color: rgba(24, 29, 38, 0.08);
   text-rendering: optimizeLegibility;
+}
+
+.dark {
+  color-scheme: dark;
+  --color-background: hsl(222 17% 11%);
+  --color-foreground: hsl(220 18% 92%);
+  --color-card: hsl(222 16% 14%);
+  --color-card-foreground: hsl(220 18% 92%);
+  --color-popover: hsl(222 16% 14%);
+  --color-popover-foreground: hsl(220 18% 92%);
+  --color-primary: hsl(220 18% 92%);
+  --color-primary-foreground: hsl(222 17% 11%);
+  --color-primary-dark: hsl(220 18% 82%);
+  --color-secondary: hsl(222 13% 18%);
+  --color-secondary-foreground: hsl(220 18% 92%);
+  --color-muted: hsl(218 10% 68%);
+  --color-muted-foreground: hsl(218 10% 68%);
+  --color-accent: hsl(222 13% 18%);
+  --color-accent-foreground: hsl(220 18% 92%);
+  --color-border: hsl(222 12% 25%);
+  --color-input: hsl(222 12% 25%);
+  --color-ring: hsl(220 18% 82%);
+  --color-sidebar-bg: #090b0f;
+  --color-sidebar-text: #d6dbe6;
+  --color-sidebar-muted: #9099aa;
+  --color-table-header: hsl(222 13% 16%);
+  --color-row-hover: hsl(222 13% 18%);
+  --color-row-selected: hsl(219 34% 20%);
+  --color-toast: hsl(222 16% 14%);
 }
 
 #root {

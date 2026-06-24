@@ -919,7 +919,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
     rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
     rest<AnyRow[]>("/approval_visible_timesheets_view?select=*&order=submitted_at.asc").catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
-    rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name)"),
+    rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name,color_token)"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,work_date,hours"),
   ]);
   const tasks = graphPending.map(normalizedApprovalTask);
@@ -1015,6 +1015,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
       project_name: project?.name || "",
       name: emp?.name || "",
       department: profile?.organizations?.org_name || "",
+      department_color_token: profile?.organizations?.color_token || null,
       total_hours: projectId ? projectHours.get(`${Number(sheet.id)}:${projectId}`) || 0 : hours.get(Number(sheet.id)) || 0,
       submitted_at: sheet.submitted_at,
       review_comment: source.comment || sheet.review_comment || "",
@@ -1436,6 +1437,7 @@ async function saveOrganization(body: AnyRow): Promise<AnyRow> {
     org_name: body.orgName || body.org_name,
     org_type: body.orgType || body.org_type || "department",
     parent_id: body.parentId || body.parent_id || null,
+    color_token: body.colorToken || body.color_token || null,
     status: "active",
   };
   const managerIds = (body.managerIds || body.manager_ids || [])

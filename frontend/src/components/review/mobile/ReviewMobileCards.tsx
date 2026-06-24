@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MobileTimesheetDetail } from "@/components/review/mobile/MobileTimesheetDetail";
 import { useOvertimeAction, useReviewAction } from "@/hooks/useApprovals";
+import { DepartmentChip } from "@/lib/departmentColors";
 import { statusText } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -282,16 +283,22 @@ function TimesheetCard({
 
   return (
     <article className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <button type="button" className="block w-full p-3 text-left" onClick={onToggle}>
+      <button
+        type="button"
+        className="block w-full p-3 text-left transition-colors duration-150 ease-out hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none motion-reduce:transition-none"
+        onClick={onToggle}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <FileText className="size-4 shrink-0 text-primary" />
               <h2 className="truncate text-base font-semibold">{item.name}</h2>
             </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {item.department || "-"} · {item.week_start_date}
-            </p>
+            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <DepartmentChip department={item.department} colorToken={item.department_color_token} />
+              <span className="shrink-0">·</span>
+              <span className="truncate">{item.week_start_date}</span>
+            </div>
           </div>
           {isExpanded ? (
             <ChevronDown className="mt-1 size-4 shrink-0 text-muted-foreground" />

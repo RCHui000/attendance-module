@@ -184,7 +184,7 @@ function ProjectPicker({
     width: 320,
   });
   const selected = projects.find((project) => project.id === value);
-  const selectedLabel = selected ? `${selected.code} - ${selected.name}` : "";
+  const selectedLabel = selected ? selected.name : "";
   const normalizedQuery = query.trim().toLowerCase();
   const filteredProjects = useMemo(() => {
     if (!normalizedQuery) return projects;
@@ -231,7 +231,7 @@ function ProjectPicker({
     (projectId: number) => {
       const project = projects.find((item) => item.id === projectId);
       onChange(projectId);
-      setQuery(project ? `${project.code} - ${project.name}` : "");
+      setQuery(project ? project.name : "");
       setOpen(false);
       requestAnimationFrame(onCommit);
     },
@@ -366,7 +366,7 @@ function ProjectPicker({
           role="combobox"
           aria-expanded={open}
           aria-haspopup="listbox"
-          title={selectedLabel || "输入关键字检索"}
+          title={selected ? `${selected.code} - ${selected.name}` : "输入关键字检索"}
           placeholder="输入关键字检索"
           className="h-8 pr-8 pl-8 text-base md:text-sm"
         />

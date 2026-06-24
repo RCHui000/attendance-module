@@ -30,11 +30,12 @@ export function MobileBottomNav() {
               key={item.id}
               type="button"
               className={cn(
-                "flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-medium leading-tight transition-colors",
+                "flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-medium leading-tight transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
                 active
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
+              aria-current={active ? "page" : undefined}
               onClick={() => navigate(`/${item.view}`)}
             >
               <Icon className="size-4 shrink-0" />

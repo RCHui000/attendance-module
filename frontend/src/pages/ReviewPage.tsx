@@ -7,7 +7,7 @@ import { ReviewMobile } from "@/pages/review/ReviewMobile";
 export default function ReviewPage() {
   const { currentWeek, approvalTab, setApprovalTab } = useAppStore();
   const isMobile = useIsMobile();
-  const { data, isLoading, isError, refetch } = useApprovalTasks(currentWeek);
+  const { data, isLoading, isError } = useApprovalTasks(currentWeek);
 
   if (isMobile) {
     return (
@@ -17,7 +17,6 @@ export default function ReviewPage() {
         isError={isError}
         approvalTab={approvalTab}
         onTabChange={setApprovalTab}
-        onRefresh={() => refetch()}
       />
     );
   }
@@ -29,7 +28,6 @@ export default function ReviewPage() {
       isError={isError}
       approvalTab={approvalTab}
       onTabChange={setApprovalTab}
-      onRefresh={() => refetch()}
     />
   );
 }

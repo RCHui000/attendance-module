@@ -1,0 +1,38 @@
+{
+  "version": "V0.18.11",
+  "released_at": "2026-06-24",
+  "base_version": "V0.18.10",
+  "summary": "Add sidebar theme settings, department color chips, remove redundant refresh buttons, and synchronize project owner assignments with platform roles.",
+  "database": {
+    "new_migrations": [
+      "115_organization_department_color.sql",
+      "116_project_owner_platform_role_sync.sql"
+    ],
+    "notes": [
+      "Organizations can store an optional color_token used by approval-center department chips.",
+      "Project owner and department-owner assignments now synchronize user_roles to lead or manager while preserving admin/director.",
+      "psa_save_project invokes psa_sync_project_platform_roles after saving owner configuration, and existing project owner assignments are backfilled during migration."
+    ]
+  },
+  "frontend": {
+    "notes": [
+      "Sidebar bottom actions now expose icon-only Settings and Logout buttons.",
+      "Theme settings support light, dark, and system modes.",
+      "Approval-center department cells show optional low-saturation department chips.",
+      "Redundant manual refresh buttons were removed from project list, employees, dashboard, and approval-center surfaces.",
+      "Selected timesheet projects and approval task project labels stay concise by favoring project names."
+    ]
+  },
+  "verification": [
+    "Run static project-role platform sync migration coverage check.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build.",
+    "Run deploy/scripts/pre-deploy-check.sh on production with EXPECTED_VERSION=V0.18.11.",
+    "Run scripts/assert-project-role-platform-sync.sql on production.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.11."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB.",
+    "Git may warn that LF will be converted to CRLF on this Windows workstation."
+  ]
+}

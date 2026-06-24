@@ -116,12 +116,12 @@ export function LaborOverview({ report }: LaborOverviewProps) {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7"
+                        className="h-7 rounded-full"
                         onClick={() => setDetailProjectId(project.id ?? null)}
                       >
                         <Eye className="size-3" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7">
+                      <Button size="sm" variant="ghost" className="h-7 rounded-full">
                         <Download className="size-3" />
                       </Button>
                     </div>

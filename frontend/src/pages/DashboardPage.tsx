@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import {
-  RefreshCw,
   FileDown,
   LayoutDashboard,
   TrendingUp,
@@ -68,7 +67,7 @@ export default function DashboardPage() {
     [periodType, year, month, quarter],
   );
 
-  const { data, isLoading, isError, refetch } = useDashboard(
+  const { data, isLoading, isError } = useDashboard(
     dates.startDate,
     dates.endDate,
   );
@@ -127,10 +126,6 @@ export default function DashboardPage() {
           <span className="text-xs tabular-nums text-muted-foreground">
             {dates.startDate} ~ {dates.endDate}
           </span>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="size-3.5 mr-1.5" />
-            刷新
-          </Button>
           <Button variant="outline" size="sm" onClick={handleExport} disabled={!data}>
             <FileDown className="size-3.5 mr-1.5" />
             导出
@@ -147,7 +142,7 @@ export default function DashboardPage() {
       )}
       {isError && (
         <div className="flex items-center justify-center py-24">
-          <p className="text-sm text-destructive">数据加载失败，请点击刷新重试</p>
+          <p className="text-sm text-destructive">数据加载失败，请稍后重试</p>
         </div>
       )}
 
@@ -166,7 +161,6 @@ export default function DashboardPage() {
               onYearChange={(value) => updateDashboardParams({ year: String(value) })}
               onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
               onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
-              onRefresh={() => refetch()}
             />
           ) : (
           <>

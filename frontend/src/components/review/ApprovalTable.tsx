@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { statusText } from "@/lib/constants";
+import { DepartmentChip } from "@/lib/departmentColors";
 import { useReviewAction, useOvertimeAction } from "@/hooks/useApprovals";
 import { useAuthStore } from "@/stores/authStore";
 import type {
@@ -504,7 +505,7 @@ function ApprovalRow({
       </TableCell>
       <TableCell className="text-sm font-medium">{item.name}</TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {item.department || "—"}
+        <DepartmentChip department={item.department} colorToken={item.department_color_token} />
       </TableCell>
       <TableCell className="whitespace-normal">
         <Badge
@@ -591,7 +592,7 @@ function InProgressRow({
       </TableCell>
       <TableCell className="text-sm font-medium">{item.name}</TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {item.department || "—"}
+        <DepartmentChip department={item.department} colorToken={item.department_color_token} />
       </TableCell>
       <TableCell className="whitespace-normal">
         <Badge variant="outline" className="max-w-full whitespace-normal break-words text-xs leading-4">
@@ -656,7 +657,7 @@ function ReviewedRow({
       </TableCell>
       <TableCell className="text-sm font-medium">{item.name}</TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {item.department || "—"}
+        <DepartmentChip department={item.department} colorToken={item.department_color_token} />
       </TableCell>
       <TableCell>
         <Badge variant={variant} className="text-xs">

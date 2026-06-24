@@ -86,7 +86,7 @@ function SortableHead({
       <button
         type="button"
         className={cn(
-          "flex h-full w-full items-center gap-1 text-left transition-colors hover:text-primary",
+          "flex h-full w-full items-center gap-1 rounded-sm text-left transition-colors duration-150 ease-out hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
           className?.includes("text-right") && "justify-end",
         )}
         onClick={() => onSort(sortId)}

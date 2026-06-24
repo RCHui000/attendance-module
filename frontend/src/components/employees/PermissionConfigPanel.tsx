@@ -391,7 +391,7 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
               key={role.role_key}
               type="button"
               className={cn(
-                "mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors",
+                "mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
                 activeRole === role.role_key ? "bg-primary text-primary-foreground" : "hover:bg-muted",
               )}
               onClick={() => {
@@ -565,7 +565,7 @@ function PermissionResourceRow({
             aria-label={`拖拽排序 ${resource.displayName || resource.resource_name}`}
             data-testid={`permission-sidebar-drag-handle-${resource.resource_key}`}
             className={cn(
-              "flex size-7 touch-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-row-hover hover:text-foreground focus-visible:shadow-focus motion-reduce:transition-none",
+              "flex size-7 touch-none items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow] duration-150 ease-out hover:bg-row-hover hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
               canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-40",
             )}
             {...dragHandleAttributes}

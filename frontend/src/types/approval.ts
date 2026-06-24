@@ -12,6 +12,7 @@ export interface ApprovalTaskItem {
   user_id: number;
   name: string;
   department: string;
+  department_color_token?: string | null;
   status: string;
   assignee_role?: string;
   scope_type?: string;
@@ -38,6 +39,7 @@ export interface ReviewedTaskItem {
   user_id: number;
   name: string;
   department: string;
+  department_color_token?: string | null;
   status: string;
   assignee_role?: string;
   scope_type?: string;

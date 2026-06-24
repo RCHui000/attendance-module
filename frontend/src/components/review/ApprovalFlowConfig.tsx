@@ -168,7 +168,7 @@ export function ApprovalFlowConfig() {
             key={template.id}
             type="button"
             className={cn(
-              "mb-1 w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
+              "mb-1 w-full rounded-md px-3 py-2 text-left text-sm transition-[background-color,color,box-shadow] duration-150 ease-out hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
               activeDraft?.id === template.id && "bg-muted font-semibold",
             )}
             onClick={() => {

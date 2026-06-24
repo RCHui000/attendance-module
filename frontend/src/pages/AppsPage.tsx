@@ -180,7 +180,7 @@ function AppFormDialog({
                   key={key}
                   type="button"
                   className={cn(
-                    "flex h-10 items-center justify-center gap-2 rounded-md border text-sm transition hover:bg-muted",
+                    "flex h-10 items-center justify-center gap-2 rounded-md border border-border text-sm transition-[background-color,border-color,color,box-shadow] duration-150 ease-out hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none",
                     draft.icon_key === key && "border-primary bg-primary/5 text-primary",
                   )}
                   onClick={() => onDraftChange({ ...draft, icon_key: key })}
@@ -195,7 +195,7 @@ function AppFormDialog({
             <button
               type="button"
               className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm transition hover:bg-muted",
+                "inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm transition-[background-color,border-color,color,box-shadow] duration-150 ease-out hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none",
                 draft.is_internal && "border-primary bg-primary/5 text-primary",
               )}
               onClick={() => onDraftChange({ ...draft, is_internal: !draft.is_internal })}
@@ -206,7 +206,7 @@ function AppFormDialog({
             <button
               type="button"
               className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm transition hover:bg-muted",
+                "inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm transition-[background-color,border-color,color,box-shadow] duration-150 ease-out hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none",
                 draft.is_active !== false && "border-primary bg-primary/5 text-primary",
               )}
               onClick={() => onDraftChange({ ...draft, is_active: draft.is_active === false })}

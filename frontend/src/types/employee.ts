@@ -59,6 +59,7 @@ export interface Organization {
   org_name: string;
   parent_id: number | null;
   org_type: "company" | "department";
+  color_token?: string | null;
   managers?: OrganizationManager[];
   manager_ids?: number[];
   manager_names?: string[];

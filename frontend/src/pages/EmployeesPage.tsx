@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { roleText } from "@/lib/constants";
-import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { OrganizationPanel } from "@/components/employees/OrganizationPanel";
 import { ReminderFloat } from "@/components/employees/ReminderFloat";
@@ -181,7 +181,6 @@ export default function EmployeesPage() {
     data: employees = [],
     isLoading,
     isError,
-    refetch,
   } = useEmployees();
   const { data: orgs = [] } = useOrganizations();
   const saveEmployee = useSaveEmployee();
@@ -502,7 +501,7 @@ export default function EmployeesPage() {
     }
     const emp = listedEmployees.find((e) => e.id === currentSelectedId);
     if (!emp) {
-      toast.error("选中的人员不存在，请刷新后重试");
+      toast.error("选中的人员不存在，请重新打开页面后重试");
       return;
     }
     if (emp.id === currentUser?.id) {
@@ -570,10 +569,6 @@ export default function EmployeesPage() {
                   />
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
                     <ReminderFloat employees={activeEmployees} />
-                    <Button variant="outline" size="sm" onClick={() => refetch()}>
-                      <RefreshCw className="size-3.5 mr-1" />
-                      刷新
-                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"

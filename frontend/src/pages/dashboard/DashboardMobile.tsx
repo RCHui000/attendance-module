@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import {
   PeriodFilter,
   type PeriodType,
@@ -6,7 +5,7 @@ import {
 import { BiPerspectiveTab } from "@/components/dashboard/BiPerspectiveTab";
 import { formatMoney } from "@/utils/dates";
 import type { DashboardData } from "@/types/project";
-import { RefreshCw, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { MobileMetricGrid } from "./MobileMetricGrid";
 import { MobileRankingList } from "./MobileRankingList";
 import { DashboardProjectCard } from "./DashboardProjectCard";
@@ -25,7 +24,6 @@ interface DashboardMobileProps {
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
   onQuarterChange: (quarter: number) => void;
-  onRefresh: () => void;
 }
 
 function percentLabel(value: number) {
@@ -44,7 +42,6 @@ export function DashboardMobile({
   onYearChange,
   onMonthChange,
   onQuarterChange,
-  onRefresh,
 }: DashboardMobileProps) {
   const contractTotal = data.projects.reduce((sum, project) => sum + (project.contract_amount || 0), 0);
   const receivedTotal = data.projects.reduce((sum, project) => sum + (project.received_amount || 0), 0);
@@ -58,16 +55,13 @@ export function DashboardMobile({
   return (
     <div className="space-y-4">
       <section className="rounded-lg border border-border bg-card p-3 shadow-app">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">统计周期</p>
             <p className="mt-1 text-sm font-semibold tabular-nums">
               {dates.startDate} ~ {dates.endDate}
             </p>
           </div>
-          <Button variant="outline" size="icon-sm" onClick={onRefresh} aria-label="刷新数据">
-            <RefreshCw className="size-4" />
-          </Button>
         </div>
         <div className="mt-3 overflow-x-auto pb-1">
           <PeriodFilter

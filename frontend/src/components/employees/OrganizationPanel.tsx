@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { useDeleteOrganization, useOrganizations, useSaveOrganization } from "@/hooks/useEmployees";
 import type { Employee, Organization } from "@/types/employee";
 import { cn } from "@/lib/utils";
+import { departmentColorOptions, departmentColorClass } from "@/lib/departmentColors";
 import { descendantOrgIds, flattenOrgTree, orgOptionLabel } from "@/utils/orgTree";
 import { ChevronDown, ChevronRight, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ export function OrganizationPanel({
     orgType: "department" as "company" | "department",
     parentId: "" as string,
     managerIds: [] as string[],
+    colorToken: "",
   });
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [expandedOrgIds, setExpandedOrgIds] = useState<Set<number>>(() => new Set());
@@ -142,11 +144,12 @@ export function OrganizationPanel({
         orgType: org.org_type,
         parentId: org.parent_id ? String(org.parent_id) : "",
         managerIds: (org.manager_ids || []).map(String),
+        colorToken: org.color_token || "",
       });
     } else {
       setIsNew(true);
       setEditingId(null);
-      setEditData({ orgName: "", orgType: "department", parentId: "", managerIds: [] });
+      setEditData({ orgName: "", orgType: "department", parentId: "", managerIds: [], colorToken: "" });
     }
   };
 
@@ -220,6 +223,28 @@ export function OrganizationPanel({
           ))}
         </SelectContent>
       </Select>
+      <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-2">
+        <div className="text-xs font-medium text-muted-foreground">审批中心部门颜色</div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {departmentColorOptions.map((option) => {
+            const active = editData.colorToken === option.token;
+            return (
+              <button
+                key={option.token || "none"}
+                type="button"
+                className={cn(
+                  "inline-flex h-8 items-center justify-center gap-1 rounded-full border px-2 text-xs transition-[background-color,border-color,box-shadow] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+                  option.swatchClassName,
+                  active && "border-primary shadow-focus",
+                )}
+                onClick={() => setEditData((data) => ({ ...data, colorToken: option.token }))}
+              >
+                <span className="truncate">{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-muted-foreground">
@@ -283,6 +308,7 @@ export function OrganizationPanel({
         orgType: editData.orgType,
         parentId: editData.parentId ? Number(editData.parentId) : null,
         managerIds: editData.managerIds.map(Number),
+        colorToken: editData.colorToken || null,
       },
       {
         onSuccess: () => {
@@ -368,7 +394,18 @@ export function OrganizationPanel({
                       {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                     </Button>
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{org.org_name}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        {org.color_token ? (
+                          <span
+                            className={cn(
+                              "size-2.5 shrink-0 rounded-full border",
+                              departmentColorClass(org.color_token),
+                            )}
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        <div className="truncate text-sm font-medium">{org.org_name}</div>
+                      </div>
                       <div className="truncate text-xs text-muted-foreground">
                         {managerSummary(org)} · {orgMemberCounts[org.id] || 0}人
                       </div>

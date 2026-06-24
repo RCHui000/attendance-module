@@ -10,7 +10,7 @@ interface MobileTimesheetDetailProps {
 }
 
 export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimesheetDetailProps) {
-  const { data, isLoading, isError, refetch, isFetching } = useTimesheetDetail(timesheetId);
+  const { data, isLoading, isError } = useTimesheetDetail(timesheetId);
   const visibleEntries = projectId
     ? (data?.entries || []).filter((entry) => Number(entry.project_id) === Number(projectId))
     : data?.entries || [];
@@ -175,17 +175,7 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
       <div className="min-w-0 max-w-full">
         {chainMissing ? (
           <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-            <div className="flex items-center justify-between gap-3">
-              <span>审批链路暂未加载</span>
-              <button
-                type="button"
-                className="font-medium text-primary hover:underline disabled:opacity-60"
-                onClick={() => refetch()}
-                disabled={isFetching}
-              >
-                {isFetching ? "加载中" : "重新加载"}
-              </button>
-            </div>
+            审批链路暂未加载
           </div>
         ) : (
           <ApprovalChain nodes={data.approval_chain} />

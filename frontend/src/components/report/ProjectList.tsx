@@ -423,7 +423,7 @@ export function ProjectList() {
                 key={project.id}
                 type="button"
                 className={cn(
-                  "mb-2 w-full rounded-md border border-transparent p-3 text-left transition-colors hover:border-border hover:bg-muted/40",
+                  "mb-2 w-full rounded-md border border-transparent p-3 text-left transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:border-border hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none motion-reduce:transition-none",
                   selectedId === project.id && "border-border bg-muted",
                 )}
                 onClick={() => selectProject(project)}

@@ -69,9 +69,11 @@ function FlowPreview({ template }: { template: ApprovalTemplate | null }) {
 
 function NodeEditor({
   node,
+  canWrite,
   onChange,
 }: {
   node: ApprovalTemplateNode;
+  canWrite: boolean;
   onChange: (patch: Partial<ApprovalTemplateNode>) => void;
 }) {
   return (
@@ -80,14 +82,16 @@ function NodeEditor({
         className="h-8 text-sm"
         type="number"
         value={node.sort_order}
+        disabled={!canWrite}
         onChange={(event) => onChange({ sort_order: Number(event.target.value || 0) })}
       />
       <Input
         className="h-8 text-sm"
         value={node.node_name}
+        disabled={!canWrite}
         onChange={(event) => onChange({ node_name: event.target.value })}
       />
-      <Select value={node.resolver_type} onValueChange={(value) => onChange({ resolver_type: value || "" })}>
+      <Select value={node.resolver_type} disabled={!canWrite} onValueChange={(value) => onChange({ resolver_type: value || "" })}>
         <SelectTrigger className="h-8 text-sm">
           <SelectValue />
         </SelectTrigger>
@@ -102,10 +106,11 @@ function NodeEditor({
       <Input
         className="h-8 text-sm"
         value={node.resolver_role || ""}
+        disabled={!canWrite}
         onChange={(event) => onChange({ resolver_role: event.target.value })}
         placeholder="resolver role"
       />
-      <Select value={node.approval_policy} onValueChange={(value) => onChange({ approval_policy: value || "single" })}>
+      <Select value={node.approval_policy} disabled={!canWrite} onValueChange={(value) => onChange({ approval_policy: value || "single" })}>
         <SelectTrigger className="h-8 text-sm">
           <SelectValue />
         </SelectTrigger>
@@ -121,7 +126,7 @@ function NodeEditor({
   );
 }
 
-export function ApprovalFlowConfig() {
+export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
   const { data: templates = [], isLoading, isError } = useApprovalTemplates();
   const saveTemplate = useSaveApprovalTemplate();
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -150,7 +155,7 @@ export function ApprovalFlowConfig() {
   };
 
   const handleSave = () => {
-    if (!activeDraft) return;
+    if (!activeDraft || !canWrite) return;
     saveTemplate.mutate(activeDraft, {
       onSuccess: () => toast.success("审批模板已保存"),
       onError: (error) => toast.error(error instanceof Error ? error.message : "审批模板保存失败"),
@@ -187,6 +192,7 @@ export function ApprovalFlowConfig() {
           <Input
             className="h-9 max-w-[420px]"
             value={activeDraft?.name || ""}
+            disabled={!canWrite}
             onChange={(event) =>
               setDraft((current) =>
                 current || activeDraft
@@ -195,7 +201,7 @@ export function ApprovalFlowConfig() {
               )
             }
           />
-          <Button size="sm" onClick={handleSave} disabled={!activeDraft || saveTemplate.isPending}>
+          <Button size="sm" onClick={handleSave} disabled={!canWrite || !activeDraft || saveTemplate.isPending}>
             <Save className="mr-1 size-3.5" />
             保存模板
           </Button>
@@ -212,7 +218,7 @@ export function ApprovalFlowConfig() {
             <span>策略</span>
           </div>
           {orderedNodes(activeDraft).map((node) => (
-            <NodeEditor key={node.id} node={node} onChange={(patch) => updateNode(node.id, patch)} />
+            <NodeEditor key={node.id} node={node} canWrite={canWrite} onChange={(patch) => updateNode(node.id, patch)} />
           ))}
         </div>
       </div>

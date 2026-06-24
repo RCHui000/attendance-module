@@ -34,7 +34,7 @@ import type { PermissionResource, PermissionRole } from "@/types/employee";
 import { toast } from "sonner";
 
 type PermissionListItem = PermissionResource & {
-  displayGroup: "sidebar" | "employee_org";
+  displayGroup: string;
   displayName?: string;
 };
 
@@ -47,6 +47,12 @@ type SidebarDragMetrics = {
 };
 
 const DRAG_REORDER_HYSTERESIS_PX = 8;
+
+const resourceGroupLabels: Record<string, string> = {
+  approval: "审批中心",
+  employee_org: "员工与组织架构",
+  sidebar: "侧边栏",
+};
 
 interface PermissionConfigPanelProps {
   canWrite: boolean;
@@ -173,19 +179,22 @@ export function PermissionConfigPanel({ canWrite }: PermissionConfigPanelProps) 
   }, [activeRole, baseSidebarResources, draftSidebarOrder, permissionDetails]);
 
   const groupedResources = useMemo(() => {
-    const employeeOrgResources: PermissionListItem[] = [
+    const nonSidebarResources: PermissionListItem[] = [
       ...resources
-        .filter((resource) => resource.resource_group === "employee_org")
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map((resource) => ({ ...resource, displayGroup: "employee_org" as const })),
+        .filter((resource) => resource.resource_group !== "sidebar")
+        .sort((a, b) =>
+          String(a.resource_group || "").localeCompare(String(b.resource_group || "")) ||
+          a.sort_order - b.sort_order,
+        )
+        .map((resource) => ({ ...resource, displayGroup: resource.resource_group || "other" })),
     ];
     const orderedResources: PermissionListItem[] = [
-      ...employeeOrgResources,
+      ...nonSidebarResources,
       ...sidebarResources.map((resource) => ({ ...resource, displayGroup: "sidebar" as const })),
     ];
     const groups = new Map<string, typeof orderedResources>();
     for (const resource of orderedResources) {
-      const group = resource.displayGroup === "employee_org" ? "员工与组织架构" : "侧边栏";
+      const group = resourceGroupLabels[resource.displayGroup] || resource.displayGroup;
       groups.set(group, [...(groups.get(group) || []), resource]);
     }
     return Array.from(groups.entries());

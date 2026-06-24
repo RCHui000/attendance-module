@@ -1132,6 +1132,10 @@ async function saveProjectDepartmentOwners(projectId: number, owners: AnyRow[] =
 }
 
 async function approvalTemplates(): Promise<AnyRow[]> {
+  if (!(await currentUserCanAccessResource("approval_config", "read"))) {
+    throw new Error("Missing approval_config read permission");
+  }
+
   const [templates, nodes, edges] = await Promise.all([
     rest<AnyRow[]>("/approval_templates?select=*&document_type=in.(contract,contract_approval)&order=business_type.asc,template_key.asc"),
     rest<AnyRow[]>("/approval_template_nodes?select=*&order=template_id.asc,sort_order.asc"),
@@ -1145,6 +1149,10 @@ async function approvalTemplates(): Promise<AnyRow[]> {
 }
 
 async function saveApprovalTemplate(body: AnyRow): Promise<AnyRow> {
+  if (!(await currentUserCanAccessResource("approval_config", "write"))) {
+    throw new Error("Missing approval_config write permission");
+  }
+
   const templateId = Number(body.id || 0);
   if (!templateId) throw new Error("Template id is required");
   await rest("/rpc/psa_save_approval_template", {

@@ -1,0 +1,38 @@
+{
+  "version": "V0.18.8",
+  "released_at": "2026-06-24",
+  "base_version": "V0.18.7",
+  "summary": "Upgrade timesheet project-block approval routing for cross-department collaboration and source-side owner auto-skip.",
+  "database": {
+    "new_migrations": [
+      "111_aggregate_project_review_records_view.sql",
+      "112_collaboration_approval_routing.sql"
+    ],
+    "notes": [
+      "Project review records are aggregated to one row per timesheet/project block.",
+      "PMCC collaboration routing now runs source-side project owner, source-side department owner, then PM-side specialty/project/department owners.",
+      "Project owner resolution prefers submitter-side specialty roles such as QS civil, QS MEP, and design consultation.",
+      "Ready-node activation now skips a node when the submitter is the resolved assignee, and skips lower duplicate nodes when the next node resolves to the same assignee."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.8",
+    "notes": [
+      "Approval-center project-block status labels now show only the project name on desktop and mobile to avoid wrapped, clipped status text."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.8.",
+    "Run scripts/assert-approval-project-review-records-aggregated.sql on production.",
+    "Run scripts/assert-collaboration-approval-routing.sql on production.",
+    "Run scripts/smoke-collaboration-approval-routing.sql on production in a rollback transaction.",
+    "Run deploy/scripts/verify-jwt-keys.sh on the cloud host.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host before deployment.",
+    "After deploy, run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.18.8.",
+    "After deploy, run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.8."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB."
+  ]
+}

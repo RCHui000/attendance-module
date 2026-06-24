@@ -484,7 +484,7 @@ function ApprovalRow({
   const isProjectScope = item.scope_type === "project";
   const scopeLabel =
     isProjectScope
-      ? `项目块：${`${item.project_code || ""} ${item.project_name || "项目审批"}`.trim()}`
+      ? item.project_name || (item.project_id ? `项目 #${item.project_id}` : "项目审批")
       : item.scope_type === "department_summary"
         ? "周表：部门汇总确认"
         : "周表";

@@ -110,7 +110,15 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.psa_sync_project_platform_roles(BIGINT[]) OWNER TO postgres;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+    EXECUTE 'ALTER FUNCTION public.psa_sync_project_platform_roles(BIGINT[]) OWNER TO postgres';
+  ELSIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'psa_admin') THEN
+    EXECUTE 'ALTER FUNCTION public.psa_sync_project_platform_roles(BIGINT[]) OWNER TO psa_admin';
+  END IF;
+END;
+$$;
 GRANT EXECUTE ON FUNCTION public.psa_sync_project_platform_roles(BIGINT[]) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.psa_save_project(

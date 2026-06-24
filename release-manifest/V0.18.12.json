@@ -1,0 +1,29 @@
+{
+  "version": "V0.18.12",
+  "released_at": "2026-06-24",
+  "base_version": "V0.18.11",
+  "summary": "Patch the project owner platform-role synchronization migration to support the production database role layout.",
+  "database": {
+    "new_migrations": [],
+    "updated_pending_migrations": [
+      "116_project_owner_platform_role_sync.sql"
+    ],
+    "notes": [
+      "Migration 116 no longer assumes a postgres database role exists on production.",
+      "Function ownership is assigned to postgres when available, otherwise to psa_admin.",
+      "Migration 116 was not recorded in production schema_migrations before this patch because it failed inside its transaction."
+    ]
+  },
+  "verification": [
+    "Run static project-role platform sync migration coverage check.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.12.",
+    "Run deploy/scripts/pre-deploy-check.sh on production with EXPECTED_VERSION=V0.18.12.",
+    "Run scripts/assert-project-role-platform-sync.sql on production.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.12."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB.",
+    "Git may warn that LF will be converted to CRLF on this Windows workstation."
+  ]
+}

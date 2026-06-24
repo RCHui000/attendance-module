@@ -120,7 +120,7 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION public.psa_sync_project_platform_roles(BIGINT[]) FROM public, anon;
-GRANT EXECUTE ON FUNCTION public.psa_sync_project_platform_roles(BIGINT[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.psa_sync_project_platform_roles(BIGINT[]) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.psa_save_project(
   p_project jsonb,

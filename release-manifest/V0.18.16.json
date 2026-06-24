@@ -1,0 +1,48 @@
+{
+  "version": "V0.18.16",
+  "released_at": "2026-06-25",
+  "base_version": "V0.18.15",
+  "summary": "Move key persistence responsibilities back to database-controlled RPCs and remove polling from configuration and approval surfaces.",
+  "database": {
+    "new_migrations": [
+      "119_backend_ownership_refactor.sql"
+    ],
+    "notes": [
+      "Added psa_save_timesheet so timesheet, entry, overtime, and editable project revision persistence happens in one database transaction with database-generated detail ids.",
+      "Added psa_save_organization so organization ids, org codes, and manager assignments are saved transactionally by the database.",
+      "Added psa_create_employee_business_rows so employee business rows, profile, contract, salary, and role records are created in one database transaction after controlled GoTrue creation.",
+      "Updated psa_save_project so blank project codes are generated server-side and duplicate project codes remain a backend-validated error.",
+      "Converted function grant assertions from brittle hardcoded counts to required/denied function checks."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.16",
+    "notes": [
+      "Timesheet save no longer sends client-generated detail ids and now refreshes from the saved database state.",
+      "Configuration, employee, organization, approval, and report hooks no longer use polling refetch intervals.",
+      "TimesheetPage save/submit/week-change handlers now use current hook dependencies instead of stale closures."
+    ]
+  },
+  "backend": {
+    "notes": [
+      "create-employee-with-login now defaults login names to the employee name and appends a numeric suffix on duplicates.",
+      "GoTrue-created users are still cleaned up when employee business-row creation fails."
+    ]
+  },
+  "verification": [
+    "Run scripts/assert-backend-ownership-refactor.ps1.",
+    "Run python -m py_compile serve_spa.py.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run migration 119 and SQL assertion scripts against a cloud-hosted schema-only temporary database.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host before and after deployment.",
+    "Run scripts/assert-function-grants.sql and scripts/assert-backend-ownership-rpcs.sql on production.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.16."
+  ],
+  "known_warnings": [
+    "npm lint still reports existing Fast Refresh warnings and one AnalyticsTab hook dependency warning.",
+    "Vite still warns that some chunks are larger than 500 kB."
+  ]
+}

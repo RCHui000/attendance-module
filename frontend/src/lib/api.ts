@@ -1,57 +1,12 @@
 import { getStoredToken, clearStoredToken } from "./supabase";
 import { accessRank, decodeJwt, payload, rest, type AnyRow } from "./restClient";
 import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
-import { regularWorkdayCapacity } from "@/utils/validation";
 
 const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
   : `${Date.now()}-${Math.random()}`;
 
 const REPORTABLE_TIMESHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
-const MAX_TIMESHEET_DAY_HOURS = 1;
-const TIMESHEET_HOURS_EPSILON = 0.0001;
-
-function formatApiHours(value: number): string {
-  const roundedToOne = Number(value.toFixed(1));
-  return Math.abs(value - roundedToOne) > TIMESHEET_HOURS_EPSILON
-    ? value.toFixed(2)
-    : value.toFixed(1);
-}
-
-function assertTimesheetHoursWithinLimits(entries: AnyRow[], days: string[]): void {
-  const daily = new Map<string, number>();
-  let weekly = 0;
-  const maxRegularWorkdays = regularWorkdayCapacity(days);
-
-  for (const entry of entries) {
-    const hours = Number(entry.hours || 0);
-    if (hours < 0) {
-      throw new Error("普通工日不能为负数");
-    }
-    if (hours > MAX_TIMESHEET_DAY_HOURS + TIMESHEET_HOURS_EPSILON) {
-      throw new Error(
-        `${entry.work_date} 单项目普通工日 ${formatApiHours(hours)}，超过 1.0 工日`,
-      );
-    }
-    const day = String(entry.work_date);
-    daily.set(day, (daily.get(day) || 0) + hours);
-    weekly += hours;
-  }
-
-  for (const [day, hours] of daily) {
-    if (hours > MAX_TIMESHEET_DAY_HOURS + TIMESHEET_HOURS_EPSILON) {
-      throw new Error(
-        `${day} 普通工日合计 ${formatApiHours(hours)}，超过 1.0 工日`,
-      );
-    }
-  }
-
-  if (weekly > maxRegularWorkdays + TIMESHEET_HOURS_EPSILON) {
-    throw new Error(
-      `本周普通工日合计 ${formatApiHours(weekly)}，超过 ${formatApiHours(maxRegularWorkdays)} 工日`,
-    );
-  }
-}
 
 function todayMonday(): string {
   return timesheetPeriodStartOfDate(isoDate(new Date()));
@@ -241,11 +196,6 @@ function employeeDailyRate(emp?: AnyRow | null): number {
   if (emp.contract_type === "service") return Number(emp.daily_wage || 0);
   const workdays = Number(emp.standard_monthly_workdays || 21.75);
   return Number(emp.monthly_salary || 0) / (workdays || 21.75);
-}
-
-async function nextId(table: string): Promise<number> {
-  const rows = await rest<AnyRow[]>(`/${table}?select=id&order=id.desc&limit=1`);
-  return Number(rows[0]?.id || 0) + 1;
 }
 
 async function currentUser(): Promise<AnyRow | null> {
@@ -772,62 +722,10 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
 }
 
 async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
-  const sheet = await getTimesheet(body.weekStart);
-  const existingEntries = await rest<AnyRow[]>(
-    `/timesheet_entries?select=*&timesheet_id=eq.${sheet.id}&order=project_id.asc,work_date.asc`,
-  );
-  const graphReviews = await rest<AnyRow[]>(
-    `/approval_project_review_records_view?select=project_id,status,result_action&timesheet_id=eq.${sheet.id}`,
-  ).catch(() => []);
-  const rejectedProjectIds = new Set(
-    graphReviews
-      .filter((review) => review.status === "needs_revision" || review.result_action === "reject")
-      .map((review) => Number(review.project_id)),
-  );
-  const canEditSubmittedRevision = sheet.status === "submitted" && rejectedProjectIds.size > 0;
-  if (!["draft", "rejected", "revision_required"].includes(sheet.status) && !canEditSubmittedRevision) {
-    throw new Error("Submitted or approved timesheets cannot be edited");
-  }
-  const lockedProjectIds = new Set(
-    canEditSubmittedRevision
-      ? existingEntries
-        .map((entry) => Number(entry.project_id))
-        .filter((projectId) => !rejectedProjectIds.has(projectId))
-      : ["rejected", "revision_required"].includes(String(sheet.status || ""))
-      ? []
-      : graphReviews
-        .filter((review) => review.status === "project_approved" || review.result_action === "approve")
-        .map((review) => Number(review.project_id)),
-  );
-  const projectRevisions = (body.projectRevisions || body.project_revisions || [])
-    .map((revision: AnyRow) => ({
-      oldProjectId: Number(revision.oldProjectId || revision.old_project_id || 0),
-      newProjectId: Number(revision.newProjectId || revision.new_project_id || 0),
-    }))
-    .filter((revision: AnyRow) => revision.oldProjectId && revision.newProjectId && revision.oldProjectId !== revision.newProjectId);
-  for (const revision of projectRevisions) {
-    if (lockedProjectIds.has(revision.newProjectId)) {
-      throw new Error("Cannot merge a rejected project block into an approved or pending project block");
-    }
-  }
-  await rest(`/timesheets?id=eq.${sheet.id}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ remark: body.remark || "", updated_at: new Date().toISOString() }),
-  });
-  if (lockedProjectIds.size > 0) {
-    await rest(
-      `/timesheet_entries?timesheet_id=eq.${sheet.id}&project_id=not.in.(${Array.from(lockedProjectIds).join(",")})`,
-      { method: "DELETE" },
-    );
-  } else {
-    await rest(`/timesheet_entries?timesheet_id=eq.${sheet.id}`, { method: "DELETE" });
-  }
   const mergedEntries = new Map<string, AnyRow>();
   for (const entry of body.entries || []) {
     const hours = Number(entry.hours || 0);
     if (hours <= 0) continue;
-    if (lockedProjectIds.has(Number(entry.projectId))) continue;
     const key = `${entry.projectId}:${entry.workDate}`;
     const current = mergedEntries.get(key);
     if (current) {
@@ -837,62 +735,20 @@ async function saveTimesheet(body: AnyRow): Promise<AnyRow> {
       mergedEntries.set(key, { ...entry, hours });
     }
   }
-  const entries = Array.from(mergedEntries.values())
-    .map((entry: AnyRow, index: number) => ({
-      id: Date.now() + index,
-      timesheet_id: sheet.id,
-      project_id: entry.projectId,
-      work_date: entry.workDate,
-      hours: entry.hours,
-      description: entry.description || "",
-    }));
-  const allowedDays = new Set(weekDays(sheet.week_start_date));
-  const outOfPeriodEntry = entries.find((entry) => !allowedDays.has(String(entry.work_date)));
-  if (outOfPeriodEntry) {
-    throw new Error(`${outOfPeriodEntry.work_date} 不属于当前周表期间`);
-  }
-  const preservedEntries = existingEntries.filter((entry) =>
-    lockedProjectIds.has(Number(entry.project_id)),
-  );
-  assertTimesheetHoursWithinLimits([...preservedEntries, ...entries], Array.from(allowedDays));
-  if (entries.length) {
-    await rest("/timesheet_entries", { method: "POST", body: JSON.stringify(entries) });
-  }
-  if (canEditSubmittedRevision && projectRevisions.length) {
-    await rest("/rpc/psa_sync_timesheet_project_revisions", {
-      method: "POST",
-      body: JSON.stringify({
-        p_timesheet_id: Number(sheet.id),
-        p_revisions: projectRevisions.map((revision: AnyRow) => ({
-          old_project_id: revision.oldProjectId,
-          new_project_id: revision.newProjectId,
-        })),
-      }),
-    });
-  }
-  const preservedProjects = new Set(existingEntries.map((entry) => Number(entry.project_id)));
-  for (const projectId of lockedProjectIds) {
-    if (!preservedProjects.has(projectId)) {
-      throw new Error(`Approved project row ${projectId} cannot be removed`);
-    }
-  }
-  if (!canEditSubmittedRevision) {
-    await rest(`/overtime_entries?timesheet_id=eq.${sheet.id}`, { method: "DELETE" });
-    const overtime = (body.overtime || [])
-      .filter((entry: AnyRow) => Number(entry.hours || 0) > 0 || entry.reason)
-      .map((entry: AnyRow, index: number) => ({
-        id: Date.now() + 1000 + index,
-        timesheet_id: sheet.id,
-        work_date: entry.workDate,
-        overtime_hours: Number(entry.hours || 0),
-        reason: entry.reason || "",
-        status: "pending",
-      }));
-    if (overtime.length) {
-      await rest("/overtime_entries", { method: "POST", body: JSON.stringify(overtime) });
-    }
-  }
-  return { ok: true, timesheet: await getTimesheet(sheet.week_start_date) };
+
+  const payloadBody = {
+    ...body,
+    entries: Array.from(mergedEntries.values()),
+  };
+  const result = await rest<AnyRow>("/rpc/psa_save_timesheet", {
+    method: "POST",
+    body: JSON.stringify({ p_payload: payloadBody }),
+  });
+  const saved = result?.timesheet || {};
+  return {
+    ok: true,
+    timesheet: await getTimesheet(saved.week_start_date || body.weekStart),
+  };
 }
 
 async function timesheetAction(body: AnyRow): Promise<AnyRow> {
@@ -1322,7 +1178,7 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     ? await rest<AnyRow[]>(`/projects?select=id,project_owner_id&id=eq.${projectId}&limit=1`)
     : [];
   const businessType = body.businessType || body.business_type || inferProjectBusinessType(body.code);
-  const code = String(body.code || "").trim() || (!projectId ? await nextProjectCode(businessType) : "");
+  const code = String(body.code || "").trim();
   const row = {
     code,
     name: body.name,
@@ -1356,7 +1212,7 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
     if (existing.length > 0) {
       throw new Error(`项目代码「${row.code}」已存在，请更换代码后重试`);
     }
-    const saved = await rest<{ project_id: number }>("/rpc/psa_save_project", {
+    const saved = await rest<{ project_id: number; code?: string }>("/rpc/psa_save_project", {
       method: "POST",
       body: JSON.stringify({
         p_project: row,
@@ -1386,52 +1242,6 @@ async function overtimeAction(body: AnyRow): Promise<AnyRow> {
   });
 }
 
-async function saveOrganizationManagers(orgId: number, managerIds: number[] = []): Promise<void> {
-  const current = await rest<AnyRow[]>(
-    `/organization_managers?select=*&org_id=eq.${orgId}&manager_role=eq.department_owner&is_active=eq.true`,
-  ).catch(() => []);
-  const activeIds = new Set<number>();
-  const seen = new Set<number>();
-  const normalized = managerIds.map((id) => Number(id || 0)).filter(Boolean);
-
-  for (const employeeId of normalized) {
-    if (seen.has(employeeId)) continue;
-    seen.add(employeeId);
-    const existing = current.find((item) => Number(item.employee_id) === employeeId);
-    const row = {
-      org_id: orgId,
-      employee_id: employeeId,
-      manager_role: "department_owner",
-      is_primary: false,
-      is_active: true,
-    };
-    if (existing?.id) {
-      activeIds.add(Number(existing.id));
-      await rest(`/organization_managers?id=eq.${existing.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(row),
-      });
-    } else {
-      const inserted = await rest<AnyRow[]>("/organization_managers", {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify([row]),
-      });
-      if (inserted[0]?.id) activeIds.add(Number(inserted[0].id));
-    }
-  }
-
-  const deactivateIds = current
-    .map((manager) => Number(manager.id))
-    .filter((id) => id && !activeIds.has(id));
-  if (deactivateIds.length) {
-    await rest(`/organization_managers?id=in.(${deactivateIds.join(",")})`, {
-      method: "PATCH",
-      body: JSON.stringify({ is_active: false }),
-    });
-  }
-}
-
 async function saveOrganization(body: AnyRow): Promise<AnyRow> {
   const row = {
     org_name: body.orgName || body.org_name,
@@ -1443,14 +1253,13 @@ async function saveOrganization(body: AnyRow): Promise<AnyRow> {
   const managerIds = (body.managerIds || body.manager_ids || [])
     .map((id: unknown) => Number(id || 0))
     .filter(Boolean);
-  if (body.id) {
-    await rest(`/organizations?id=eq.${body.id}`, { method: "PATCH", body: JSON.stringify(row) });
-    await saveOrganizationManagers(Number(body.id), managerIds);
-  } else {
-    const id = await nextId("organizations");
-    await rest("/organizations", { method: "POST", body: JSON.stringify([{ id, org_code: `D${String(id).padStart(3, "0")}`, ...row }]) });
-    await saveOrganizationManagers(id, managerIds);
-  }
+  await rest("/rpc/psa_save_organization", {
+    method: "POST",
+    body: JSON.stringify({
+      p_organization: body.id ? { id: body.id, ...row } : row,
+      p_manager_ids: managerIds,
+    }),
+  });
   return { ok: true, organizations: await organizations() };
 }
 
@@ -1460,9 +1269,6 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
 
   // New employee: single atomic endpoint
   if (!body.id) {
-    if (!(body.employeeNo || body.employee_no) && (body.orgId || body.org_id)) {
-      body.employeeNo = await nextEmployeeNo(Number(body.orgId || body.org_id));
-    }
     const token = getStoredToken();
     const resp = await fetch("/api/create-employee-with-login", {
       method: "POST",

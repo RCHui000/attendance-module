@@ -95,19 +95,13 @@ class SpaHandler(SimpleHTTPRequestHandler):
             name = (body.get("name") or "").strip()
             if not name:
                 self._json_error(400, "Employee name is required"); return
-            if not (body.get("employeeNo") or body.get("employee_no")) and (body.get("orgId") or body.get("org_id")):
-                body["employeeNo"] = self._next_employee_no(body.get("orgId") or body.get("org_id"), auth_header[7:])
-            if not (body.get("loginName") or body.get("login_name")) and not (body.get("employeeNo") or body.get("employee_no")):
-                next_eid = self._next_employee_id(auth_header[7:])
-                body["_employee_id"] = next_eid
-                body["employeeNo"] = f"QS{str(next_eid).zfill(6)}"
             login_name = self._login_name_for_new_employee(body, name)
             email = self._auth_email_for_login(login_name)
             password = DEFAULT_INITIAL_PASSWORD
 
             # ── 3. Check uniqueness ──
-            if self._rest_get(f"/profiles?login_name=eq.{self._q(login_name)}&limit=1"):
-                self._json_error(409, f"Login name '{login_name}' already exists"); return
+            body["login_name"] = login_name
+            body["auth_email"] = email
 
             # ── 4. Create GoTrue user ──
             token = make_service_role_token()
@@ -155,16 +149,24 @@ class SpaHandler(SimpleHTTPRequestHandler):
     def _login_name_for_new_employee(self, body: dict, name: str) -> str:
         candidates = [
             body.get("loginName") or body.get("login_name") or "",
-            body.get("employeeNo") or body.get("employee_no") or "",
             name,
+            body.get("employeeNo") or body.get("employee_no") or "",
         ]
         for candidate in candidates:
             compact = re.sub(r"\s+", "", str(candidate or ""))
             if "@" in compact and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", compact):
-                return compact.lower()
-            if re.fullmatch(r"[A-Za-z0-9._+-]+", compact):
-                return compact
-        return f"user{int(time.time() * 1000)}"
+                return self._unique_login_name(compact.lower())
+            if compact:
+                return self._unique_login_name(compact)
+        return self._unique_login_name(f"user{int(time.time() * 1000)}")
+
+    def _unique_login_name(self, base: str) -> str:
+        candidate = base
+        suffix = 1
+        while self._rest_get(f"/profiles?select=id&login_name=eq.{self._q(candidate)}&limit=1"):
+            suffix += 1
+            candidate = f"{base}{suffix}"
+        return candidate
 
     def _auth_email_for_login(self, login_name: str) -> str:
         login = (login_name or "").strip()
@@ -292,33 +294,29 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return []
 
     def _write_employee(self, body: dict, login_name: str, email: str, bearer_token: str) -> int:
-        name = body["name"]
-        contract_type = body.get("contractType") or body.get("contract_type") or "labor"
-        # Get next ID
-        eid = int(body.get("_employee_id") or 0) or self._next_employee_id(bearer_token)
-        body["_employee_id"] = eid
-
-        # employees
-        employee_no = body.get("employeeNo") or body.get("employee_no")
-        if not employee_no and (body.get("orgId") or body.get("org_id")):
-            employee_no = self._next_employee_no(body.get("orgId") or body.get("org_id"), bearer_token)
-        self._rest_post("/employees", [{"id": eid, "employee_no": employee_no or f"QS{str(eid).zfill(6)}", "name": name, "auth_user_id": body["auth_user_id"], "is_active": True}], bearer_token)
-        # profiles
-        self._rest_post("/profiles", [{"login_name": login_name, "auth_email": email, "auth_user_id": body["auth_user_id"], "display_name": name, "is_active": True, "must_change_password": True}], bearer_token)
-        # profiles
-        self._rest_post("/employee_profiles", [{"employee_id": eid, "org_id": body.get("orgId") or body.get("org_id") or None, "position_name": body.get("positionName") or body.get("position_name") or "", "cost_specialty": body.get("costSpecialty") or body.get("cost_specialty") or None, "employment_status": body.get("status") or "active", "manager_user_id": body.get("managerUserId") or body.get("manager_user_id") or None, "hire_date": body.get("hireDate") or body.get("hire_date") or None}], bearer_token)
-        # contracts
-        self._rest_post("/employee_contracts", [{"employee_id": eid, "contract_type": contract_type, "employment_type": body.get("employmentType") or body.get("employment_type") or "labor", "is_current": True}], bearer_token)
-        # salary
-        self._rest_post("/employee_salary_profiles", [{"employee_id": eid, "salary_mode": "daily_wage" if contract_type == "service" else "monthly_salary", "monthly_salary": 0 if contract_type == "service" else int(body.get("monthlySalary") or body.get("monthly_salary") or 0), "daily_wage": int(body.get("dailyWage") or body.get("daily_wage") or 0) if contract_type == "service" else 0, "is_current": True}], bearer_token)
-        # roles
-        self._rest_post("/user_roles", [{"employee_id": eid, "role": body.get("role") or "employee"}], bearer_token)
-        return eid
+        body["login_name"] = login_name
+        body["auth_email"] = email
+        result = self._rest_rpc("psa_create_employee_business_rows", {"p_employee": body}, bearer_token)
+        return int(result.get("employee_id") or 0)
 
     def _rest_post(self, path: str, data: list, bearer_token: str | None = None) -> None:
         req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}", data=json.dumps(data).encode(), headers={"Content-Type": "application/json", "Prefer": "return=minimal", "Authorization": f"Bearer {bearer_token or make_service_role_token()}"}, method="POST")
         with urllib.request.urlopen(req, timeout=10) as r:
             pass  # fire-and-forget, errors raise HTTPError
+
+    def _rest_rpc(self, name: str, body: dict, bearer_token: str | None = None) -> dict:
+        req = urllib.request.Request(
+            f"{SUPABASE_REST_URL}/rpc/{name}",
+            data=json.dumps(body).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {bearer_token or make_service_role_token()}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else {}
 
     def _delete_auth_user(self, uid: str) -> None:
         try:

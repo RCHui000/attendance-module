@@ -3,12 +3,6 @@
 -- Usage:
 --   docker exec -i approval-postgres psql -U psa_admin -d psa \
 --     < scripts/assert-function-grants.sql
---
--- Expected baseline after V0.18.6:
---   public schema functions: 56
---   PostgreSQL PUBLIC EXECUTE grants: 0
---   anon EXECUTE grants: 3
---   authenticated EXECUTE grants: 21
 
 \set ON_ERROR_STOP on
 \pset pager off
@@ -20,6 +14,7 @@ CREATE TEMP TABLE function_grant_assertion_details AS
 WITH funcs AS (
   SELECT
     p.oid,
+    p.oid::regprocedure AS regprocedure,
     p.proname AS function_name,
     p.proacl,
     p.proowner
@@ -40,57 +35,44 @@ grants AS (
     oid,
     bool_or(grantee = 'PUBLIC' AND privilege_type = 'EXECUTE') AS has_pg_public_execute,
     bool_or(grantee = 'anon' AND privilege_type = 'EXECUTE') AS has_anon_execute,
-    bool_or(grantee = 'authenticated' AND privilege_type = 'EXECUTE') AS has_authenticated_execute
+    bool_or(grantee = 'authenticated' AND privilege_type = 'EXECUTE') AS has_authenticated_execute,
+    bool_or(grantee = 'service_role' AND privilege_type = 'EXECUTE') AS has_service_role_execute
   FROM grant_rows
   GROUP BY oid
 )
 SELECT
   f.oid,
-  f.oid::regprocedure AS regprocedure,
+  f.regprocedure,
   f.function_name,
   COALESCE(g.has_pg_public_execute, false) AS has_pg_public_execute,
   COALESCE(g.has_anon_execute, false) AS has_anon_execute,
-  COALESCE(g.has_authenticated_execute, false) AS has_authenticated_execute
+  COALESCE(g.has_authenticated_execute, false) AS has_authenticated_execute,
+  COALESCE(g.has_service_role_execute, false) AS has_service_role_execute
 FROM funcs f
 LEFT JOIN grants g ON g.oid = f.oid;
 
-DROP TABLE IF EXISTS pg_temp.function_grant_assertion_summary;
-CREATE TEMP TABLE function_grant_assertion_summary AS
-SELECT
-  count(*)::int AS public_schema_functions,
-  count(*) FILTER (WHERE has_pg_public_execute)::int AS pg_public_execute,
-  count(*) FILTER (WHERE has_anon_execute)::int AS anon_execute,
-  count(*) FILTER (WHERE has_authenticated_execute)::int AS authenticated_execute
-FROM function_grant_assertion_details;
-
 DO $$
 DECLARE
-  v_summary record;
+  v_pg_public text[];
   v_unexpected_authenticated text[];
   v_missing_authenticated text[];
   v_missing_anon text[];
 BEGIN
-  SELECT * INTO v_summary
-  FROM function_grant_assertion_summary;
+  SELECT ARRAY(
+    SELECT regprocedure::text
+    FROM function_grant_assertion_details
+    WHERE has_pg_public_execute
+    ORDER BY regprocedure::text
+  ) INTO v_pg_public;
 
-  IF v_summary.public_schema_functions <> 56 THEN
-    RAISE EXCEPTION 'Expected 56 public schema functions, got %', v_summary.public_schema_functions;
-  END IF;
-
-  IF v_summary.pg_public_execute <> 0 THEN
-    RAISE EXCEPTION 'Expected 0 PostgreSQL PUBLIC EXECUTE grants, got %', v_summary.pg_public_execute;
-  END IF;
-
-  IF v_summary.anon_execute <> 3 THEN
-    RAISE EXCEPTION 'Expected 3 anon EXECUTE grants, got %', v_summary.anon_execute;
-  END IF;
-
-  IF v_summary.authenticated_execute <> 21 THEN
-    RAISE EXCEPTION 'Expected 21 authenticated EXECUTE grants, got %', v_summary.authenticated_execute;
+  IF cardinality(v_pg_public) > 0 THEN
+    RAISE EXCEPTION
+      'PostgreSQL PUBLIC must not have function EXECUTE grants: %',
+      array_to_string(v_pg_public, ', ');
   END IF;
 
   SELECT ARRAY(
-    SELECT DISTINCT d.function_name
+    SELECT DISTINCT d.regprocedure::text
     FROM function_grant_assertion_details d
     WHERE d.has_authenticated_execute
       AND d.function_name = ANY (ARRAY[
@@ -105,7 +87,7 @@ BEGIN
         'psa_select_approval_template',
         'psa_timesheet_business_type'
       ])
-    ORDER BY d.function_name
+    ORDER BY d.regprocedure::text
   ) INTO v_unexpected_authenticated;
 
   IF cardinality(v_unexpected_authenticated) > 0 THEN
@@ -118,11 +100,14 @@ BEGIN
     SELECT expected.function_name
     FROM unnest(ARRAY[
       'psa_timesheet_action',
-      'psa_sync_timesheet_project_revisions',
+      'psa_overtime_action',
+      'psa_save_timesheet',
       'psa_save_role_permission',
       'psa_save_approval_template',
       'psa_save_project',
+      'psa_save_organization',
       'psa_update_employee',
+      'psa_create_employee_business_rows',
       'psa_timesheet_approval_chain'
     ]) AS expected(function_name)
     WHERE NOT EXISTS (
@@ -167,34 +152,7 @@ END $$;
 
 SELECT
   'PASS' AS result,
-  public_schema_functions,
-  pg_public_execute,
-  anon_execute,
-  authenticated_execute
-FROM function_grant_assertion_summary;
-
-SELECT
-  'authenticated required allowlist present' AS check_name,
-  string_agg(function_name, ', ' ORDER BY function_name) AS functions
-FROM function_grant_assertion_details
-WHERE has_authenticated_execute
-  AND function_name = ANY (ARRAY[
-    'psa_timesheet_action',
-    'psa_sync_timesheet_project_revisions',
-    'psa_save_role_permission',
-    'psa_save_approval_template',
-    'psa_save_project',
-    'psa_update_employee',
-    'psa_timesheet_approval_chain'
-  ]);
-
-SELECT
-  'anon public/login helpers present' AS check_name,
-  string_agg(function_name, ', ' ORDER BY function_name) AS functions
-FROM function_grant_assertion_details
-WHERE has_anon_execute
-  AND function_name = ANY (ARRAY[
-    'psa_resolve_login_email',
-    'current_user_can_access_resource',
-    'current_user_can_review'
-  ]);
+  count(*) AS public_schema_functions,
+  count(*) FILTER (WHERE has_anon_execute) AS anon_execute,
+  count(*) FILTER (WHERE has_authenticated_execute) AS authenticated_execute
+FROM function_grant_assertion_details;

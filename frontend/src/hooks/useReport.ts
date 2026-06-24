@@ -81,7 +81,6 @@ export function useWeeklyReport(params: {
         `/api/reports/weekly?startDate=${params.startDate}&endDate=${params.endDate}`,
       ),
     enabled: !!(params.startDate && params.endDate),
-    refetchInterval: 15_000,
   });
 }
 
@@ -90,7 +89,6 @@ export function useProjectBase() {
     queryKey: ["project-base"],
     queryFn: () => api<ProjectBase[]>("/api/projects"),
     staleTime: 60_000,
-    refetchInterval: 30_000,
   });
 }
 
@@ -102,7 +100,6 @@ export function useProjectRoleRequirements(businessType?: "PM" | "CC" | "PMCC" |
         `/api/project-role-requirements${businessType ? `?businessType=${businessType}` : ""}`,
       ),
     staleTime: 10 * 60_000,
-    refetchInterval: 60_000,
   });
 }
 
@@ -130,9 +127,8 @@ export function useLaborMatrix(params: {
     queryFn: () =>
       api<LaborMatrixRow[]>(
         `/api/reports/labor-matrix?startDate=${params.startDate}&endDate=${params.endDate}`,
-      ),
+    ),
     enabled: !!(params.startDate && params.endDate),
-    refetchInterval: 30_000,
   });
 }
 

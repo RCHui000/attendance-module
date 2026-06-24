@@ -58,6 +58,8 @@ function needsWorkIntentSlot(rows: TimesheetRow[], weekDays: string[]): boolean 
 export default function TimesheetPage() {
   const { currentWeek, setCurrentWeek } = useAppStore();
   const store = useTimesheetStore();
+  const initFromServer = useTimesheetStore((state) => state.initFromServer);
+  const resetTimesheetStore = useTimesheetStore((state) => state.reset);
 
   const { data: timesheet, isLoading, refetch } = useTimesheet(currentWeek);
 
@@ -95,7 +97,7 @@ export default function TimesheetPage() {
   // Initialize store from server data
   useEffect(() => {
     if (timesheet) {
-      store.initFromServer({
+      initFromServer({
         entries: timesheet.entries || [],
         overtime: timesheet.overtime || [],
         projectStatuses: timesheet.project_statuses || [],
@@ -103,9 +105,9 @@ export default function TimesheetPage() {
         weekDays: timesheet.days || weekDays,
       });
     } else {
-      store.reset();
+      resetTimesheetStore();
     }
-  }, [serverRevisionKey, weekDays]);
+  }, [initFromServer, resetTimesheetStore, serverRevisionKey, timesheet, weekDays]);
 
   const dayTotals = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -147,9 +149,9 @@ export default function TimesheetPage() {
     const rows = useTimesheetStore.getState().rows;
     const intentDays = context?.day ? [context.day] : weekDays;
     if (needsWorkIntentSlot(rows, intentDays)) store.ensureEmptyRow(store.isDirty);
-  }, [hasRejectedProject, isLocked, status, store, store.isDirty, weekDays]);
+  }, [hasRejectedProject, isLocked, status, store, weekDays]);
 
-  const buildPayload = (): SaveTimesheetPayload => {
+  const buildPayload = useCallback((): SaveTimesheetPayload => {
     const entries = store.rows.flatMap((row) =>
       {
         const rowDescription =
@@ -189,7 +191,7 @@ export default function TimesheetPage() {
       overtime,
       projectRevisions,
     };
-  };
+  }, [currentWeek, store.overtime, store.remark, store.rows, weekDays]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -206,7 +208,7 @@ export default function TimesheetPage() {
         e instanceof Error ? e.message : "保存失败",
       );
     }
-  }, [store.rows, store.overtime, store.remark, currentWeek, blocking]);
+  }, [blocking, buildPayload, refetch, saveMutation, store]);
 
   const handleSubmit = useCallback(async () => {
     try {
@@ -214,7 +216,7 @@ export default function TimesheetPage() {
         toast.error("请先修正每日或每周普通工日超额");
         return;
       }
-      let id = timesheet?.id;
+      let id = timesheetId;
       if (store.isDirty || !id) {
         const result = await saveMutation.mutateAsync(buildPayload());
         id = (result as { timesheet?: { id: number } })?.timesheet?.id || id;
@@ -232,7 +234,7 @@ export default function TimesheetPage() {
         e instanceof Error ? e.message : "提交失败",
       );
     }
-  }, [timesheet?.id, store.rows, store.overtime, store.remark, store.isDirty, currentWeek, blocking]);
+  }, [blocking, buildPayload, refetch, saveMutation, store, submitMutation, timesheetId]);
 
   const handleWithdraw = useCallback(async () => {
     if (!timesheetId) return;

@@ -7,7 +7,6 @@ export function useEmployees() {
   return useQuery({
     queryKey: ["employees"],
     queryFn: () => api<Employee[]>("/api/employees"),
-    refetchInterval: 30_000,
   });
 }
 
@@ -15,7 +14,6 @@ export function useOrganizations() {
   return useQuery({
     queryKey: ["organizations"],
     queryFn: () => api<Organization[]>("/api/organizations"),
-    refetchInterval: 30_000,
   });
 }
 
@@ -23,7 +21,6 @@ export function usePermissionConfig() {
   return useQuery({
     queryKey: ["permission-config"],
     queryFn: () => api<PermissionConfig>("/api/permissions"),
-    refetchInterval: 30_000,
   });
 }
 

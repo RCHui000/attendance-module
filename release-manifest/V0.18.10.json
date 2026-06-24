@@ -1,0 +1,27 @@
+{
+  "version": "V0.18.10",
+  "released_at": "2026-06-24",
+  "base_version": "V0.18.9",
+  "summary": "Repair PMCC collaboration approval order for templates and already-running timesheet approval graphs.",
+  "database": {
+    "new_migrations": [
+      "114_repair_pmcc_collaboration_runtime_order.sql"
+    ],
+    "notes": [
+      "PMCC template node order now matches the collaboration route: CC project owner, CC department owner, PM cost owner, PM project owner, PM department owner.",
+      "Running PMCC timesheet graphs with the old CC project owner -> PM cost owner edge are rebuilt to use CC project owner -> CC department owner -> PM cost owner.",
+      "PMCC project role requirement display order is aligned with the same collaboration route."
+    ]
+  },
+  "verification": [
+    "Run scripts/assert-pmcc-collaboration-runtime-order.sql on production.",
+    "Inspect affected timesheet approval chain 180 and confirm CC Department Owner appears before PM Cost Department Owner.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.10.",
+    "Run deploy/scripts/pre-deploy-check.sh on production with EXPECTED_VERSION=V0.18.10.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.10."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB."
+  ]
+}

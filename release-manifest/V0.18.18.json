@@ -1,0 +1,40 @@
+{
+  "version": "V0.18.18",
+  "released_at": "2026-06-25",
+  "base_version": "V0.18.17",
+  "summary": "Localize approval configuration, make business owner configuration authoritative for platform roles, and polish sidebar settings plus dark-mode table rendering.",
+  "database": {
+    "new_migrations": [
+      "121_localized_approval_config_and_business_role_sync.sql"
+    ],
+    "notes": [
+      "Approval template names and node labels are now presented with Chinese business terminology while preserving internal keys.",
+      "The collaboration approval template is displayed as 总工办/项目管理部协作审批 and routes source-side department ownership through the submitter organization.",
+      "Added psa_sync_business_platform_roles to synchronize organization managers and project owners into manager/lead platform roles.",
+      "Project, organization, employee update, and employee creation RPC paths now trigger business role synchronization.",
+      "Dropped the older narrow psa_sync_project_platform_roles function instead of keeping a redundant compatibility wrapper."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.18",
+    "notes": [
+      "Approval-flow configuration uses Chinese labels for templates, resolver roles, resolver types, and approval policies, with raw keys demoted to secondary context.",
+      "Saving project owner configuration invalidates employee data so role changes can refresh promptly.",
+      "Sidebar footer now lays out user name and department horizontally and opens the settings menu on hover or focus.",
+      "Dark-mode tokens and timesheet table sticky cells now use theme colors instead of hard-coded light backgrounds."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.18.",
+    "Run npm exec -- playwright test e2e/sidebar-menu-geometry.spec.ts --project=chromium from frontend/.",
+    "Run scripts/assert-approval-config-localized-collaboration.sql on a database with migration 121 applied.",
+    "Run scripts/assert-collaboration-approval-routing.sql on a database with migration 121 applied.",
+    "Run scripts/assert-project-role-platform-sync.sql on a database with migration 121 applied.",
+    "Run scripts/assert-function-grants.sql after deployment."
+  ],
+  "known_warnings": [
+    "Local psql is not installed on this workstation, so SQL asserts must be run on a database host or CI environment."
+  ]
+}

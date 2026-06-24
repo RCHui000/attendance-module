@@ -1,0 +1,30 @@
+{
+  "version": "V0.18.14",
+  "released_at": "2026-06-24",
+  "base_version": "V0.18.13",
+  "summary": "Revoke the default PUBLIC EXECUTE grant from the project platform-role synchronization function.",
+  "database": {
+    "new_migrations": [
+      "117_revoke_project_role_sync_public_grant.sql"
+    ],
+    "updated_migrations_for_fresh_installs": [
+      "116_project_owner_platform_role_sync.sql"
+    ],
+    "notes": [
+      "Production pre-deploy grant assertions found public.psa_sync_project_platform_roles(bigint[]) still exposed to PUBLIC.",
+      "Migration 117 revokes PUBLIC/anon and grants execute only to authenticated and service_role.",
+      "Migration 116 now includes the same revoke for fresh installs."
+    ]
+  },
+  "verification": [
+    "Run static project-role platform sync migration coverage check.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.14.",
+    "Run deploy/scripts/pre-deploy-check.sh on production with EXPECTED_VERSION=V0.18.14.",
+    "Run scripts/assert-project-role-platform-sync.sql on production."
+  ],
+  "known_warnings": [
+    "Vite still warns that some chunks are larger than 500 kB.",
+    "The frontend render smoke currently does not display the version on the unauthenticated login screen; server pre-deploy verifies the expected version in the app bundle."
+  ]
+}

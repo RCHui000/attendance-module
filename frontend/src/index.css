@@ -89,31 +89,47 @@ body {
 
 .dark {
   color-scheme: dark;
-  --color-background: hsl(222 17% 11%);
-  --color-foreground: hsl(220 18% 92%);
-  --color-card: hsl(222 16% 14%);
-  --color-card-foreground: hsl(220 18% 92%);
-  --color-popover: hsl(222 16% 14%);
-  --color-popover-foreground: hsl(220 18% 92%);
-  --color-primary: hsl(220 18% 92%);
-  --color-primary-foreground: hsl(222 17% 11%);
-  --color-primary-dark: hsl(220 18% 82%);
-  --color-secondary: hsl(222 13% 18%);
-  --color-secondary-foreground: hsl(220 18% 92%);
-  --color-muted: hsl(218 10% 68%);
-  --color-muted-foreground: hsl(218 10% 68%);
-  --color-accent: hsl(222 13% 18%);
-  --color-accent-foreground: hsl(220 18% 92%);
-  --color-border: hsl(222 12% 25%);
-  --color-input: hsl(222 12% 25%);
-  --color-ring: hsl(220 18% 82%);
-  --color-sidebar-bg: #090b0f;
-  --color-sidebar-text: #d6dbe6;
-  --color-sidebar-muted: #9099aa;
-  --color-table-header: hsl(222 13% 16%);
-  --color-row-hover: hsl(222 13% 18%);
-  --color-row-selected: hsl(219 34% 20%);
-  --color-toast: hsl(222 16% 14%);
+  --color-background: hsl(220 9% 10%);
+  --color-foreground: hsl(218 14% 91%);
+  --color-card: hsl(220 8% 14%);
+  --color-card-foreground: hsl(218 14% 91%);
+  --color-popover: hsl(220 8% 14%);
+  --color-popover-foreground: hsl(218 14% 91%);
+  --color-primary: hsl(218 14% 92%);
+  --color-primary-foreground: hsl(220 9% 10%);
+  --color-primary-dark: hsl(218 12% 80%);
+  --color-secondary: hsl(220 7% 18%);
+  --color-secondary-foreground: hsl(218 14% 91%);
+  --color-muted: hsl(220 6% 23%);
+  --color-muted-foreground: hsl(218 9% 68%);
+  --color-accent: hsl(220 7% 19%);
+  --color-accent-foreground: hsl(218 14% 92%);
+  --color-border: hsl(220 7% 27%);
+  --color-input: hsl(220 7% 22%);
+  --color-ring: hsl(218 12% 72%);
+  --color-sidebar-bg: #090b0e;
+  --color-sidebar-text: #d9dde5;
+  --color-sidebar-muted: #9aa2b0;
+  --color-table-header: hsl(220 7% 17%);
+  --color-row-hover: hsl(220 7% 19%);
+  --color-row-selected: hsl(209 24% 22%);
+  --color-toast: hsl(220 8% 14%);
+  --color-status-draft-text: hsl(218 9% 74%);
+  --color-status-draft-bg: hsl(220 6% 23%);
+  --color-status-submitted-text: hsl(207 88% 84%);
+  --color-status-submitted-bg: hsl(210 34% 24%);
+  --color-status-approved-text: hsl(145 56% 72%);
+  --color-status-approved-bg: hsl(146 31% 18%);
+  --color-status-rejected-text: hsl(0 79% 78%);
+  --color-status-rejected-bg: hsl(0 36% 20%);
+  --shadow-app: 0 1px 0 rgba(255, 255, 255, 0.03), 0 16px 36px rgba(0, 0, 0, 0.22);
+  --shadow-focus: 0 0 0 3px rgba(148, 163, 184, 0.24);
+  --shadow-float: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+.dark body {
+  background: radial-gradient(circle at 28% -12%, hsl(220 9% 17%) 0%, transparent 34%),
+    linear-gradient(180deg, hsl(220 9% 12%) 0%, var(--color-background) 58%);
 }
 
 #root {
@@ -145,6 +161,14 @@ dialog {
 ::-webkit-scrollbar-thumb {
   background: #a6adb8;
   border-radius: 999px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: hsl(220 9% 12%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(220 6% 38%);
 }
 
 /* ---- Animation keyframes ---- */

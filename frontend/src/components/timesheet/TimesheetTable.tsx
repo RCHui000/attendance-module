@@ -76,6 +76,7 @@ function PercentCell({
         className={cn(
           "h-8 w-[72px] text-right text-base md:text-sm",
           invalid && "border-destructive bg-red-50",
+          invalid && "dark:bg-destructive/10",
         )}
         value={value || ""}
         onChange={handleChange}
@@ -97,8 +98,8 @@ function HolidayBadge({ day }: { day: string }) {
       className={cn(
         "inline-block rounded-pill px-1.5 py-0 text-[11px] font-semibold leading-tight",
         info.type === "rest"
-          ? "bg-[#fee2e2] text-destructive"
-          : "bg-[#ffedd5] text-warning",
+          ? "bg-[#fee2e2] text-destructive dark:bg-destructive/20"
+          : "bg-[#ffedd5] text-warning dark:bg-warning/20",
       )}
     >
       {info.name}
@@ -297,8 +298,8 @@ function ProjectPicker({
                     role="option"
                     aria-selected={active}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-[#eef6ff] focus-visible:bg-[#eef6ff] focus-visible:ring-2 focus-visible:ring-ring",
-                      active && "bg-[#dbeafe] text-[#1e3a8a]",
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring",
+                      active && "bg-row-selected",
                     )}
                     title={`${project.code} - ${project.name}`}
                     onMouseDown={(event) => event.preventDefault()}
@@ -308,12 +309,7 @@ function ProjectPicker({
                       <span className="block truncate font-medium">
                         {project.code}
                       </span>
-                      <span
-                        className={cn(
-                          "block truncate text-xs text-muted-foreground",
-                          active && "text-[#1e40af]",
-                        )}
-                      >
+                      <span className="block truncate text-xs text-muted-foreground">
                         {project.name}
                       </span>
                     </span>
@@ -485,7 +481,7 @@ export const TimesheetTable = memo(function TimesheetTable({
               const canRemoveRow = !rowLocked && (status !== "submitted" || isIntentPlaceholder);
               return (
                 <tr key={ri} className="border-b border-border/50 hover:bg-row-hover">
-                  <td className="sticky left-0 bg-white p-1.5 z-[5]">
+                  <td className="sticky left-0 bg-card p-1.5 z-[5]">
                     <div className="flex items-center gap-1">
                       <RowApprovalStatus status={row.approvalStatus} />
                       <ProjectPicker
@@ -562,8 +558,8 @@ export const TimesheetTable = memo(function TimesheetTable({
               );
             })}
 
-            <tr className="border-t-2 border-border bg-[#fafafa]">
-              <td className="sticky left-0 bg-[#fafafa] p-1.5 text-sm font-bold text-muted-foreground z-[5]">
+            <tr className="border-t-2 border-border bg-table-header">
+              <td className="sticky left-0 bg-table-header p-1.5 text-sm font-bold text-muted-foreground z-[5]">
                 {"\u6bcf\u65e5\u5408\u8ba1"}
               </td>
               {weekDays.map((day) => (
@@ -597,7 +593,7 @@ export const TimesheetTable = memo(function TimesheetTable({
             </tr>
 
             <tr className="border-b border-border/50">
-              <td className="sticky left-0 bg-white p-1.5 text-sm font-bold text-warning z-[5]">
+              <td className="sticky left-0 bg-card p-1.5 text-sm font-bold text-warning z-[5]">
                 {"\u52a0\u73ed OT\uff08\u9884\u7559\uff09"}
               </td>
               {weekDays.map((day) => (

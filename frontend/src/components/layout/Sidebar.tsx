@@ -71,9 +71,10 @@ export function Sidebar() {
       </div>
 
       <div className="mt-3 flex min-h-9 items-center justify-between gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1.5 max-[1179px]:justify-center max-[1179px]:border-transparent max-[1179px]:bg-transparent max-[1179px]:px-0">
-        <div className="min-w-0 max-[1179px]:sr-only">
-          <div className="truncate text-xs font-medium leading-tight text-white">{user?.name || "未登录用户"}</div>
-          <div className="truncate text-[11px] leading-tight text-sidebar-muted">{user?.department || "未分配部门"}</div>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-none max-[1179px]:sr-only">
+          <span className="min-w-0 truncate font-medium text-white">{user?.name || "未登录用户"}</span>
+          <span className="shrink-0 text-sidebar-muted/60">·</span>
+          <span className="min-w-0 truncate text-sidebar-muted">{user?.department || "未分配部门"}</span>
         </div>
         <SidebarSettingsMenu
           userName={user?.name || "未登录用户"}

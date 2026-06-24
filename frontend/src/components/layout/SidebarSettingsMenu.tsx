@@ -37,6 +37,7 @@ export function SidebarSettingsMenu({
   const submenuRef = useRef<HTMLDivElement | null>(null);
   const previousPointerRef = useRef<PointerPoint | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const menuCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const identityLabel = department ? `${userName} / ${department}` : userName;
 
@@ -44,6 +45,13 @@ export function SidebarSettingsMenu({
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
+    }
+  };
+
+  const clearMenuCloseTimer = () => {
+    if (menuCloseTimerRef.current) {
+      clearTimeout(menuCloseTimerRef.current);
+      menuCloseTimerRef.current = null;
     }
   };
 
@@ -71,7 +79,13 @@ export function SidebarSettingsMenu({
     };
   }, [open]);
 
-  useEffect(() => () => clearCloseTimer(), []);
+  useEffect(
+    () => () => {
+      clearCloseTimer();
+      clearMenuCloseTimer();
+    },
+    [],
+  );
 
   const submenuBounds = (): SubmenuGraceBounds | null => {
     const rect = submenuRef.current?.getBoundingClientRect();
@@ -82,6 +96,14 @@ export function SidebarSettingsMenu({
   const scheduleThemeClose = () => {
     clearCloseTimer();
     closeTimerRef.current = setTimeout(() => setThemeOpen(false), 220);
+  };
+
+  const scheduleMenuClose = () => {
+    clearMenuCloseTimer();
+    menuCloseTimerRef.current = setTimeout(() => {
+      setOpen(false);
+      setThemeOpen(false);
+    }, 160);
   };
 
   const handlePointerMove = (event: ReactMouseEvent) => {
@@ -117,7 +139,20 @@ export function SidebarSettingsMenu({
   };
 
   return (
-    <div ref={rootRef} className="relative flex items-center justify-end" data-testid="sidebar-settings-root">
+    <div
+      ref={rootRef}
+      className="relative flex items-center justify-end"
+      data-testid="sidebar-settings-root"
+      onMouseEnter={() => {
+        clearMenuCloseTimer();
+        setOpen(true);
+      }}
+      onMouseLeave={scheduleMenuClose}
+      onFocus={() => {
+        clearMenuCloseTimer();
+        setOpen(true);
+      }}
+    >
       <Tooltip>
         <TooltipTrigger
           render={
@@ -130,17 +165,15 @@ export function SidebarSettingsMenu({
               aria-haspopup="menu"
               aria-expanded={open}
               onClick={() => {
-                setOpen((nextOpen) => {
-                  if (nextOpen) setThemeOpen(false);
-                  return !nextOpen;
-                });
+                clearMenuCloseTimer();
+                setOpen(true);
               }}
             />
           }
         >
           <Settings className="size-4" />
         </TooltipTrigger>
-        <TooltipContent side="right">{identityLabel ? `${identityLabel} · 设置` : "设置"}</TooltipContent>
+        {!open && <TooltipContent side="right">{identityLabel ? `${identityLabel} · 设置` : "设置"}</TooltipContent>}
       </Tooltip>
 
       {open && (
@@ -152,7 +185,10 @@ export function SidebarSettingsMenu({
             "max-[1179px]:bottom-0 max-[1179px]:left-[calc(100%+0.5rem)] max-[1179px]:right-auto",
           )}
           onMouseMove={handlePointerMove}
-          onMouseEnter={clearCloseTimer}
+          onMouseEnter={() => {
+            clearCloseTimer();
+            clearMenuCloseTimer();
+          }}
           onMouseLeave={handleMenuPointerLeave}
         >
           <button

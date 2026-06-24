@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MobileTimesheetDetail } from "@/components/review/mobile/MobileTimesheetDetail";
 import { useOvertimeAction, useReviewAction } from "@/hooks/useApprovals";
-import { DepartmentChip } from "@/lib/departmentColors";
+import { DepartmentChip } from "@/components/ui/DepartmentChip";
 import { statusText } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";

@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { statusText } from "@/lib/constants";
-import { DepartmentChip } from "@/lib/departmentColors";
+import { DepartmentChip } from "@/components/ui/DepartmentChip";
 import { useReviewAction, useOvertimeAction } from "@/hooks/useApprovals";
 import { useAuthStore } from "@/stores/authStore";
 import type {

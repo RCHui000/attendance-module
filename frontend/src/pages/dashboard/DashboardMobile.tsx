@@ -1,7 +1,5 @@
-import {
-  PeriodFilter,
-  type PeriodType,
-} from "@/components/dashboard/PeriodFilter";
+import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import type { PeriodType } from "@/components/dashboard/periodUtils";
 import { BiPerspectiveTab } from "@/components/dashboard/BiPerspectiveTab";
 import { formatMoney } from "@/utils/dates";
 import type { DashboardData } from "@/types/project";

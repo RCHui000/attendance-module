@@ -89,13 +89,12 @@ function ChartTooltip({
 const TOTAL_VALUE = "total" as const;
 
 export function AnalyticsTab({ projects, totalLaborHours, totalLaborCost }: AnalyticsTabProps) {
-  const now = new Date();
   const [selectedValue, setSelectedValue] = useState<string>(TOTAL_VALUE);
 
-  const months = useMemo(
-    () => lastNMonths(6, now.getFullYear(), now.getMonth() + 1),
-    [],
-  );
+  const months = useMemo(() => {
+    const now = new Date();
+    return lastNMonths(6, now.getFullYear(), now.getMonth() + 1);
+  }, []);
 
   const { monthlyData, isLoading } = useMonthlyData(months, true);
 

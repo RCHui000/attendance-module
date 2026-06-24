@@ -1,0 +1,37 @@
+{
+  "version": "V0.18.17",
+  "released_at": "2026-06-25",
+  "base_version": "V0.18.16",
+  "summary": "Gate approval-flow configuration with RBAC and refine the sidebar settings experience while keeping frontend lint clean.",
+  "database": {
+    "new_migrations": [
+      "120_approval_config_rbac.sql"
+    ],
+    "notes": [
+      "Added approval_config as an independent RBAC resource.",
+      "Changed approval template table SELECT policies to require approval_config:read.",
+      "Changed psa_save_approval_template to require approval_config:write instead of admin-only access.",
+      "Seeded admin with approval_config:write and documented approval_config permission effects."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.17",
+    "notes": [
+      "Approval Center now shows the approval-flow configuration tab through approval_config:read and supports read-only mode without approval_config:write.",
+      "Sidebar footer now shows user identity on wide layouts and moves logout into an anchored settings menu.",
+      "Theme selection now opens as a second-level settings menu with hover grace-area handling.",
+      "Resolved existing ESLint warnings by splitting non-component exports from React component modules and fixing AnalyticsTab hook dependencies."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run npm exec -- playwright test e2e/sidebar-menu-geometry.spec.ts --project=chromium from frontend/.",
+    "Run scripts/assert-approval-config-rbac.ps1.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.17 after deployment.",
+    "Run scripts/smoke-approval-config-rbac.sql and scripts/assert-function-grants.sql on production after deployment."
+  ],
+  "known_warnings": []
+}

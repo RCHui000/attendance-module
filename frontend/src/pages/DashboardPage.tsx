@@ -6,11 +6,8 @@ import { MetricCards } from "@/components/dashboard/MetricCards";
 import { DashboardTable } from "@/components/dashboard/DashboardTable";
 import { BiPerspectiveTab } from "@/components/dashboard/BiPerspectiveTab";
 import { DashboardMobile } from "@/pages/dashboard/DashboardMobile";
-import {
-  PeriodFilter,
-  computePeriodDates,
-  type PeriodType,
-} from "@/components/dashboard/PeriodFilter";
+import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import { computePeriodDates, type PeriodType } from "@/components/dashboard/periodUtils";
 import { Button } from "@/components/ui/button";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import {

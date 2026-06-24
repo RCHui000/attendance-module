@@ -1,20 +1,14 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { APP_NAME, APP_VERSION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
-import { LogOut, Settings } from "lucide-react";
-import { ThemeSettingsDialog } from "./ThemeSettingsDialog";
+import { SidebarSettingsMenu } from "./SidebarSettingsMenu";
 import { NAV_ITEMS } from "./navItems";
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { canAccess, sidebarOrder, logout } = useAuthStore();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { canAccess, sidebarOrder, logout, user } = useAuthStore();
 
   const currentView = location.pathname.replace("/", "") || "dashboard";
   const visibleItems = NAV_ITEMS
@@ -76,46 +70,17 @@ export function Sidebar() {
         <img src="/logo/公司logo.png" alt="Logo" className="w-full object-contain opacity-90" />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 max-[1179px]:grid-cols-1">
-        <SidebarActionButton label="设置" onClick={() => setSettingsOpen(true)}>
-          <Settings className="size-4" />
-        </SidebarActionButton>
-        <SidebarActionButton label="退出" onClick={logout}>
-          <LogOut className="size-4" />
-        </SidebarActionButton>
+      <div className="mt-3 flex min-h-9 items-center justify-between gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1.5 max-[1179px]:justify-center max-[1179px]:border-transparent max-[1179px]:bg-transparent max-[1179px]:px-0">
+        <div className="min-w-0 max-[1179px]:sr-only">
+          <div className="truncate text-xs font-medium leading-tight text-white">{user?.name || "未登录用户"}</div>
+          <div className="truncate text-[11px] leading-tight text-sidebar-muted">{user?.department || "未分配部门"}</div>
+        </div>
+        <SidebarSettingsMenu
+          userName={user?.name || "未登录用户"}
+          department={user?.department || "未分配部门"}
+          onLogout={logout}
+        />
       </div>
-
-      <ThemeSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </aside>
-  );
-}
-
-function SidebarActionButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="mx-auto rounded-full border border-white/10 bg-white/5 text-sidebar-text hover:bg-white/10 hover:text-white focus-visible:ring-white/25"
-            aria-label={label}
-            onClick={onClick}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
   );
 }

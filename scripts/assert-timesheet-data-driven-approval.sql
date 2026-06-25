@@ -18,6 +18,7 @@ DECLARE
   v_missing_aliases int;
   v_duplicate_edges int;
   v_bad_running_instances int;
+  v_normal_special_nodes int;
 BEGIN
   SELECT ARRAY(
     SELECT table_name
@@ -97,6 +98,20 @@ BEGIN
     RAISE EXCEPTION 'Missing active approval role aliases: %', v_missing_aliases;
   END IF;
 
+  SELECT count(*) INTO v_normal_special_nodes
+  FROM public.approval_template_nodes n
+  JOIN public.approval_templates t ON t.id = n.template_id
+  WHERE t.template_key IN (
+      'contract_approval_pm_v1',
+      'contract_approval_cc_v1',
+      'contract_approval_pmcc_v1'
+    )
+    AND n.node_key = 'special_department_owner';
+
+  IF v_normal_special_nodes <> 0 THEN
+    RAISE EXCEPTION 'Normal approval templates must not contain special_department_owner nodes: %', v_normal_special_nodes;
+  END IF;
+
   SELECT count(*) INTO v_bad_template_nodes
   FROM public.approval_template_nodes n
   JOIN public.approval_templates t ON t.id = n.template_id
@@ -121,18 +136,7 @@ BEGIN
           OR n.scope_source <> 'timesheet_projects'
           OR n.runtime_scope_type <> 'project'
           OR n.runtime_node_key_template <> 'project_{scope_id}_{node_key}'
-          OR (
-            n.node_key = 'special_department_owner'
-            AND (
-              n.resolver_type <> 'org_manager'
-              OR n.resolver_role <> 'department_owner'
-              OR n.missing_assignee_policy <> 'required'
-            )
-          )
-          OR (
-            n.node_key <> 'special_department_owner'
-            AND n.missing_assignee_policy <> 'skip'
-          )
+          OR n.missing_assignee_policy <> 'skip'
         )
       )
     );
@@ -164,7 +168,7 @@ BEGIN
     AND selected_tpl.template_key IS DISTINCT FROM current_tpl.template_key;
 
   IF v_bad_running_instances <> 0 THEN
-    RAISE EXCEPTION 'Running submitted timesheets disagree with data-driven template selection: %', v_bad_running_instances;
+    RAISE NOTICE 'Running submitted timesheets disagree with current template selection and keep their historical graph: %', v_bad_running_instances;
   END IF;
 END $$;
 

@@ -1,0 +1,42 @@
+{
+  "version": "V0.18.20",
+  "released_at": "2026-06-25",
+  "base_version": "V0.18.19",
+  "summary": "Add a constrained graphical approval-flow configurator, split special timesheet projects into their own approval template, and promote organization configuration into a full-width configuration page.",
+  "database": {
+    "new_migrations": [
+      "124_visual_approval_config_and_special_template_split.sql"
+    ],
+    "notes": [
+      "Removed special_department_owner from normal PM, CC, and PMCC approval templates.",
+      "Kept LEAVE / special timesheet project blocks routed to the independent department-owner confirmation template.",
+      "Expanded psa_save_approval_template so approval_config writers can add, remove, reorder, and save template nodes with server-side validation and sequential edge rebuilding.",
+      "Updated timesheet approval-chain projection so runtime-only special template nodes remain visible in mixed timesheets."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.20",
+    "notes": [
+      "Replaced the approval-flow field editor with a constrained graphical configurator: template list, flow canvas, node inspector, validation, add/delete, drag reorder, save, and restore.",
+      "Shows business Chinese labels first and keeps raw node/resolver keys in a collapsed advanced section.",
+      "Moved organization configuration into its own tab with a department tree and detail panel.",
+      "Updated department color candidates and compact color editing."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.20.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run scripts/assert-approval-config-rbac.ps1.",
+    "Run scripts/assert-approval-template-visual-config.sql on the cloud database.",
+    "Run scripts/assert-timesheet-data-driven-approval.sql on the cloud database.",
+    "Run scripts/assert-leave-non-project-work-kind.sql on the cloud database.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.20.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.20."
+  ],
+  "known_warnings": [
+    "Existing running approval instances keep their historical graph even if current data-driven template selection has changed.",
+    "Vite may still warn that some chunks are larger than 500 kB."
+  ]
+}

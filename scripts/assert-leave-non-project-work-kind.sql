@@ -31,13 +31,12 @@ BEGIN
   SELECT id INTO v_leave_project_id
   FROM public.projects
   WHERE code = 'LEAVE'
-    AND name = '请假'
     AND work_kind = 'leave'
     AND COALESCE(status, 'active') = 'active'
   LIMIT 1;
 
   IF v_leave_project_id IS NULL THEN
-    RAISE EXCEPTION 'Active LEAVE / 请假 project with work_kind=leave is missing';
+    RAISE EXCEPTION 'Active LEAVE project with work_kind=leave is missing';
   END IF;
 
   SELECT count(*) INTO v_active_leave_projects

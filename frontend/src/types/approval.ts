@@ -160,7 +160,14 @@ export interface ApprovalTemplateNode {
   resolver_role: string | null;
   approval_policy: string;
   reject_policy: string;
+  allow_delegate?: boolean;
+  allow_skip?: boolean;
   sort_order: number;
+  scope_strategy?: string;
+  scope_source?: string;
+  runtime_scope_type?: string | null;
+  runtime_node_key_template?: string;
+  missing_assignee_policy?: string;
 }
 
 export interface ApprovalTemplateEdge {
@@ -176,7 +183,7 @@ export interface ApprovalTemplate {
   id: number;
   template_key: string;
   document_type: string;
-  business_type: "PM" | "CC" | "PMCC" | null;
+  business_type: "PM" | "CC" | "PMCC" | "LEAVE" | null;
   name: string;
   version: number;
   status: string;

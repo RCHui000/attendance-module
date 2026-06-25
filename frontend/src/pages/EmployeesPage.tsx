@@ -53,7 +53,7 @@ type EmployeeSortKey =
   | "status";
 type SortDirection = "asc" | "desc";
 type EmployeeListView = "active" | "terminated";
-type EmployeePageTab = "system" | "permissions";
+type EmployeePageTab = "active" | "terminated" | "organizations" | "permissions";
 
 const EMPTY_EDIT_DATA: EmployeeEditData = {
   id: 0,
@@ -163,19 +163,12 @@ export default function EmployeesPage() {
     id: number;
     name: string;
   } | null>(null);
-  const [employeeListView, setEmployeeListView] = useState<EmployeeListView>("active");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<EmployeeSortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [requestedEmployeePageTab, setRequestedEmployeePageTab] = useState<EmployeePageTab>(
-    canReadSystem ? "system" : "permissions",
+    canReadSystem ? "active" : "permissions",
   );
-  const employeePageTab =
-    requestedEmployeePageTab === "system" && !canReadSystem
-      ? "permissions"
-      : requestedEmployeePageTab === "permissions" && !canReadPermissions
-        ? "system"
-        : requestedEmployeePageTab;
 
   const {
     data: employees = [],
@@ -234,16 +227,32 @@ export default function EmployeesPage() {
     [visibleEmployees],
   );
 
+  const visibleOrgs = useMemo(
+    () => orgs.filter((org) => canReadSystem || visibleOrgIds.has(org.id)),
+    [orgs, canReadSystem, visibleOrgIds],
+  );
+  const employeePageTabs = useMemo(
+    () => [
+      ...(canReadSystem
+        ? [
+            { value: "active" as const, label: "员工列表", meta: activeEmployees.length },
+            { value: "terminated" as const, label: "离职人员", meta: terminatedEmployees.length },
+            { value: "organizations" as const, label: "组织配置", meta: visibleOrgs.length },
+          ]
+        : []),
+      ...(canReadPermissions ? [{ value: "permissions" as const, label: "权限配置" }] : []),
+    ],
+    [activeEmployees.length, canReadPermissions, canReadSystem, terminatedEmployees.length, visibleOrgs.length],
+  );
+  const employeePageTab = employeePageTabs.some((tab) => tab.value === requestedEmployeePageTab)
+    ? requestedEmployeePageTab
+    : employeePageTabs[0]?.value || "active";
+  const employeeListView: EmployeeListView = employeePageTab === "terminated" ? "terminated" : "active";
   const listedEmployees = employeeListView === "active" ? activeEmployees : terminatedEmployees;
   const currentSelectedId =
     selectedId && listedEmployees.some((emp) => emp.id === selectedId)
       ? selectedId
       : null;
-
-  const visibleOrgs = useMemo(
-    () => orgs.filter((org) => canReadSystem || visibleOrgIds.has(org.id)),
-    [orgs, canReadSystem, visibleOrgIds],
-  );
   const orgPathById = useMemo(
     () => new Map(flattenOrgTree(orgs).map((org) => [org.id, org.path])),
     [orgs],
@@ -273,14 +282,6 @@ export default function EmployeesPage() {
     sortKey,
     listedEmployees,
   ]);
-
-  const handleEmployeeListViewChange = (value: EmployeeListView) => {
-    setEmployeeListView(value);
-    setSelectedId(null);
-    setEditingId(null);
-    setEditData(null);
-    setAutoEmployeeNo(null);
-  };
 
   const initEditData = useCallback(
     (emp: Employee): EmployeeEditData => ({
@@ -399,7 +400,7 @@ export default function EmployeesPage() {
           employmentType: emp.employment_type || emp.contract_type || "labor",
         });
         toast.success(`${emp.name} 已重新启用`);
-        setEmployeeListView("active");
+        setRequestedEmployeePageTab("active");
         setSelectedId(emp.id);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "重新启用失败");
@@ -517,22 +518,6 @@ export default function EmployeesPage() {
     editingId === 0
       ? "填写基础信息后会自动生成登录账号。"
       : "维护员工的部门、权限、合同和薪酬信息。";
-  const employeeListSegments = [
-    {
-      value: "active" as const,
-      label: "员工列表",
-      meta: employeeListView === "active" ? `${filteredEmployees.length} / ${activeEmployees.length}` : activeEmployees.length,
-    },
-    {
-      value: "terminated" as const,
-      label: "离职人员",
-      meta: employeeListView === "terminated" ? `${filteredEmployees.length} / ${terminatedEmployees.length}` : terminatedEmployees.length,
-    },
-  ];
-  const employeePageSegments = [
-    ...(canReadSystem ? [{ value: "system" as const, label: "系统管理" }] : []),
-    ...(canReadPermissions ? [{ value: "permissions" as const, label: "权限配置" }] : []),
-  ];
   const handleSort = (key: EmployeeSortKey) => {
     if (sortKey !== key) {
       setSortKey(key);
@@ -552,83 +537,94 @@ export default function EmployeesPage() {
       <div className="mb-4">
         <SegmentedPill
           value={employeePageTab}
-          items={employeePageSegments}
-          onChange={setRequestedEmployeePageTab}
+          items={employeePageTabs}
+          onChange={(value) => {
+            setRequestedEmployeePageTab(value);
+            setSelectedId(null);
+            setEditingId(null);
+            setEditData(null);
+            setAutoEmployeeNo(null);
+          }}
           ariaLabel="员工与组织视图"
         />
       </div>
 
-        {canReadSystem && employeePageTab === "system" && (
-            <div className="grid grid-cols-[1.45fr_0.55fr] gap-4 max-[900px]:grid-cols-1">
+        {canReadSystem && (employeePageTab === "active" || employeePageTab === "terminated") && (
+          <div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <SegmentedPill
-                    value={employeeListView}
-                    items={employeeListSegments}
-                    onChange={handleEmployeeListViewChange}
-                  />
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <ReminderFloat employees={activeEmployees} />
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      disabled={deleteDisabled || employeeListView !== "active"}
-                      onClick={handleDelete}
-                      className={canWriteSystem && employeeListView === "active" ? "" : "hidden"}
-                    >
-                      <Trash2 className="size-3.5 mr-1" />
-                      设为离职
-                    </Button>
-                    <Button size="sm" onClick={handleNew} className={canWriteSystem && employeeListView === "active" ? "" : "hidden"}>
-                      <Plus className="size-3.5 mr-1" />
-                      新增员工
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mb-3 rounded-lg border border-border bg-white p-3">
-                  <label className="relative block">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      className="h-9 pl-8 text-sm"
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="级联搜索：编号 / 姓名 / 部门路径 / 权限 / 岗位 / 合同 / 专业 / 状态，多个条件用空格分隔"
-                    />
-                  </label>
-                </div>
-
-                {isLoading && (
-                  <div className="py-10 text-center text-sm text-muted-foreground">
-                    加载中...
-                  </div>
-                )}
-                {isError && (
-                  <div className="py-10 text-center text-sm text-destructive">
-                    加载失败
-                  </div>
-                )}
-                {!isLoading && !isError && (
-                  <EmployeeTable
-                    employees={filteredEmployees}
-                    selectedId={currentSelectedId}
-                    onSelect={setSelectedId}
-                    onEdit={handleEdit}
-                    onReactivate={handleReactivate}
-                    canEditEmployee={canEditEmployee}
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                )}
+                <h2 className="text-xl font-semibold tracking-normal">
+                  {employeePageTab === "active" ? "员工列表" : "离职人员"}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {employeePageTab === "active"
+                    ? `当前显示 ${filteredEmployees.length} / ${activeEmployees.length} 名在职员工`
+                    : `当前显示 ${filteredEmployees.length} / ${terminatedEmployees.length} 名离职人员`}
+                </p>
               </div>
-
-              <OrganizationPanel
-                employees={activeEmployees}
-                canManage={canWriteSystem}
-                visibleOrgIds={visibleOrgIds}
-              />
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                {employeePageTab === "active" && <ReminderFloat employees={activeEmployees} />}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={deleteDisabled || employeePageTab !== "active"}
+                  onClick={handleDelete}
+                  className={canWriteSystem && employeePageTab === "active" ? "" : "hidden"}
+                >
+                  <Trash2 className="mr-1 size-3.5" />
+                  设为离职
+                </Button>
+                <Button size="sm" onClick={handleNew} className={canWriteSystem && employeePageTab === "active" ? "" : "hidden"}>
+                  <Plus className="mr-1 size-3.5" />
+                  新增员工
+                </Button>
+              </div>
             </div>
+
+            <div className="mb-3 rounded-lg border border-border bg-card p-3">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-9 pl-8 text-sm"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="级联搜索：编号 / 姓名 / 部门路径 / 权限 / 岗位 / 合同 / 专业 / 状态，多个条件用空格分隔"
+                />
+              </label>
+            </div>
+
+            {isLoading && (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                加载中...
+              </div>
+            )}
+            {isError && (
+              <div className="py-10 text-center text-sm text-destructive">
+                加载失败
+              </div>
+            )}
+            {!isLoading && !isError && (
+              <EmployeeTable
+                employees={filteredEmployees}
+                selectedId={currentSelectedId}
+                onSelect={setSelectedId}
+                onEdit={handleEdit}
+                onReactivate={handleReactivate}
+                canEditEmployee={canEditEmployee}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            )}
+          </div>
+        )}
+
+        {canReadSystem && employeePageTab === "organizations" && (
+          <OrganizationPanel
+            employees={activeEmployees}
+            canManage={canWriteSystem}
+            visibleOrgIds={visibleOrgIds}
+          />
         )}
 
         {canReadPermissions && employeePageTab === "permissions" && (

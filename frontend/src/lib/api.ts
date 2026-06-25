@@ -1161,7 +1161,7 @@ async function approvalTemplates(): Promise<AnyRow[]> {
   }
 
   const [templates, nodes, edges] = await Promise.all([
-    rest<AnyRow[]>("/approval_templates?select=*&document_type=in.(contract,contract_approval)&order=business_type.asc,template_key.asc"),
+    rest<AnyRow[]>("/approval_templates?select=*&document_type=in.(contract,contract_approval,timesheet_project)&order=business_type.asc,template_key.asc"),
     rest<AnyRow[]>("/approval_template_nodes?select=*&order=template_id.asc,sort_order.asc"),
     rest<AnyRow[]>("/approval_template_edges?select=*&order=template_id.asc,from_node_key.asc,to_node_key.asc"),
   ]);

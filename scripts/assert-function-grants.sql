@@ -108,7 +108,8 @@ BEGIN
       'psa_save_organization',
       'psa_update_employee',
       'psa_create_employee_business_rows',
-      'psa_timesheet_approval_chain'
+      'psa_timesheet_approval_chain',
+      'psa_dashboard_analysis'
     ]) AS expected(function_name)
     WHERE NOT EXISTS (
       SELECT 1

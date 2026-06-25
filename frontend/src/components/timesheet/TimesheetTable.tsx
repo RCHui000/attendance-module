@@ -291,6 +291,7 @@ function ProjectPicker({
             ) : (
               filteredProjects.map((project) => {
                 const active = project.id === value;
+                const isLeave = project.work_kind === "leave";
                 return (
                   <button
                     key={project.id}
@@ -301,16 +302,21 @@ function ProjectPicker({
                       "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring",
                       active && "bg-row-selected",
                     )}
-                    title={`${project.code} - ${project.name}`}
+                    title={isLeave ? `${project.name} · 非项目工时` : `${project.code} - ${project.name}`}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => handleSelect(project.id)}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">
-                        {project.code}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">{project.name}</span>
+                        {isLeave && (
+                          <span className="shrink-0 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            非项目工时
+                          </span>
+                        )}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {project.name}
+                        {project.code}
                       </span>
                     </span>
                     <Check

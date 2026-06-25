@@ -8,8 +8,7 @@ SET name = CASE template_key
     WHEN 'contract_approval_cc_v1' THEN U&'QS/\8BBE\8BA1\4FA7\5BA1\6279'
     WHEN 'contract_approval_pmcc_v1' THEN U&'\603B\5DE5\529E/\9879\76EE\7BA1\7406\90E8\534F\4F5C\5BA1\6279'
     ELSE name
-  END,
-  updated_at = now()
+  END
 WHERE template_key IN (
   'contract_approval_pm_v1',
   'contract_approval_cc_v1',

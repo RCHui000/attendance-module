@@ -16,7 +16,10 @@ type SaveProjectParams = {
   signedDate?: string;
   contractAmount?: number;
   receivedAmount?: number;
+  plannedLaborDays?: number;
+  laborBudgetAmount?: number;
   businessType?: "PM" | "CC" | "PMCC";
+  workKind?: "project" | "leave";
   projectOwnerId?: number;
   departmentOwners?: {
     id?: number;
@@ -42,6 +45,8 @@ function patchProjectList(
   const projectId = Number(params.id);
   const contractAmount = Number(params.contractAmount || 0);
   const receivedAmount = Number(params.receivedAmount || 0);
+  const plannedLaborDays = Number(params.plannedLaborDays || 0);
+  const laborBudgetAmount = Number(params.laborBudgetAmount || 0);
 
   return projects.map((project) =>
     project.id === projectId
@@ -51,6 +56,9 @@ function patchProjectList(
           name: params.name,
           signed_date: params.signedDate || null,
           business_type: params.businessType || project.business_type,
+          work_kind: params.workKind || project.work_kind,
+          planned_labor_days: plannedLaborDays,
+          labor_budget_amount: laborBudgetAmount,
           contract_amount: contractAmount,
           received_amount: receivedAmount,
           receivable_amount: Math.max(contractAmount - receivedAmount, 0),

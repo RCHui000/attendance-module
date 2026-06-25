@@ -1,0 +1,42 @@
+{
+  "version": "V0.18.19",
+  "released_at": "2026-06-25",
+  "base_version": "V0.18.18",
+  "summary": "Model leave as non-project work and rebuild the BI dashboard as a project input analysis workbench.",
+  "database": {
+    "new_migrations": [
+      "122_leave_non_project_work_kind.sql",
+      "123_dashboard_analysis_workbench.sql"
+    ],
+    "notes": [
+      "Added projects.work_kind and normalized leave into the single LEAVE / leave system project.",
+      "Leave consumes personal timesheet capacity and routes through department-owner confirmation, but is excluded from project work-hour analytics.",
+      "Added project planned labor days and labor budget amount fields.",
+      "Added psa_dashboard_analysis(start_date, end_date, grain) to return project ranking, department split, employee load, trend, and source timesheet details from the database."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.19",
+    "notes": [
+      "Replaced the temporary BI analysis page with a project input analysis workbench.",
+      "Added project budget inputs to project configuration.",
+      "Project picker now emphasizes project names and labels leave as non-project work.",
+      "Dashboard charts and source drill-down are driven by the new backend aggregation RPC."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with production Vite variables and VITE_APP_VERSION=V0.18.19.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.19.",
+    "Run scripts/assert-function-grants.sql on the cloud database.",
+    "Run scripts/assert-leave-non-project-work-kind.sql on the cloud database.",
+    "Run scripts/assert-dashboard-analysis-workbench.sql on the cloud database.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia/ with EXPECTED_VERSION=V0.18.19."
+  ],
+  "known_warnings": [
+    "Local psql is not installed on this workstation, so SQL asserts are run on the cloud database after deployment.",
+    "Vite may still warn that some chunks are larger than 500 kB."
+  ]
+}

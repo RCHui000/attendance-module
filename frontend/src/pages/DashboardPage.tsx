@@ -4,7 +4,7 @@ import { useDashboard } from "@/hooks/useProjects";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { MetricCards } from "@/components/dashboard/MetricCards";
 import { DashboardTable } from "@/components/dashboard/DashboardTable";
-import { BiPerspectiveTab } from "@/components/dashboard/BiPerspectiveTab";
+import { DashboardAnalysisWorkbench } from "@/components/dashboard/DashboardAnalysisWorkbench";
 import { DashboardMobile } from "@/pages/dashboard/DashboardMobile";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { computePeriodDates, type PeriodType } from "@/components/dashboard/periodUtils";
@@ -217,7 +217,7 @@ export default function DashboardPage() {
           {/* ---- Analytics Tab ---- */}
           {activeTab === "analytics" && (
             <section aria-label="分析">
-              <BiPerspectiveTab
+              <DashboardAnalysisWorkbench
                 startDate={dates.startDate}
                 endDate={dates.endDate}
               />

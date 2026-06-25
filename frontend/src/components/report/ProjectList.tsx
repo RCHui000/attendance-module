@@ -27,7 +27,7 @@ import { descendantOrgIds } from "@/utils/orgTree";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { Save, Search, Trash2, X, Plus } from "lucide-react";
 import type { Employee, Organization } from "@/types/employee";
-import type { ProjectBase, ProjectBusinessType, ProjectRoleKey, ProjectRoleRequirement } from "@/types/project";
+import type { ProjectBase, ProjectBusinessType, ProjectRoleKey, ProjectRoleRequirement, ProjectWorkKind } from "@/types/project";
 import { toast } from "sonner";
 
 const NONE = "none";
@@ -105,8 +105,11 @@ type EditData = {
   name: string;
   signedDate: string;
   businessType: ProjectBusinessType | "";
+  workKind: ProjectWorkKind;
   contractAmount: string;
   receivedAmount: string;
+  plannedLaborDays: string;
+  laborBudgetAmount: string;
   roles: Record<string, string>;
 };
 
@@ -115,8 +118,11 @@ const emptyEditData: EditData = {
   name: "",
   signedDate: "",
   businessType: "",
+  workKind: "project",
   contractAmount: "",
   receivedAmount: "",
+  plannedLaborDays: "",
+  laborBudgetAmount: "",
   roles: {},
 };
 
@@ -159,6 +165,7 @@ function serviceBadgeClass(type: ProjectBusinessType | "") {
 }
 
 function projectSummary(project: ProjectBase, roleRequirements: ProjectRoleRequirement[]) {
+  if (project.work_kind === "leave") return "非项目工时";
   const businessType = project.business_type || inferBusinessType(project.code);
   const requirements = projectRoleRequirementsFor(businessType, roleRequirements);
   const names = new Map<string, string[]>();
@@ -204,10 +211,11 @@ export function ProjectList() {
   );
   const selectedProject = selectedId === "new" ? null : activeProjects.find((project) => project.id === selectedId) || null;
   const { data: allRoleRequirements = [] } = useProjectRoleRequirements();
+  const isLeaveWork = editData.workKind === "leave";
   const businessType = editData.businessType || inferBusinessType(editData.code);
   const roleRequirements = useMemo(
-    () => projectRoleRequirementsFor(businessType, allRoleRequirements),
-    [allRoleRequirements, businessType],
+    () => isLeaveWork ? [] : projectRoleRequirementsFor(businessType, allRoleRequirements),
+    [allRoleRequirements, businessType, isLeaveWork],
   );
   const visibleRoles = useMemo(
     () => roleRequirements.map((requirement) => requirement.role_key),
@@ -230,6 +238,7 @@ export function ProjectList() {
           project.code,
           project.name,
           type,
+          project.work_kind === "leave" ? "请假 非项目工时" : "",
           projectSummary(project, allRoleRequirements),
         ].join(" ").toLowerCase();
         return text.includes(keyword);
@@ -270,8 +279,11 @@ export function ProjectList() {
       name: project.name,
       signedDate: project.signed_date || "",
       businessType: type,
+      workKind: project.work_kind || "project",
       contractAmount: String(project.contract_amount || ""),
       receivedAmount: String(project.received_amount || ""),
+      plannedLaborDays: String(project.planned_labor_days || ""),
+      laborBudgetAmount: String(project.labor_budget_amount || ""),
       roles,
     });
     if (isMobile) setEditorOpen(true);
@@ -291,6 +303,21 @@ export function ProjectList() {
   };
   const updateBusinessType = (value: string | null) => {
     update({ businessType: value === NONE ? "" : (value as ProjectBusinessType) });
+  };
+  const updateWorkKind = (value: string | null) => {
+    const workKind = value === "leave" ? "leave" : "project";
+    setEditData((data) => ({
+      ...data,
+      workKind,
+      businessType: workKind === "leave" ? "" : data.businessType,
+      code: workKind === "leave" ? "LEAVE" : data.code,
+      name: workKind === "leave" ? "请假" : data.name,
+      contractAmount: workKind === "leave" ? "" : data.contractAmount,
+      receivedAmount: workKind === "leave" ? "" : data.receivedAmount,
+      plannedLaborDays: workKind === "leave" ? "" : data.plannedLaborDays,
+      laborBudgetAmount: workKind === "leave" ? "" : data.laborBudgetAmount,
+      roles: workKind === "leave" ? {} : data.roles,
+    }));
   };
   const updateRole = (role: ProjectRoleKey, value: string) =>
     setEditData((data) => {
@@ -321,16 +348,16 @@ export function ProjectList() {
 
   const handleSave = () => {
     if (!editData.name.trim()) return toast.error("项目名称不能为空");
-    if (!businessType) return toast.error("请选择服务类型");
+    if (!isLeaveWork && !businessType) return toast.error("请选择服务类型");
     if (selectedId !== "new" && !editData.code.trim()) return toast.error("合同编码不能为空");
 
-    const projectRoles = visibleRoles
+    const projectRoles = isLeaveWork ? [] : visibleRoles
       .map((roleKey) => ({
         role_key: roleKey,
         user_id: Number(editData.roles[roleKey] || 0),
       }))
       .filter((role) => role.user_id);
-    for (const requirement of roleRequirements) {
+    for (const requirement of isLeaveWork ? [] : roleRequirements) {
       if (!requirement.fallback_role_key) continue;
       if (projectRoles.some((role) => role.role_key === requirement.fallback_role_key)) continue;
       const fallbackUserId = Number(editData.roles[requirement.role_key] || 0);
@@ -341,6 +368,7 @@ export function ProjectList() {
         });
       }
     }
+    const saveBusinessType = isLeaveWork ? undefined : (businessType || undefined);
 
     saveProject.mutate(
       {
@@ -348,14 +376,19 @@ export function ProjectList() {
         code: editData.code.trim(),
         name: editData.name.trim(),
         signedDate: editData.signedDate || undefined,
-        businessType,
-        contractAmount: Number(editData.contractAmount || 0),
-        receivedAmount: Number(editData.receivedAmount || 0),
+        businessType: saveBusinessType,
+        workKind: editData.workKind,
+        contractAmount: isLeaveWork ? 0 : Number(editData.contractAmount || 0),
+        receivedAmount: isLeaveWork ? 0 : Number(editData.receivedAmount || 0),
+        plannedLaborDays: isLeaveWork ? 0 : Number(editData.plannedLaborDays || 0),
+        laborBudgetAmount: isLeaveWork ? 0 : Number(editData.laborBudgetAmount || 0),
         projectOwnerId:
-          Number(editData.roles.pm_project_owner || 0) ||
-          Number(editData.roles.cc_civil_project_owner || 0) ||
-          Number(editData.roles.cc_mep_project_owner || 0) ||
-          undefined,
+          isLeaveWork
+            ? undefined
+            : Number(editData.roles.pm_project_owner || 0) ||
+              Number(editData.roles.cc_civil_project_owner || 0) ||
+              Number(editData.roles.cc_mep_project_owner || 0) ||
+              undefined,
         projectRoles,
       },
       {
@@ -418,6 +451,7 @@ export function ProjectList() {
         <div className="max-h-[68vh] overflow-y-auto p-2 max-[767px]:max-h-none">
           {directoryProjects.map((project) => {
             const type = project.business_type || inferBusinessType(project.code);
+            const isLeave = project.work_kind === "leave";
             return (
               <button
                 key={project.id}
@@ -430,8 +464,8 @@ export function ProjectList() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold">{project.code}</span>
-                  <span className={cn("rounded border px-2 py-0.5 text-xs", serviceBadgeClass(type))}>
-                    {type || "-"}
+                  <span className={cn("rounded border px-2 py-0.5 text-xs", isLeave ? "border-slate-200 bg-slate-50 text-slate-600" : serviceBadgeClass(type))}>
+                    {isLeave ? "请假" : type || "-"}
                   </span>
                 </div>
                 <div className="mt-1 truncate text-sm">{project.name}</div>
@@ -483,7 +517,7 @@ export function ProjectList() {
                 >
                   <X className="size-4" />
                 </Button>
-                {selectedProject && (
+                {selectedProject && selectedProject.work_kind !== "leave" && (
                   <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(selectedProject)}>
                     <Trash2 className="mr-1 size-3.5" />
                     删除
@@ -496,19 +530,32 @@ export function ProjectList() {
               </div>
             </div>
 
-            <div className="grid grid-cols-[150px_150px_minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-[150px_150px_150px_minmax(0,1fr)] gap-3 max-[1180px]:grid-cols-2 max-[640px]:grid-cols-1">
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">合同编码</span>
                 <Input
                   value={editData.code}
                   onChange={(event) => updateCode(event.target.value)}
                   placeholder="PM26001"
+                  disabled={isLeaveWork}
                 />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground">工时分类</span>
+                <Select value={editData.workKind} onValueChange={updateWorkKind}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择工时分类" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="project">普通项目</SelectItem>
+                    <SelectItem value="leave">请假</SelectItem>
+                  </SelectContent>
+                </Select>
               </label>
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">服务类型</span>
                 <Select value={businessType || NONE} onValueChange={updateBusinessType}>
-                  <SelectTrigger>
+                  <SelectTrigger disabled={isLeaveWork}>
                     <SelectValue placeholder="选择服务类型" />
                   </SelectTrigger>
                   <SelectContent>
@@ -523,10 +570,15 @@ export function ProjectList() {
               </label>
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">项目名称</span>
-                <Input value={editData.name} onChange={(event) => update({ name: event.target.value })} />
+                <Input value={editData.name} onChange={(event) => update({ name: event.target.value })} disabled={isLeaveWork} />
               </label>
             </div>
 
+            {isLeaveWork ? (
+              <div className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+                请假是非项目工时，只由员工所属部门负责人确认，不需要配置项目负责人。
+              </div>
+            ) : (
             <div>
               <div className="mb-2 text-sm font-semibold">负责人配置</div>
               <div className="grid grid-cols-2 gap-3 max-[1180px]:grid-cols-1">
@@ -568,19 +620,20 @@ export function ProjectList() {
                 ))}
               </div>
             </div>
+            )}
 
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-6 gap-3 max-[1180px]:grid-cols-3 max-[640px]:grid-cols-1">
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">签订日期</span>
-                <Input type="date" value={editData.signedDate} onChange={(event) => update({ signedDate: event.target.value })} />
+                <Input type="date" value={editData.signedDate} onChange={(event) => update({ signedDate: event.target.value })} disabled={isLeaveWork} />
               </label>
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">合同额</span>
-                <Input type="number" value={editData.contractAmount} onChange={(event) => update({ contractAmount: event.target.value })} />
+                <Input type="number" value={editData.contractAmount} onChange={(event) => update({ contractAmount: event.target.value })} disabled={isLeaveWork} />
               </label>
               <label className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">已回款</span>
-                <Input type="number" value={editData.receivedAmount} onChange={(event) => update({ receivedAmount: event.target.value })} />
+                <Input type="number" value={editData.receivedAmount} onChange={(event) => update({ receivedAmount: event.target.value })} disabled={isLeaveWork} />
               </label>
               <div className="space-y-1 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">待回款</span>
@@ -588,10 +641,31 @@ export function ProjectList() {
                   {formatMoney(Math.max(Number(editData.contractAmount || 0) - Number(editData.receivedAmount || 0), 0))}
                 </div>
               </div>
+              <label className="space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground">计划工日</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={editData.plannedLaborDays}
+                  onChange={(event) => update({ plannedLaborDays: event.target.value })}
+                  disabled={isLeaveWork}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground">人力预算</span>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editData.laborBudgetAmount}
+                  onChange={(event) => update({ laborBudgetAmount: event.target.value })}
+                  disabled={isLeaveWork}
+                />
+              </label>
             </div>
 
             {selectedProject && (
-              <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+              <div className="grid grid-cols-4 gap-3 border-t border-border pt-4 max-[900px]:grid-cols-2">
                 <div className="rounded-md bg-muted/40 p-3">
                   <div className="text-xs text-muted-foreground">累计支出</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums">{formatMoney(selectedProject.total_labor_cost)}</div>
@@ -599,6 +673,14 @@ export function ProjectList() {
                 <div className="rounded-md bg-muted/40 p-3">
                   <div className="text-xs text-muted-foreground">累计工日</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums">{selectedProject.total_labor_hours?.toFixed(2) || "-"}</div>
+                </div>
+                <div className="rounded-md bg-muted/40 p-3">
+                  <div className="text-xs text-muted-foreground">计划工日</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums">{Number(selectedProject.planned_labor_days || 0).toFixed(1)}</div>
+                </div>
+                <div className="rounded-md bg-muted/40 p-3">
+                  <div className="text-xs text-muted-foreground">人力预算</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums">{formatMoney(selectedProject.labor_budget_amount || 0)}</div>
                 </div>
               </div>
             )}

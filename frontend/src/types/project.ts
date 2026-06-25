@@ -17,6 +17,110 @@ export interface DashboardProject {
   gross_profit: number;
   gross_margin: number;
   people_count: number;
+  planned_labor_days?: number;
+  labor_budget_amount?: number;
+}
+
+export type DashboardAnalysisGrain = "week" | "month";
+export type DashboardAnalysisSort =
+  | "labor_days"
+  | "labor_days_used_ratio"
+  | "labor_cost"
+  | "labor_days_delta";
+
+export interface DashboardAnalysisSummary {
+  start_date: string;
+  end_date: string;
+  grain: DashboardAnalysisGrain;
+  project_count: number;
+  employee_count: number;
+  department_count: number;
+  timesheet_count: number;
+  labor_days: number;
+  labor_cost: number;
+}
+
+export interface DashboardAnalysisProject {
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  contract_amount: number;
+  received_amount: number;
+  receivable_amount: number;
+  planned_labor_days: number;
+  labor_budget_amount: number;
+  labor_days: number;
+  labor_cost: number;
+  people_count: number;
+  department_count: number;
+  timesheet_count: number;
+  previous_labor_days: number;
+  labor_days_delta: number;
+  labor_days_used_ratio: number | null;
+  labor_budget_used_ratio: number | null;
+  labor_cost_contract_ratio: number | null;
+}
+
+export interface DashboardAnalysisDepartment {
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  department: string;
+  labor_days: number;
+  labor_cost: number;
+  people_count: number;
+  timesheet_count: number;
+}
+
+export interface DashboardAnalysisEmployee {
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  employee_id: number;
+  employee_name: string;
+  department: string;
+  labor_days: number;
+  work_days: number;
+  daily_rate: number;
+  labor_cost: number;
+  project_count: number;
+}
+
+export interface DashboardAnalysisTrendPoint {
+  bucket_start: string;
+  bucket_label: string;
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  labor_days: number;
+  labor_cost: number;
+  people_count: number;
+}
+
+export interface DashboardAnalysisSource {
+  timesheet_id: number;
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  work_kind: "project";
+  employee_id: number;
+  employee_name: string;
+  department: string;
+  week_start_date: string;
+  timesheet_status: string;
+  submitted_at: string | null;
+  total_hours: number;
+  work_days: number;
+  labor_cost: number;
+}
+
+export interface DashboardAnalysisData {
+  summary: DashboardAnalysisSummary;
+  projects: DashboardAnalysisProject[];
+  departments: DashboardAnalysisDepartment[];
+  employees: DashboardAnalysisEmployee[];
+  trend: DashboardAnalysisTrendPoint[];
+  sources: DashboardAnalysisSource[];
 }
 
 export interface ReportData {
@@ -65,6 +169,7 @@ export interface ProjectDepartmentOwner {
 }
 
 export type ProjectBusinessType = "PM" | "CC" | "PMCC";
+export type ProjectWorkKind = "project" | "leave";
 
 export interface ProjectRoleAssignment {
   id?: number;
@@ -104,6 +209,9 @@ export interface ProjectBase {
   name: string;
   signed_date?: string | null;
   business_type: ProjectBusinessType | null;
+  work_kind: ProjectWorkKind;
+  planned_labor_days: number;
+  labor_budget_amount: number;
   contract_amount: number;
   received_amount: number;
   receivable_amount: number;

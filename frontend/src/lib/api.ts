@@ -118,6 +118,10 @@ function inferProjectBusinessType(code?: string | null): "PM" | "CC" | "PMCC" | 
   return null;
 }
 
+function isLeaveProject(project?: AnyRow | null): boolean {
+  return String(project?.work_kind || "project") === "leave";
+}
+
 function currentYearSuffix(): string {
   return String(new Date().getFullYear()).slice(-2);
 }
@@ -546,6 +550,7 @@ async function projects(): Promise<AnyRow[]> {
     });
   }
   const sheetMap = new Map(sheets.map((sheet) => [Number(sheet.id), sheet]));
+  const projectWorkKind = new Map(rows.map((project) => [Number(project.id), String(project.work_kind || "project")]));
   const hours = new Map<number, number>();
   const seenEntryIds = new Set<number>();
   for (const item of labor) {
@@ -554,6 +559,7 @@ async function projects(): Promise<AnyRow[]> {
     if (entryId) seenEntryIds.add(entryId);
     if (!isReportableTimesheet(sheetMap.get(Number(item.timesheet_id)))) continue;
     const projectId = Number(item.project_id);
+    if (projectWorkKind.get(projectId) === "leave") continue;
     hours.set(projectId, (hours.get(projectId) || 0) + Number(item.hours || 0));
   }
   return rows.map((project) => {
@@ -562,6 +568,9 @@ async function projects(): Promise<AnyRow[]> {
     return {
       ...project,
       business_type: project.business_type || inferProjectBusinessType(project.code),
+      work_kind: project.work_kind || "project",
+      planned_labor_days: Number(project.planned_labor_days || 0),
+      labor_budget_amount: Number(project.labor_budget_amount || 0),
       contract_amount: contract,
       received_amount: received,
       receivable_amount: Number(project.receivable_amount ?? Math.max(contract - received, 0)),
@@ -942,7 +951,7 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
 async function weeklyReport(startDate: string, endDate: string): Promise<AnyRow> {
   const [entries, projectsData, sheets, employees] = await Promise.all([
     rest<AnyRow[]>(`/timesheet_entries?select=id,project_id,timesheet_id,work_date,hours&work_date=gte.${startDate}&work_date=lte.${endDate}`),
-    rest<AnyRow[]>("/projects?select=id,code,name"),
+    rest<AnyRow[]>("/projects?select=id,code,name,work_kind"),
     rest<AnyRow[]>("/timesheets?select=id,user_id,status"),
     rest<AnyRow[]>("/employees?select=id,name"),
   ]);
@@ -960,6 +969,7 @@ async function weeklyReport(startDate: string, endDate: string): Promise<AnyRow>
     if (!isReportableTimesheet(sheet)) continue;
     const sheetUserId = Number(sheet.user_id);
     const projectId = Number(entry.project_id);
+    if (isLeaveProject(projectMap.get(projectId))) continue;
     if (!projectHours.has(projectId)) projectHours.set(projectId, { total: 0, people: new Set() });
     const row = projectHours.get(projectId)!;
     row.total += Number(entry.hours || 0);
@@ -986,12 +996,14 @@ async function weeklyReport(startDate: string, endDate: string): Promise<AnyRow>
 
 async function projectDetail(projectId: string, startDate: string, endDate: string): Promise<AnyRow[]> {
   // Flat query — avoid embedded timesheets(employees(...)) which needs missing FK
-  const [entries, allSheets, allUsers, allProfs] = await Promise.all([
+  const [entries, projectRows, allSheets, allUsers, allProfs] = await Promise.all([
     rest<AnyRow[]>(`/timesheet_entries?select=id,timesheet_id,work_date,hours&project_id=eq.${projectId}&work_date=gte.${startDate}&work_date=lte.${endDate}`),
+    rest<AnyRow[]>(`/projects?select=id,work_kind&id=eq.${projectId}&limit=1`),
     rest<AnyRow[]>("/timesheets?select=id,user_id,status"),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name)"),
   ]);
+  if (isLeaveProject(projectRows[0])) return [];
   const sheetMap = new Map(allSheets.map((s: AnyRow) => [Number(s.id), s]));
   const userMap = new Map(allUsers.map((u: AnyRow) => [Number(u.id), u]));
   const profMap = new Map(allProfs.map((p: AnyRow) => [Number(p.employee_id), p]));
@@ -1019,7 +1031,7 @@ async function laborMatrix(startDate: string, endDate: string): Promise<AnyRow[]
   const [entries, sheets, projectRows, employees] = await Promise.all([
     rest<AnyRow[]>(`/timesheet_entries?select=id,project_id,timesheet_id,work_date,hours&work_date=gte.${startDate}&work_date=lte.${endDate}`),
     rest<AnyRow[]>("/timesheets?select=id,user_id,status"),
-    rest<AnyRow[]>("/projects?select=id,code,name,status&status=neq.deleted"),
+    rest<AnyRow[]>("/projects?select=id,code,name,status,work_kind&status=neq.deleted"),
     listEmployees(),
   ]);
   const sheetMap = new Map(sheets.map((sheet) => [Number(sheet.id), sheet]));
@@ -1044,6 +1056,7 @@ async function laborMatrix(startDate: string, endDate: string): Promise<AnyRow[]
     if (!isReportableTimesheet(sheet)) continue;
     const employeeId = Number(sheet.user_id);
     const projectId = Number(entry.project_id);
+    if (isLeaveProject(projectMap.get(projectId))) continue;
     const key = `${employeeId}:${projectId}`;
     if (!byEmployeeProject.has(key)) {
       byEmployeeProject.set(key, {
@@ -1077,6 +1090,17 @@ async function laborMatrix(startDate: string, endDate: string): Promise<AnyRow[]
       };
     })
     .filter((row) => row.employee_name && row.project_name);
+}
+
+async function dashboardAnalysis(startDate: string, endDate: string, grain: string): Promise<AnyRow> {
+  return rest<AnyRow>("/rpc/psa_dashboard_analysis", {
+    method: "POST",
+    body: JSON.stringify({
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_grain: grain === "week" ? "week" : "month",
+    }),
+  });
 }
 
 async function saveProjectDepartmentOwners(projectId: number, owners: AnyRow[] = []): Promise<void> {
@@ -1185,17 +1209,21 @@ async function saveProject(body: AnyRow): Promise<AnyRow> {
   const existingProject = projectId
     ? await rest<AnyRow[]>(`/projects?select=id,project_owner_id&id=eq.${projectId}&limit=1`)
     : [];
+  const workKind = body.workKind || body.work_kind || "project";
   const businessType = body.businessType || body.business_type || inferProjectBusinessType(body.code);
-  const code = String(body.code || "").trim();
+  const code = workKind === "leave" ? "LEAVE" : String(body.code || "").trim();
   const row = {
     code,
-    name: body.name,
+    name: workKind === "leave" ? "请假" : body.name,
     signed_date: body.signedDate || body.signed_date || null,
-    business_type: businessType || inferProjectBusinessType(code),
-    contract_amount: Number(body.contractAmount || body.contract_amount || 0),
-    received_amount: Number(body.receivedAmount || body.received_amount || 0),
-    owner_org_id: body.ownerOrgId || body.owner_org_id || null,
-    project_owner_id: body.projectOwnerId || body.project_owner_id || null,
+    business_type: workKind === "leave" ? null : businessType || inferProjectBusinessType(code),
+    contract_amount: workKind === "leave" ? 0 : Number(body.contractAmount || body.contract_amount || 0),
+    received_amount: workKind === "leave" ? 0 : Number(body.receivedAmount || body.received_amount || 0),
+    planned_labor_days: workKind === "leave" ? 0 : Number(body.plannedLaborDays || body.planned_labor_days || 0),
+    labor_budget_amount: workKind === "leave" ? 0 : Number(body.laborBudgetAmount || body.labor_budget_amount || 0),
+    owner_org_id: workKind === "leave" ? null : body.ownerOrgId || body.owner_org_id || null,
+    project_owner_id: workKind === "leave" ? null : body.projectOwnerId || body.project_owner_id || null,
+    work_kind: workKind,
     status: "active",
   };
   if (projectId) {
@@ -1381,6 +1409,12 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
     const startDate = url.searchParams.get("startDate") || url.searchParams.get("weekStart") || todayMonday();
     const endDate = url.searchParams.get("endDate") || weekDays(startDate)[6];
     return laborMatrix(startDate, endDate) as T;
+  }
+  if (url.pathname === "/api/dashboard/analysis") {
+    const startDate = url.searchParams.get("startDate") || url.searchParams.get("weekStart") || todayMonday();
+    const endDate = url.searchParams.get("endDate") || weekDays(startDate)[6];
+    const grain = url.searchParams.get("grain") || "month";
+    return dashboardAnalysis(startDate, endDate, grain) as T;
   }
   if (url.pathname === "/api/project-detail") {
     return projectDetail(url.searchParams.get("projectId") || "0", url.searchParams.get("startDate") || todayMonday(), url.searchParams.get("endDate") || todayMonday()) as T;

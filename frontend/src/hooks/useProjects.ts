@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type {
+  DashboardAnalysisData,
+  DashboardAnalysisGrain,
   DashboardData,
   DashboardProject,
   LaborMatrixRow,
@@ -48,7 +50,7 @@ export function useDashboard(startDate: string, endDate: string) {
       }
 
       const projects: DashboardProject[] = (projectBase || [])
-        .filter((p) => p.status !== "deleted")
+        .filter((p) => p.status !== "deleted" && p.work_kind !== "leave")
         .map((p) => {
           const labor = laborMap.get(p.id) || {
             totalHours: 0,
@@ -77,6 +79,8 @@ export function useDashboard(startDate: string, endDate: string) {
             gross_profit: projGrossProfit,
             gross_margin: projGrossMargin,
             people_count: labor.employeeIds.size,
+            planned_labor_days: p.planned_labor_days || 0,
+            labor_budget_amount: p.labor_budget_amount || 0,
           };
         });
 
@@ -88,6 +92,17 @@ export function useDashboard(startDate: string, endDate: string) {
       } as DashboardData;
     },
     enabled: !!(startDate && endDate),
+  });
+}
+
+export function useDashboardAnalysis(startDate: string, endDate: string, grain: DashboardAnalysisGrain) {
+  return useQuery({
+    queryKey: ["dashboard", "analysis", startDate, endDate, grain],
+    queryFn: () =>
+      api<DashboardAnalysisData>(
+        `/api/dashboard/analysis?startDate=${startDate}&endDate=${endDate}&grain=${grain}`,
+      ),
+    enabled: !!(startDate && endDate && grain),
   });
 }
 

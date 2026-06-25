@@ -34,4 +34,5 @@ export interface ProjectBrief {
   id: number;
   code: string;
   name: string;
+  work_kind?: "project" | "leave";
 }

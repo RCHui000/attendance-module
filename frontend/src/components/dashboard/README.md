@@ -1,6 +1,6 @@
 # Dashboard Module
 
-The dashboard module shows KPI cards and BI perspectives over approved labor data.
+The dashboard module shows project operating metrics and a BI workbench over approved labor data.
 
 ## Entry Points
 
@@ -9,14 +9,10 @@ The dashboard module shows KPI cards and BI perspectives over approved labor dat
 | `pages/DashboardPage.tsx` | Page container and top-level period state. |
 | `MetricCards.tsx` | Summary cards. |
 | `DashboardTable.tsx` | Project/employee rollup table. |
-| `BiPerspectiveTab.tsx` | Project, department, and employee BI perspectives. |
-| `AnalyticsTab.tsx` | Chart-based analytics. |
+| `DashboardAnalysisWorkbench.tsx` | Project investment analysis workbench with ranking, trend, donut structure, employee load, and source rows. |
 | `DashboardMobile.tsx` | Mobile-first dashboard composition and compact BI summaries. |
 | `PeriodFilter.tsx` | Period selector. |
-| `OverviewBarChart.tsx` | Basic bar chart rendering. |
-| `SimpleBarList.tsx` | Compact list chart. |
-| `hooks/useProjects.ts` | Dashboard data aggregation. |
-| `hooks/useMonthlyData.ts` | Multi-period report fetching. |
+| `hooks/useProjects.ts` | Dashboard data loading and BI analysis query hooks. |
 
 ## API Calls
 
@@ -25,8 +21,8 @@ The dashboard module shows KPI cards and BI perspectives over approved labor dat
 | `useProjects` | `/api/projects` | GET | Project master data, finance fields, configured owners. |
 | `useProjects` | `/api/reports/weekly` | GET | Labor totals in selected range. |
 | `useProjects` | `/api/reports/labor-matrix` | GET | Project x period labor matrix where needed by BI views. |
+| `useDashboardAnalysis` | `/api/dashboard/analysis` | GET | Backend BI aggregation for project ranking, trend, load, and source rows. |
 | `useProjects` | `/api/employees` | GET | Employee salary/rate data for labor cost estimate. |
-| `useMonthlyData` | `/api/reports/weekly` | GET | Periodized labor report used by charts. |
 
 ## Metrics
 
@@ -34,6 +30,7 @@ The dashboard module shows KPI cards and BI perspectives over approved labor dat
 - Total approved labor workdays.
 - Estimated labor cost based on employee salary/daily wage.
 - Project gross margin and labor cost ratio when financial fields exist.
+- Planned labor days and labor budget consumption when project budgets are configured.
 - Department and employee contribution views.
 
 Only reportable timesheet statuses are counted: `approved`, `locked`, `summarized`.

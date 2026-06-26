@@ -10,13 +10,13 @@ export const departmentColorOptions = [
 ] as const;
 
 const departmentColorClassMap: Record<string, string> = {
-  slate: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600/70 dark:bg-slate-800/70 dark:text-slate-100",
-  blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-100",
-  cyan: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-500/50 dark:bg-indigo-500/15 dark:text-indigo-100",
-  teal: "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-500/50 dark:bg-teal-500/15 dark:text-teal-100",
-  green: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/50 dark:bg-violet-500/15 dark:text-violet-100",
-  amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-100",
-  rose: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-rose-100",
+  slate: "border-slate-200 bg-slate-50 text-foreground dark:border-slate-600/70 dark:bg-slate-800/70 dark:text-slate-100",
+  blue: "border-blue-200 bg-blue-50 text-foreground dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-slate-100",
+  cyan: "border-indigo-200 bg-indigo-50 text-foreground dark:border-indigo-500/50 dark:bg-indigo-500/15 dark:text-slate-100",
+  teal: "border-teal-200 bg-teal-50 text-foreground dark:border-teal-500/50 dark:bg-teal-500/15 dark:text-slate-100",
+  green: "border-violet-200 bg-violet-50 text-foreground dark:border-violet-500/50 dark:bg-violet-500/15 dark:text-slate-100",
+  amber: "border-amber-200 bg-amber-50 text-foreground dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-slate-100",
+  rose: "border-rose-200 bg-rose-50 text-foreground dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-slate-100",
 };
 
 const departmentSwatchClassMap: Record<string, string> = {

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ===== shadcn/ui Theme - PSA workbench design tokens ===== */
 @theme {
@@ -48,6 +49,9 @@
   --color-row-hover: hsl(220 33% 97%);       /* #f6f8fb */
   --color-row-selected: hsl(222 89% 96%);    /* #eef4ff */
   --color-progress: #2f80ed;
+  --color-chart-primary: #2563eb;
+  --color-chart-axis: hsl(217 9% 41%);
+  --color-chart-grid: hsl(220 9% 87%);
   --color-toast: #181d26;
 
   /* Border radius */
@@ -113,6 +117,9 @@ body {
   --color-table-header: hsl(220 7% 17%);
   --color-row-hover: hsl(220 7% 19%);
   --color-row-selected: hsl(209 24% 22%);
+  --color-chart-primary: #60a5fa;
+  --color-chart-axis: hsl(218 10% 76%);
+  --color-chart-grid: hsl(220 7% 31%);
   --color-toast: hsl(220 8% 14%);
   --color-status-draft-text: hsl(218 9% 74%);
   --color-status-draft-bg: hsl(220 6% 23%);
@@ -180,6 +187,119 @@ dialog {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+.psa-animated-logo {
+  color: #d7dbe3;
+}
+
+.psa-logo-person {
+  animation: psa-person-intro 1.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.psa-logo-person-look {
+  transform-box: fill-box;
+  transform-origin: 50% 62%;
+  animation: psa-person-look-intro 1.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.psa-logo-eye {
+  animation: psa-eye-intro 1.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.psa-logo-word {
+  opacity: 0;
+  transform: translateY(9px) scale(0.92);
+  animation: psa-word-intro 1.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes psa-person-intro {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+  }
+  14%,
+  64% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  82%,
+  100% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+}
+
+@keyframes psa-person-look-intro {
+  0%,
+  24% {
+    transform: translateX(0) rotate(0deg);
+  }
+  34%,
+  45% {
+    transform: translateX(-2px) rotate(-7deg);
+  }
+  55%,
+  65% {
+    transform: translateX(2px) rotate(7deg);
+  }
+  82%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+}
+
+@keyframes psa-eye-intro {
+  0%,
+  24% {
+    transform: translateX(0);
+  }
+  34%,
+  45% {
+    transform: translateX(-0.9px);
+  }
+  55%,
+  65% {
+    transform: translateX(0.9px);
+  }
+  82%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes psa-word-intro {
+  0%,
+  78% {
+    opacity: 0;
+    transform: translateY(9px) scale(0.92);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psa-logo-person,
+  .psa-logo-person-look,
+  .psa-logo-eye,
+  .psa-logo-word {
+    animation: none;
+  }
+
+  .psa-logo-person {
+    opacity: 0;
+  }
+
+  .psa-logo-word {
+    opacity: 1;
+    transform: none;
   }
 }
 

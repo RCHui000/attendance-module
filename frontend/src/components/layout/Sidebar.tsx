@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { APP_NAME, APP_VERSION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { PsaAnimatedLogo } from "./PsaAnimatedLogo";
 import { SidebarSettingsMenu } from "./SidebarSettingsMenu";
 import { NAV_ITEMS } from "./navItems";
 
@@ -19,9 +20,7 @@ export function Sidebar() {
     <aside className="sticky top-0 flex h-screen w-[216px] shrink-0 flex-col bg-sidebar-bg px-3 py-3 max-[1179px]:w-16 max-[1179px]:px-2">
       <div className="mb-6 border-b border-white/10 pb-6 max-[1179px]:mb-4 max-[1179px]:pb-4">
         <div className="flex items-center gap-2.5 max-[1179px]:justify-center">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-white/10 text-base font-bold text-white select-none">
-            PSA
-          </div>
+          <PsaAnimatedLogo />
           <div className="min-w-0 max-[1179px]:sr-only">
             <strong className="block text-sm leading-tight text-white">{APP_NAME}</strong>
             <div className="mt-0.5 text-xs text-sidebar-muted">版本{APP_VERSION}</div>

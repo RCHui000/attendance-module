@@ -134,6 +134,40 @@ function ChartTooltip({
   );
 }
 
+function truncateLabel(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(1, maxLength - 1))}…`;
+}
+
+function CategoryTick({
+  x = 0,
+  y = 0,
+  payload,
+  width = 112,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+  width?: number;
+}) {
+  const rawLabel = String(payload?.value || "");
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <title>{rawLabel}</title>
+      <text
+        x={0}
+        y={0}
+        dy={4}
+        textAnchor="start"
+        fill="var(--color-chart-axis)"
+        fontSize={11}
+      >
+        {truncateLabel(rawLabel, width >= 120 ? 9 : 7)}
+      </text>
+    </g>
+  );
+}
+
 function filteredEntities(entities: AnalysisEntity[], query: string, sort: DashboardAnalysisSort) {
   const normalized = query.trim().toLowerCase();
   return [...entities]
@@ -341,17 +375,17 @@ function TrendPanel({ entity }: { entity: AnalysisEntity }) {
           <AreaChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id={`dashboardTrendFill-${entity.view}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.42} />
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.08} />
+                <stop offset="5%" stopColor="var(--color-chart-primary)" stopOpacity={0.42} />
+                <stop offset="95%" stopColor="var(--color-chart-primary)" stopOpacity={0.08} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.8} />
-            <XAxis dataKey="bucket" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--muted-foreground))" }} />
-            <YAxis fontSize={11} tickLine={false} axisLine={false} width={36} tick={{ fill: "hsl(var(--muted-foreground))" }} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-grid)" strokeOpacity={0.85} />
+            <XAxis dataKey="bucket" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "var(--color-chart-axis)" }} />
+            <YAxis fontSize={11} tickLine={false} axisLine={false} width={36} tick={{ fill: "var(--color-chart-axis)" }} />
             <Tooltip content={<ChartTooltip />} />
             <Area
               dataKey="工日"
-              stroke="hsl(var(--primary))"
+              stroke="var(--color-chart-primary)"
               fill={`url(#dashboardTrendFill-${entity.view})`}
               strokeWidth={2.5}
               type="monotone"
@@ -452,9 +486,16 @@ function LoadPanel({ entity }: { entity: AnalysisEntity }) {
       ) : (
         <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 34)}>
           <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" strokeOpacity={0.8} />
-            <XAxis type="number" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--muted-foreground))" }} />
-            <YAxis type="category" dataKey="name" width={76} fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--muted-foreground))" }} />
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-chart-grid)" strokeOpacity={0.85} />
+            <XAxis type="number" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "var(--color-chart-axis)" }} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={isEmployeeView ? 128 : 92}
+              tickLine={false}
+              axisLine={false}
+              tick={<CategoryTick width={isEmployeeView ? 128 : 92} />}
+            />
             <Tooltip content={<ChartTooltip />} />
             <Bar dataKey="工日" fill="#3b82f6" radius={[0, 6, 6, 0]} barSize={14} />
           </BarChart>
@@ -462,13 +503,21 @@ function LoadPanel({ entity }: { entity: AnalysisEntity }) {
       )}
       <div className="mt-3 space-y-2">
         {items.slice(0, 5).map((item) => (
-          <div key={item.id} className="grid grid-cols-[3.5em_minmax(0,1fr)_auto] items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-xs">
-            <span className="truncate font-medium" title={item.name}>
+          <div
+            key={item.id}
+            className={cn(
+              "grid items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-xs",
+              isEmployeeView ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[3.5em_minmax(0,1fr)_auto]",
+            )}
+          >
+            <span className="min-w-0 truncate font-medium" title={item.name}>
               {item.name}
             </span>
-            <span className="min-w-0 truncate text-muted-foreground" title={item.meta}>
-              {item.meta || "—"}
-            </span>
+            {!isEmployeeView && (
+              <span className="min-w-0 truncate text-muted-foreground" title={item.meta}>
+                {item.meta || "—"}
+              </span>
+            )}
             <span className="shrink-0 tabular-nums">{item.labor_days.toFixed(1)} 工日</span>
           </div>
         ))}

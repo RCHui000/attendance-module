@@ -92,6 +92,7 @@ export function useDashboard(startDate: string, endDate: string) {
       } as DashboardData;
     },
     enabled: !!(startDate && endDate),
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -103,6 +104,7 @@ export function useDashboardAnalysis(startDate: string, endDate: string, grain: 
         `/api/dashboard/analysis?startDate=${startDate}&endDate=${endDate}&grain=${grain}`,
       ),
     enabled: !!(startDate && endDate && grain),
+    placeholderData: (previousData) => previousData,
   });
 }
 

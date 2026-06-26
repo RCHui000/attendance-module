@@ -25,8 +25,8 @@ interface PeriodFilterProps {
 
 const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
   { value: "year", label: "年" },
-  { value: "month", label: "月" },
   { value: "quarter", label: "季" },
+  { value: "month", label: "月" },
   { value: "week", label: "周" },
 ];
 
@@ -46,20 +46,13 @@ export function PeriodFilter({
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
   return (
-    <div className="flex items-center gap-2">
-      <SegmentedPill
-        value={periodType}
-        items={PERIOD_OPTIONS}
-        onChange={onPeriodTypeChange}
-        ariaLabel="时间跨度"
-      />
-
+    <div className="flex min-w-0 items-center gap-2">
       <Select
         value={String(year)}
         onValueChange={(v) => onYearChange(Number(v))}
       >
-        <SelectTrigger className="h-8 w-[5.25rem] rounded-full text-sm">
-          <SelectValue />
+        <SelectTrigger className="h-8 w-[5.75rem] rounded-full text-sm">
+          <SelectValue>{year}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {years.map((y) => (
@@ -75,8 +68,8 @@ export function PeriodFilter({
           value={String(month)}
           onValueChange={(v) => onMonthChange(Number(v))}
         >
-          <SelectTrigger className="h-8 w-[4.25rem] rounded-full text-sm">
-            <SelectValue />
+          <SelectTrigger className="h-8 w-[5rem] rounded-full text-sm">
+            <SelectValue>{month}月</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -93,13 +86,13 @@ export function PeriodFilter({
           value={String(quarter)}
           onValueChange={(v) => onQuarterChange(Number(v))}
         >
-          <SelectTrigger className="h-8 w-[4.25rem] rounded-full text-sm">
-            <SelectValue />
+          <SelectTrigger className="h-8 w-[5.5rem] rounded-full text-sm">
+            <SelectValue>{quarter}季度</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {[1, 2, 3, 4].map((q) => (
               <SelectItem key={q} value={String(q)}>
-                Q{q}
+                {q}季度
               </SelectItem>
             ))}
           </SelectContent>
@@ -113,10 +106,17 @@ export function PeriodFilter({
           onChange={(event) => {
             if (event.target.value) onWeekStartChange?.(mondayOfWeek(event.target.value));
           }}
-          className="h-8 w-[8.75rem] rounded-full text-sm"
+          className="h-8 w-[9.5rem] rounded-full text-sm"
           aria-label="选择周"
         />
       )}
+
+      <SegmentedPill
+        value={periodType}
+        items={PERIOD_OPTIONS}
+        onChange={onPeriodTypeChange}
+        ariaLabel="时间粒度"
+      />
     </div>
   );
 }

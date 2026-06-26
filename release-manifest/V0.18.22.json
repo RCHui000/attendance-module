@@ -1,0 +1,38 @@
+{
+  "version": "V0.18.22",
+  "released_at": "2026-06-26",
+  "base_version": "V0.18.21",
+  "commit": "tag:V0.18.22",
+  "summary": "Rework the BI dashboard into an overview cockpit and a three-perspective analysis workbench.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No schema changes in this release.",
+      "The dashboard analysis workbench continues to use the existing psa_dashboard_analysis contract.",
+      "Project, employee, and department analysis views are derived by frontend aggregation from the existing response payload."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.22",
+    "notes": [
+      "Repositioned the dashboard as a two-level experience: overview cockpit for quick status and analysis workbench for drill-down.",
+      "Added project, employee, and department perspectives to the analysis workbench.",
+      "Added clickable overview insight cards that jump directly into the relevant analysis perspective.",
+      "Kept previous dashboard data visible during refresh and uses skeleton loading only for the initial empty state.",
+      "Stabilized period controls as concrete period selectors followed by year/quarter/month/week grain switching.",
+      "Improved dark-mode chart readability for trend area charts and chart axes.",
+      "Shortened analysis sort labels to avoid wrapping and adjusted the analysis grid to give the central charts more room."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.22 and production VITE variables.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.22.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.22."
+  ],
+  "known_warnings": [
+    "Vite may still warn that some chunks are larger than 500 kB.",
+    "The new employee and department analysis perspectives are frontend aggregations; backend aggregation can be added later if production data volume requires it."
+  ]
+}

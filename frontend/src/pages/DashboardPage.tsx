@@ -9,20 +9,10 @@ import { DashboardMobile } from "@/pages/dashboard/DashboardMobile";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { computePeriodDates, type PeriodType } from "@/components/dashboard/periodUtils";
 import { Button } from "@/components/ui/button";
-import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { isoDate, mondayOfWeek } from "@/utils/dates";
-import {
-  FileDown,
-  LayoutDashboard,
-  TrendingUp,
-} from "lucide-react";
+import { FileDown } from "lucide-react";
 
 type DashboardTab = "overview" | "analytics";
-
-const TAB_OPTIONS: { value: DashboardTab; label: string; icon: React.ReactNode }[] = [
-  { value: "overview", label: "总览", icon: <LayoutDashboard className="size-3.5" /> },
-  { value: "analytics", label: "分析", icon: <TrendingUp className="size-3.5" /> },
-];
 
 export default function DashboardPage() {
   const now = new Date();
@@ -101,18 +91,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      {!isMobile && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold tracking-normal text-foreground">数据看板</h1>
-          <SegmentedPill
-            value={activeTab}
-            items={TAB_OPTIONS}
-            onChange={(tab) => updateDashboardParams({ tab })}
-            ariaLabel="看板视图切换"
-          />
-        </div>
-      )}
-
       {/* Loading / Error */}
       {isLoading && (
         <div className="flex items-center justify-center py-24">

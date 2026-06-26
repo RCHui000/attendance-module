@@ -1,0 +1,39 @@
+{
+  "version": "V0.18.21",
+  "released_at": "2026-06-26",
+  "base_version": "V0.18.20",
+  "commit": "tag:V0.18.21",
+  "summary": "Refine dashboard controls, sidebar theme menu contrast, approval-center layout, approval-flow configuration polish, and organization configuration readability.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No schema changes in this release.",
+      "Verified project owner to platform role synchronization on production with scripts/assert-project-role-platform-sync.sql.",
+      "Checked production data for active project owners still assigned only employee platform access; no mismatches were found."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.21",
+    "notes": [
+      "Moved the dashboard overview/analysis switch beside the page title and removed duplicate dashboard titles and date pills.",
+      "Made dashboard period controls more compact and consistently pill-shaped.",
+      "Improved dark-mode visibility for the sidebar settings menu and theme submenu.",
+      "Gave approval-center timesheets the primary vertical space and pushed the reserved OT area to a compact page-bottom section.",
+      "Polished approval-flow configuration controls with consistent pill buttons, inline validation state, and higher-contrast template selection.",
+      "Localized organization configuration select display values and reduced visual confusion from nested gray backgrounds.",
+      "Reduced department color saturation for calmer low-noise department chips."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.21 and production VITE variables.",
+    "Run scripts/assert-project-role-platform-sync.sql on the cloud database.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.21.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.21."
+  ],
+  "known_warnings": [
+    "Vite may still warn that some chunks are larger than 500 kB.",
+    "Approval-flow template edits affect subsequent submissions; existing running approval graphs keep their historical runtime nodes."
+  ]
+}

@@ -427,7 +427,7 @@ function NodeInspector({
         </label>
       </div>
 
-      <details className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <details className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground dark:bg-card/60">
         <summary className="cursor-pointer font-medium text-foreground">高级信息</summary>
         <dl className="mt-3 space-y-2">
           <div className="flex justify-between gap-3">
@@ -535,7 +535,7 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
                 type="button"
                 className={cn(
                   "w-full rounded-lg px-3 py-3 text-left transition-[background-color,color,box-shadow] duration-150 hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none",
-                  active && "bg-muted shadow-sm",
+                  active && "bg-foreground text-background shadow-sm hover:bg-foreground",
                 )}
                 onClick={() => {
                   const next = cloneTemplate(template);
@@ -544,8 +544,12 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
                   setSelectedNodeKey(next.nodes[0]?.node_key || null);
                 }}
               >
-                <div className="font-semibold text-foreground">{templateDisplayName(template)}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{templateDescription(template)}</div>
+                <div className={cn("font-semibold text-foreground", active && "text-background")}>
+                  {templateDisplayName(template)}
+                </div>
+                <div className={cn("mt-1 text-xs text-muted-foreground", active && "text-background/75")}>
+                  {templateDescription(template)}
+                </div>
               </button>
             );
           })}
@@ -567,15 +571,29 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
               <p className="mt-1 text-sm text-muted-foreground">拖拽节点调整顺序，系统会按顺序自动生成审批边。</p>
             </div>
             <div className="flex items-center gap-2">
+              {activeDraft && (
+                <span
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs font-medium",
+                    hasErrors
+                      ? "border-destructive/30 bg-destructive/10 text-destructive"
+                      : "border-emerald-300/70 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200",
+                  )}
+                >
+                  {hasErrors ? <AlertCircle className="size-3.5" /> : <Check className="size-3.5" />}
+                  {hasErrors ? `${validationErrors.length} 项需修正` : "校验通过"}
+                </span>
+              )}
               {!canWrite && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+                <span className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-background px-2.5 text-xs font-medium text-foreground dark:bg-card/70">
                   <Lock className="size-3.5" />
-                  只读
+                  只读模式
                 </span>
               )}
               <Button
                 variant="outline"
                 size="sm"
+                className="rounded-full"
                 onClick={() => {
                   if (!selectedTemplate) return;
                   const next = cloneTemplate(selectedTemplate);
@@ -587,26 +605,30 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
                 <RotateCcw className="mr-1 size-3.5" />
                 还原
               </Button>
-              <Button variant="outline" size="sm" onClick={addNode} disabled={!canWrite || !activeDraft || isSpecialTemplate(activeDraft)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={addNode}
+                disabled={!canWrite || !activeDraft || isSpecialTemplate(activeDraft)}
+              >
                 <Plus className="mr-1 size-3.5" />
                 添加节点
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={!canWrite || !activeDraft || hasErrors || saveTemplate.isPending}>
+              <Button
+                size="sm"
+                className="rounded-full"
+                onClick={handleSave}
+                disabled={!canWrite || !activeDraft || hasErrors || saveTemplate.isPending}
+              >
                 <Save className="mr-1 size-3.5" />
                 保存模板
               </Button>
             </div>
           </div>
 
-          <div
-            className={cn(
-              "mt-4 rounded-lg border px-3 py-2 text-sm",
-              hasErrors
-                ? "border-destructive/30 bg-destructive/5 text-destructive"
-                : "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
-            )}
-          >
-            {hasErrors ? (
+          {hasErrors && (
+            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               <div className="flex gap-2">
                 <AlertCircle className="mt-0.5 size-4 shrink-0" />
                 <div>
@@ -618,16 +640,11 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
                   </ul>
                 </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Check className="size-4" />
-                当前模板校验通过
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </section>
 
-        <section className="overflow-x-auto rounded-xl border border-border bg-muted/20 p-5">
+        <section className="overflow-x-auto rounded-xl border border-border bg-background/70 p-5 dark:bg-card/60">
           <div className="flex min-w-max items-center gap-4">
             {nodes.map((node, index) => (
               <div key={node.node_key} className="flex items-center gap-4">

@@ -48,6 +48,11 @@ const EMPTY_DRAFT: OrganizationDraft = {
   colorToken: "",
 };
 
+const orgTypeLabels: Record<OrganizationDraft["orgType"], string> = {
+  company: "公司",
+  department: "部门",
+};
+
 function draftFromOrg(org: Organization): OrganizationDraft {
   return {
     orgName: org.org_name,
@@ -66,7 +71,7 @@ function ConfigSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border/80 bg-muted/15 p-3">
+    <section className="rounded-xl border border-border/80 bg-background/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] dark:bg-card/60 dark:shadow-none">
       <div className="mb-2 text-xs font-semibold text-muted-foreground">{title}</div>
       <div className="space-y-2">{children}</div>
     </section>
@@ -253,6 +258,13 @@ export function OrganizationPanel({
     return names.join(" / ");
   };
 
+  const parentLabel = (parentId: string) => {
+    if (!parentId) return "无上级";
+    const parentTreeOrg = parentOptions.find((org) => String(org.id) === parentId);
+    if (parentTreeOrg) return orgOptionLabel(parentTreeOrg);
+    return orgById.get(Number(parentId))?.org_name || "无上级";
+  };
+
   const handleSave = () => {
     if (!canManage) return;
     if (!editData.orgName.trim()) {
@@ -426,7 +438,7 @@ export function OrganizationPanel({
                   <div className="space-y-1.5">
                     <FieldLabel>部门名称</FieldLabel>
                     <Input
-                      className="h-8 text-sm"
+                      className="h-8 bg-card text-sm"
                       value={editData.orgName}
                       disabled={!canManage}
                       onChange={(event) => setEditData((data) => ({ ...data, orgName: event.target.value }))}
@@ -440,8 +452,8 @@ export function OrganizationPanel({
                       disabled={!canManage}
                       onValueChange={(value) => setEditData((data) => ({ ...data, orgType: value as "company" | "department" }))}
                     >
-                      <SelectTrigger className="h-8 w-full text-sm">
-                        <SelectValue />
+                      <SelectTrigger className="h-8 w-full bg-card text-sm">
+                        <SelectValue>{orgTypeLabels[editData.orgType]}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="department">部门</SelectItem>
@@ -457,8 +469,8 @@ export function OrganizationPanel({
                     disabled={!canManage}
                     onValueChange={(value) => setEditData((data) => ({ ...data, parentId: !value || value === "none" ? "" : value }))}
                   >
-                    <SelectTrigger className="h-8 w-full text-sm">
-                      <SelectValue placeholder="上级部门" />
+                    <SelectTrigger className="h-8 w-full bg-card text-sm">
+                      <SelectValue>{parentLabel(editData.parentId)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">无上级</SelectItem>
@@ -474,8 +486,8 @@ export function OrganizationPanel({
 
               <ConfigSection title={allowMultipleManagers ? "部门负责人" : "负责人"}>
                 <Select value="none" disabled={!canManage} onValueChange={addManager}>
-                  <SelectTrigger className="h-8 w-full text-sm">
-                    <SelectValue placeholder={allowMultipleManagers ? "添加负责人" : "选择负责人"} />
+                  <SelectTrigger className="h-8 w-full bg-card text-sm">
+                    <SelectValue>{allowMultipleManagers ? "添加负责人" : "选择负责人"}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">不设置</SelectItem>

@@ -131,8 +131,8 @@ export function ApprovalTable({
 
   return (
     <>
-      <div className="min-w-0 max-w-full overflow-hidden">
-        <div className="flex items-center justify-between mb-3">
+      <div className="flex min-h-[calc(100vh-9.5rem)] min-w-0 max-w-full flex-col overflow-hidden">
+        <div className="mb-3 flex shrink-0 items-center justify-between">
           <SegmentedPill
             value={approvalTab}
             items={approvalTabs}
@@ -147,15 +147,15 @@ export function ApprovalTable({
         </div>
 
         {/* Timesheet approval */}
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="mb-4 flex min-h-[420px] flex-1 flex-col">
+          <div className="mb-2 flex shrink-0 items-center gap-2">
             <strong className="text-sm">周表</strong>
             <span className="text-xs text-muted-foreground">待处理节点 / 流转中可见</span>
           </div>
 
           {approvalTab === "pending" && (
-            <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
-              <div className="max-h-[40vh] max-w-full overflow-auto">
+            <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+              <div className="h-full min-h-[360px] max-h-[calc(100vh-18rem)] w-full max-w-full overflow-auto">
                 <Table className="min-w-[760px] table-fixed">
                   <TableHeader className="sticky top-0 bg-table-header">
                     <TableRow>
@@ -273,8 +273,8 @@ export function ApprovalTable({
           )}
 
           {approvalTab === "reviewed" && (
-            <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
-              <div className="max-h-[40vh] max-w-full overflow-auto">
+            <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+              <div className="h-full min-h-[360px] max-h-[calc(100vh-18rem)] w-full max-w-full overflow-auto">
                 <Table className="min-w-[760px] table-fixed">
                   <TableHeader className="sticky top-0 bg-table-header">
                     <TableRow>
@@ -328,14 +328,14 @@ export function ApprovalTable({
         </div>
 
         {/* Overtime approval */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
+        <div className="mt-auto shrink-0">
+          <div className="mb-2 flex items-center gap-2">
             <strong className="text-sm">加班 OT</strong>
             <span className="text-xs text-muted-foreground">待处理</span>
           </div>
 
           <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
-            <div className="max-h-[30vh] max-w-full overflow-auto">
+            <div className="max-h-[16vh] min-h-[88px] max-w-full overflow-auto">
               <Table className="min-w-[680px] table-fixed">
                 <TableHeader className="sticky top-0 bg-table-header">
                   <TableRow>

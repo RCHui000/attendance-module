@@ -597,9 +597,6 @@ export function DashboardAnalysisWorkbench({
                 onWeekStartChange={onWeekStartChange}
               />
             ) : null}
-            <span className="rounded-full bg-muted/40 px-2.5 py-1 text-xs tabular-nums text-muted-foreground">
-              {startDate} ~ {endDate}
-            </span>
             <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={handleExport} disabled={!selectedProject}>
               <FileDown className="mr-1.5 size-3.5" aria-hidden="true" />
               导出分析

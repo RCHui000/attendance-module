@@ -58,7 +58,7 @@ export function PeriodFilter({
         value={String(year)}
         onValueChange={(v) => onYearChange(Number(v))}
       >
-        <SelectTrigger className="w-20 h-8 text-sm">
+        <SelectTrigger className="h-8 w-[5.25rem] rounded-full text-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -75,7 +75,7 @@ export function PeriodFilter({
           value={String(month)}
           onValueChange={(v) => onMonthChange(Number(v))}
         >
-          <SelectTrigger className="w-16 h-8 text-sm">
+          <SelectTrigger className="h-8 w-[4.25rem] rounded-full text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -93,7 +93,7 @@ export function PeriodFilter({
           value={String(quarter)}
           onValueChange={(v) => onQuarterChange(Number(v))}
         >
-          <SelectTrigger className="w-16 h-8 text-sm">
+          <SelectTrigger className="h-8 w-[4.25rem] rounded-full text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -113,7 +113,7 @@ export function PeriodFilter({
           onChange={(event) => {
             if (event.target.value) onWeekStartChange?.(mondayOfWeek(event.target.value));
           }}
-          className="h-8 w-36 text-sm"
+          className="h-8 w-[8.75rem] rounded-full text-sm"
           aria-label="选择周"
         />
       )}

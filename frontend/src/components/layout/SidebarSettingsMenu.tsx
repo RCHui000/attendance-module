@@ -17,6 +17,12 @@ const themeOptions = [
 
 type ThemeValue = (typeof themeOptions)[number]["value"];
 
+const menuSurfaceClass =
+  "border-slate-200 bg-white text-slate-900 shadow-xl ring-1 ring-slate-950/10 dark:border-slate-600/80 dark:bg-[#101720] dark:text-slate-100 dark:ring-white/10";
+const menuItemClass =
+  "flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-slate-800 transition-colors hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none dark:text-slate-100 dark:hover:bg-white/10 dark:focus-visible:bg-white/10";
+const menuIconClass = "size-4 text-slate-500 dark:text-slate-300";
+
 interface SidebarSettingsMenuProps {
   userName: string;
   department: string;
@@ -173,7 +179,8 @@ export function SidebarSettingsMenu({
           role="menu"
           data-testid="sidebar-settings-menu"
           className={cn(
-            "absolute right-0 bottom-[calc(100%+0.5rem)] z-50 w-44 rounded-lg border border-border bg-white p-1.5 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10 dark:bg-[#11151c]",
+            "absolute right-0 bottom-[calc(100%+0.5rem)] z-50 w-44 rounded-lg p-1.5 text-sm",
+            menuSurfaceClass,
             "max-[1179px]:bottom-0 max-[1179px]:left-[calc(100%+0.5rem)] max-[1179px]:right-auto",
           )}
           onMouseMove={handlePointerMove}
@@ -188,7 +195,7 @@ export function SidebarSettingsMenu({
             role="menuitem"
             aria-haspopup="menu"
             aria-expanded={themeOpen}
-            className="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            className={menuItemClass}
             onMouseEnter={() => {
               clearCloseTimer();
               setThemeOpen(true);
@@ -201,15 +208,15 @@ export function SidebarSettingsMenu({
               }
             }}
           >
-            <Sun className="size-4 text-muted-foreground" />
+            <Sun className={menuIconClass} />
             <span className="min-w-0 flex-1">主题</span>
-            <ChevronRight className="size-4 text-muted-foreground" />
+            <ChevronRight className={menuIconClass} />
           </button>
 
           <button
             type="button"
             role="menuitem"
-            className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-destructive transition-colors hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:outline-none"
+            className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-red-600 transition-colors hover:bg-red-50 focus-visible:bg-red-50 focus-visible:outline-none dark:text-red-300 dark:hover:bg-red-500/15 dark:focus-visible:bg-red-500/15"
             onClick={logout}
           >
             <LogOut className="size-4" />
@@ -221,7 +228,10 @@ export function SidebarSettingsMenu({
               ref={submenuRef}
               role="menu"
               data-testid="sidebar-theme-submenu"
-              className="absolute bottom-0 left-[calc(100%+0.5rem)] z-50 w-36 rounded-lg border border-border bg-white p-1.5 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10 dark:bg-[#11151c]"
+              className={cn(
+                "absolute bottom-0 left-[calc(100%+0.5rem)] z-50 w-36 rounded-lg p-1.5 text-sm",
+                menuSurfaceClass,
+              )}
               onMouseEnter={clearCloseTimer}
               onMouseLeave={(event) => {
                 const nextTarget = event.relatedTarget as Node | null;
@@ -238,12 +248,12 @@ export function SidebarSettingsMenu({
                     type="button"
                     role="menuitemradio"
                     aria-checked={active}
-                    className="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                    className={menuItemClass}
                     onClick={() => chooseTheme(option.value)}
                   >
-                    <Icon className="size-4 text-muted-foreground" />
+                    <Icon className={menuIconClass} />
                     <span className="min-w-0 flex-1">{option.label}</span>
-                    {active && <Check className="size-4 text-primary" />}
+                    {active && <Check className="size-4 text-primary dark:text-sky-300" />}
                   </button>
                 );
               })}

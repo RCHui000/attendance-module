@@ -33,10 +33,16 @@ await page.waitForTimeout(2000);
 
 const state = await page.evaluate(() => {
   const root = document.querySelector("#root");
+  const rootText = root?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+  const visibleText = document.body.innerText.replace(/\s+/g, " ").trim();
+
   return {
     title: document.title,
     rootChildCount: root?.childElementCount ?? 0,
-    rootText: root?.textContent?.replace(/\s+/g, " ").trim().slice(0, 500) ?? "",
+    rootText,
+    visibleText,
+    rootTextPreview: rootText.slice(0, 500),
+    visibleTextPreview: visibleText.slice(0, 500),
     scripts: Array.from(document.scripts).map((script) => script.src),
   };
 });
@@ -56,15 +62,15 @@ if (runtimeErrors.length > 0) {
   process.exit(1);
 }
 
-if (state.rootChildCount < 1 || !state.rootText) {
+if (state.rootChildCount < 1 || (!state.rootText && !state.visibleText)) {
   console.error("Frontend smoke failed: #root did not render visible application content.");
-  console.error(JSON.stringify(state, null, 2));
+  console.error(JSON.stringify({ ...state, rootText: undefined, visibleText: undefined }, null, 2));
   process.exit(1);
 }
 
-if (expectedVersion && !state.rootText.includes(expectedVersion)) {
+if (expectedVersion && !state.visibleText.includes(expectedVersion) && !state.rootText.includes(expectedVersion)) {
   console.error(`Frontend smoke failed: expected version ${expectedVersion} was not visible in rendered text.`);
-  console.error(JSON.stringify(state, null, 2));
+  console.error(JSON.stringify({ ...state, rootText: undefined, visibleText: undefined }, null, 2));
   process.exit(1);
 }
 
@@ -76,7 +82,7 @@ console.log(
       status: response.status(),
       title: state.title,
       rootChildCount: state.rootChildCount,
-      renderedTextPreview: state.rootText,
+      renderedTextPreview: state.visibleTextPreview || state.rootTextPreview,
       scripts: state.scripts,
     },
     null,

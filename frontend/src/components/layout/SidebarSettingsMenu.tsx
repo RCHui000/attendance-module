@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { useTheme } from "next-themes";
 import { Check, ChevronRight, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   isPointerInsideSubmenuGraceArea,
@@ -153,35 +152,28 @@ export function SidebarSettingsMenu({
         setOpen(true);
       }}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full border border-white/10 bg-white/5 text-sidebar-text hover:bg-white/10 hover:text-white focus-visible:ring-white/25"
-              aria-label="设置"
-              aria-haspopup="menu"
-              aria-expanded={open}
-              onClick={() => {
-                clearMenuCloseTimer();
-                setOpen(true);
-              }}
-            />
-          }
-        >
-          <Settings className="size-4" />
-        </TooltipTrigger>
-        {!open && <TooltipContent side="right">{identityLabel ? `${identityLabel} · 设置` : "设置"}</TooltipContent>}
-      </Tooltip>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="rounded-full border border-white/10 bg-white/5 text-sidebar-text hover:bg-white/10 hover:text-white focus-visible:ring-white/25"
+        aria-label={identityLabel ? `${identityLabel} · 设置` : "设置"}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          clearMenuCloseTimer();
+          setOpen(true);
+        }}
+      >
+        <Settings className="size-4" />
+      </Button>
 
       {open && (
         <div
           role="menu"
           data-testid="sidebar-settings-menu"
           className={cn(
-            "absolute right-0 bottom-[calc(100%+0.5rem)] z-50 w-44 rounded-lg border border-border bg-popover p-1.5 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10",
+            "absolute right-0 bottom-[calc(100%+0.5rem)] z-50 w-44 rounded-lg border border-border bg-white p-1.5 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10 dark:bg-[#11151c]",
             "max-[1179px]:bottom-0 max-[1179px]:left-[calc(100%+0.5rem)] max-[1179px]:right-auto",
           )}
           onMouseMove={handlePointerMove}
@@ -229,7 +221,7 @@ export function SidebarSettingsMenu({
               ref={submenuRef}
               role="menu"
               data-testid="sidebar-theme-submenu"
-              className="absolute bottom-0 left-[calc(100%+0.5rem)] z-50 w-36 rounded-lg border border-border bg-popover p-1.5 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+              className="absolute bottom-0 left-[calc(100%+0.5rem)] z-50 w-36 rounded-lg border border-border bg-white p-1.5 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10 dark:bg-[#11151c]"
               onMouseEnter={clearCloseTimer}
               onMouseLeave={(event) => {
                 const nextTarget = event.relatedTarget as Node | null;

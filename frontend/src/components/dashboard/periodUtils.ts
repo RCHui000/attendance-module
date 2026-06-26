@@ -1,4 +1,6 @@
-export type PeriodType = "month" | "quarter" | "year";
+import { addDaysToIso, isoDate, mondayOfWeek } from "@/utils/dates";
+
+export type PeriodType = "week" | "month" | "quarter" | "year";
 
 export interface PeriodDates {
   startDate: string;
@@ -10,7 +12,12 @@ export function computePeriodDates(
   year: number,
   month: number,
   quarter: number,
+  weekStart?: string,
 ): PeriodDates {
+  if (type === "week") {
+    const start = mondayOfWeek(weekStart || isoDate(new Date()));
+    return { startDate: start, endDate: addDaysToIso(start, 6) };
+  }
   if (type === "month") {
     const m = String(month).padStart(2, "0");
     const start = `${year}-${m}-01`;

@@ -47,6 +47,21 @@ export function orgPath(orgs: Organization[], orgId: number | null | undefined):
   return flattenOrgTree(orgs).find((org) => org.id === orgId)?.path || "";
 }
 
+export function effectiveOrgColorToken(orgs: Organization[], orgId: number | null | undefined): string {
+  if (!orgId) return "";
+  const byId = new Map(orgs.map((org) => [org.id, org]));
+  const seen = new Set<number>();
+  let current = byId.get(orgId);
+
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    if (current.color_token) return current.color_token;
+    current = current.parent_id ? byId.get(current.parent_id) : undefined;
+  }
+
+  return "";
+}
+
 export function descendantOrgIds(orgs: Organization[], orgId: number): Set<number> {
   const byParent = new Map<number, number[]>();
   orgs.forEach((org) => {

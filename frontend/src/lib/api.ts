@@ -1,6 +1,8 @@
 import { getStoredToken, clearStoredToken } from "./supabase";
 import { accessRank, decodeJwt, payload, rest, type AnyRow } from "./restClient";
 import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
+import { effectiveOrgColorToken } from "@/utils/orgTree";
+import type { Organization } from "@/types/employee";
 
 const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
@@ -779,12 +781,13 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const admin = await isAdmin();
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
   const reviewedTaskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const [graphPending, graphReviewed, visibleRows, employees, employeeProfiles, entries] = await Promise.all([
+  const [graphPending, graphReviewed, visibleRows, employees, employeeProfiles, organizations, entries] = await Promise.all([
     rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
     rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
     rest<AnyRow[]>("/approval_visible_timesheets_view?select=*&order=submitted_at.asc").catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
-    rest<AnyRow[]>("/employee_profiles?select=employee_id,organizations(org_name,color_token)"),
+    rest<AnyRow[]>("/employee_profiles?select=employee_id,org_id,organizations(org_name,color_token)"),
+    rest<AnyRow[]>("/organizations?select=id,org_code,org_name,parent_id,org_type,color_token,status"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,work_date,hours"),
   ]);
   const tasks = graphPending.map(normalizedApprovalTask);
@@ -822,6 +825,10 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   });
   const employeeMap = new Map(employees.map((e) => [Number(e.id), e]));
   const employeeProfileMap = new Map(employeeProfiles.map((profile) => [Number(profile.employee_id), profile]));
+  const organizationRows = organizations as Organization[];
+  const effectiveColorByOrgId = new Map(
+    organizationRows.map((org) => [Number(org.id), effectiveOrgColorToken(organizationRows, Number(org.id))]),
+  );
   const sheetMap = new Map(sheets.map((s) => [Number(s.id), s]));
   const hours = new Map<number, number>();
   const projectHours = new Map<string, number>();
@@ -880,7 +887,9 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
       project_name: project?.name || "",
       name: emp?.name || "",
       department: profile?.organizations?.org_name || "",
-      department_color_token: profile?.organizations?.color_token || null,
+      department_color_token: profile?.org_id
+        ? effectiveColorByOrgId.get(Number(profile.org_id)) || null
+        : profile?.organizations?.color_token || null,
       total_hours: projectId ? projectHours.get(`${Number(sheet.id)}:${projectId}`) || 0 : hours.get(Number(sheet.id)) || 0,
       submitted_at: sheet.submitted_at,
       review_comment: source.comment || sheet.review_comment || "",

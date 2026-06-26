@@ -18,10 +18,12 @@ interface DashboardMobileProps {
   year: number;
   month: number;
   quarter: number;
+  weekStart: string;
   onPeriodTypeChange: (type: PeriodType) => void;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
   onQuarterChange: (quarter: number) => void;
+  onWeekStartChange: (weekStart: string) => void;
 }
 
 function percentLabel(value: number) {
@@ -36,10 +38,12 @@ export function DashboardMobile({
   year,
   month,
   quarter,
+  weekStart,
   onPeriodTypeChange,
   onYearChange,
   onMonthChange,
   onQuarterChange,
+  onWeekStartChange,
 }: DashboardMobileProps) {
   const contractTotal = data.projects.reduce((sum, project) => sum + (project.contract_amount || 0), 0);
   const receivedTotal = data.projects.reduce((sum, project) => sum + (project.received_amount || 0), 0);
@@ -67,10 +71,12 @@ export function DashboardMobile({
             year={year}
             month={month}
             quarter={quarter}
+            weekStart={weekStart}
             onPeriodTypeChange={onPeriodTypeChange}
             onYearChange={onYearChange}
             onMonthChange={onMonthChange}
             onQuarterChange={onQuarterChange}
+            onWeekStartChange={onWeekStartChange}
           />
         </div>
       </section>

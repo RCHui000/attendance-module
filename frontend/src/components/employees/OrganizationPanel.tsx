@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/select";
 import { useDeleteOrganization, useOrganizations, useSaveOrganization } from "@/hooks/useEmployees";
 import { cn } from "@/lib/utils";
-import { departmentColorClass, departmentColorLabel, departmentColorOptions } from "@/lib/departmentColors";
-import { descendantOrgIds, flattenOrgTree, orgOptionLabel } from "@/utils/orgTree";
+import { departmentColorClass, departmentColorLabel, departmentColorOptions, departmentSwatchClass } from "@/lib/departmentColors";
+import { descendantOrgIds, effectiveOrgColorToken, flattenOrgTree, orgOptionLabel } from "@/utils/orgTree";
 import type { Employee, Organization } from "@/types/employee";
 import { toast } from "sonner";
 
@@ -122,6 +122,11 @@ export function OrganizationPanel({
     return map;
   }, [orgs]);
 
+  const effectiveColorByOrgId = useMemo(
+    () => new Map(orgs.map((org) => [org.id, effectiveOrgColorToken(orgs, org.id)])),
+    [orgs],
+  );
+
   const orgMemberCounts = useMemo(() => {
     const counts: Record<number, number> = {};
     orgs.forEach((org) => {
@@ -176,7 +181,18 @@ export function OrganizationPanel({
   };
 
   const allowMultipleManagers = isPmOrg(selectedOrg, editData.orgName);
-  const currentColorClass = departmentColorClass(editData.colorToken);
+  const inheritedColorToken = useMemo(() => {
+    if (editData.colorToken) return "";
+    if (isNew) return effectiveOrgColorToken(orgs, editData.parentId ? Number(editData.parentId) : null);
+    return selectedOrg ? effectiveOrgColorToken(orgs, selectedOrg.id) : "";
+  }, [editData.colorToken, editData.parentId, isNew, orgs, selectedOrg]);
+  const displayColorToken = editData.colorToken || inheritedColorToken;
+  const currentSwatchClass = departmentSwatchClass(displayColorToken);
+  const currentColorLabel = editData.colorToken
+    ? departmentColorLabel(editData.colorToken)
+    : inheritedColorToken
+      ? `继承：${departmentColorLabel(inheritedColorToken)}`
+      : departmentColorLabel("");
 
   const selectOrg = (org: Organization) => {
     setIsNew(false);
@@ -340,6 +356,7 @@ export function OrganizationPanel({
                 const hasChildren = (childIdsByParent.get(org.id) || []).length > 0;
                 const isExpanded = expandedOrgIds.has(org.id) || !!search.trim();
                 const isSelected = selectedOrgId === org.id && !isNew;
+                const effectiveColorToken = effectiveColorByOrgId.get(org.id) || "";
                 return (
                   <button
                     key={org.id}
@@ -348,26 +365,25 @@ export function OrganizationPanel({
                       "group flex w-full items-center gap-2 rounded-xl border border-border/80 bg-card px-2.5 py-2 text-left transition-[background-color,border-color,box-shadow] duration-150 hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
                       isSelected && "border-foreground/70 bg-row-selected shadow-focus",
                     )}
-                    onClick={() => selectOrg(org)}
+                    onClick={() => {
+                      selectOrg(org);
+                      if (hasChildren && !search.trim()) toggleExpanded(org.id);
+                    }}
                   >
                     <span style={{ width: org.depth * 16 }} className="shrink-0" />
                     <span
-                      role="button"
-                      tabIndex={-1}
+                      aria-hidden="true"
                       className={cn(
                         "flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors group-hover:bg-muted",
                         !hasChildren && "invisible",
                       )}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleExpanded(org.id);
-                      }}
                     >
                       {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                     </span>
-                    {org.color_token ? (
+                    {effectiveColorToken ? (
                       <span
-                        className={cn("size-2.5 shrink-0 rounded-full border", departmentColorClass(org.color_token))}
+                        className={cn("size-2.5 shrink-0 rounded-full border", departmentSwatchClass(effectiveColorToken))}
+                        title={org.color_token ? departmentColorLabel(effectiveColorToken) : `继承 ${departmentColorLabel(effectiveColorToken)}`}
                         aria-hidden="true"
                       />
                     ) : (
@@ -392,9 +408,9 @@ export function OrganizationPanel({
               <h3 className="truncate text-lg font-semibold tracking-normal">{detailTitle}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{detailDescription}</p>
             </div>
-            {!isNew && selectedOrg?.color_token ? (
-              <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium", departmentColorClass(selectedOrg.color_token))}>
-                {departmentColorLabel(selectedOrg.color_token)}
+            {!isNew && selectedOrg && displayColorToken ? (
+              <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium", departmentColorClass(displayColorToken))}>
+                {editData.colorToken ? departmentColorLabel(displayColorToken) : `继承：${departmentColorLabel(displayColorToken)}`}
               </span>
             ) : null}
           </div>
@@ -513,11 +529,11 @@ export function OrganizationPanel({
                       <span
                         className={cn(
                           "size-3 rounded-full border",
-                          currentColorClass || "border-dashed border-muted-foreground/40 bg-card",
+                          currentSwatchClass || "border-dashed border-muted-foreground/40 bg-card",
                         )}
                         aria-hidden="true"
                       />
-                      <span className="truncate">{departmentColorLabel(editData.colorToken)}</span>
+                      <span className="truncate">{currentColorLabel}</span>
                     </span>
                     <ChevronDown className="size-3.5 text-muted-foreground" />
                   </button>
@@ -527,13 +543,14 @@ export function OrganizationPanel({
                         {departmentColorOptions.map((option) => {
                           const active = editData.colorToken === option.token;
                           const swatchClass = option.token ? departmentColorClass(option.token) : "";
+                          const dotClass = option.token ? departmentSwatchClass(option.token) : "";
                           return (
                             <button
                               key={option.token || "none"}
                               type="button"
                               className={cn(
-                                "inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-2 text-xs transition-[background-color,border-color,box-shadow] duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
-                                option.swatchClassName,
+                                "inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-2 text-xs transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
+                                swatchClass || option.swatchClassName,
                                 active && "border-foreground shadow-focus",
                               )}
                               onClick={() => {
@@ -544,7 +561,7 @@ export function OrganizationPanel({
                               <span
                                 className={cn(
                                   "size-2.5 rounded-full border",
-                                  swatchClass || "border-dashed border-muted-foreground/40 bg-card",
+                                  dotClass || "border-dashed border-muted-foreground/40 bg-card",
                                 )}
                                 aria-hidden="true"
                               />

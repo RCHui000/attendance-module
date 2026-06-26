@@ -70,8 +70,8 @@ export function Sidebar() {
         <img src="/logo/公司logo.png" alt="Logo" className="w-full object-contain opacity-90" />
       </div>
 
-      <div className="mt-3 flex min-h-9 items-center justify-between gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1.5 max-[1179px]:justify-center max-[1179px]:border-transparent max-[1179px]:bg-transparent max-[1179px]:px-0">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-none max-[1179px]:sr-only">
+      <div className="mt-3 grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1.5 max-[1179px]:flex max-[1179px]:justify-center max-[1179px]:border-transparent max-[1179px]:bg-transparent max-[1179px]:px-0">
+        <div className="flex min-w-0 items-center justify-center gap-1.5 text-center text-xs leading-none max-[1179px]:sr-only">
           <span className="min-w-0 truncate font-medium text-white">{user?.name || "未登录用户"}</span>
           <span className="shrink-0 text-sidebar-muted/60">·</span>
           <span className="min-w-0 truncate text-sidebar-muted">{user?.department || "未分配部门"}</span>

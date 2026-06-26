@@ -5,7 +5,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
+import { mondayOfWeek } from "@/utils/dates";
 import type { PeriodType } from "./periodUtils";
 
 interface PeriodFilterProps {
@@ -13,16 +15,19 @@ interface PeriodFilterProps {
   year: number;
   month: number;
   quarter: number;
+  weekStart?: string;
   onPeriodTypeChange: (type: PeriodType) => void;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
   onQuarterChange: (quarter: number) => void;
+  onWeekStartChange?: (weekStart: string) => void;
 }
 
 const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
+  { value: "year", label: "年" },
   { value: "month", label: "月" },
   { value: "quarter", label: "季" },
-  { value: "year", label: "年" },
+  { value: "week", label: "周" },
 ];
 
 export function PeriodFilter({
@@ -30,10 +35,12 @@ export function PeriodFilter({
   year,
   month,
   quarter,
+  weekStart,
   onPeriodTypeChange,
   onYearChange,
   onMonthChange,
   onQuarterChange,
+  onWeekStartChange,
 }: PeriodFilterProps) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -97,6 +104,18 @@ export function PeriodFilter({
             ))}
           </SelectContent>
         </Select>
+      )}
+
+      {periodType === "week" && (
+        <Input
+          type="date"
+          value={weekStart || ""}
+          onChange={(event) => {
+            if (event.target.value) onWeekStartChange?.(mondayOfWeek(event.target.value));
+          }}
+          className="h-8 w-36 text-sm"
+          aria-label="选择周"
+        />
       )}
     </div>
   );

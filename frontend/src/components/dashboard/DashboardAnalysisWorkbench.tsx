@@ -19,13 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import type { PeriodType } from "@/components/dashboard/periodUtils";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { useDashboardAnalysis } from "@/hooks/useProjects";
 import { cn } from "@/lib/utils";
@@ -43,6 +38,16 @@ import type {
 interface DashboardAnalysisWorkbenchProps {
   startDate: string;
   endDate: string;
+  periodType?: PeriodType;
+  year?: number;
+  month?: number;
+  quarter?: number;
+  weekStart?: string;
+  onPeriodTypeChange?: (type: PeriodType) => void;
+  onYearChange?: (year: number) => void;
+  onMonthChange?: (month: number) => void;
+  onQuarterChange?: (quarter: number) => void;
+  onWeekStartChange?: (weekStart: string) => void;
 }
 
 const CHART_COLORS = [
@@ -56,17 +61,19 @@ const CHART_COLORS = [
   "#0ea5e9",
 ];
 
-const GRAIN_OPTIONS: { value: DashboardAnalysisGrain; label: string }[] = [
-  { value: "month", label: "按月" },
-  { value: "week", label: "按周" },
-];
-
 const SORT_LABELS: Record<DashboardAnalysisSort, string> = {
   labor_days: "实际工日",
   labor_days_used_ratio: "计划消耗率",
   labor_cost: "人力成本",
   labor_days_delta: "环比变化",
 };
+
+const SORT_OPTIONS: { value: DashboardAnalysisSort; label: string }[] = [
+  { value: "labor_days", label: "实际工日" },
+  { value: "labor_days_used_ratio", label: "计划消耗率" },
+  { value: "labor_cost", label: "人力成本" },
+  { value: "labor_days_delta", label: "环比变化" },
+];
 
 function numberValue(value: unknown): number {
   const num = Number(value ?? 0);
@@ -130,22 +137,60 @@ function ProjectRail({
   projects,
   selectedId,
   sort,
+  query,
+  onSortChange,
+  onQueryChange,
   onSelect,
 }: {
   projects: DashboardAnalysisProject[];
   selectedId: number | null;
   sort: DashboardAnalysisSort;
+  query: string;
+  onSortChange: (sort: DashboardAnalysisSort) => void;
+  onQueryChange: (query: string) => void;
   onSelect: (projectId: number) => void;
 }) {
   return (
     <Card className="min-h-[680px] rounded-lg p-0">
-      <div className="border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+      <div className="space-y-3 border-b border-border px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold">项目排行</h2>
             <p className="text-xs text-muted-foreground">按{SORT_LABELS[sort]}排序</p>
           </div>
           <Badge variant="secondary">{projects.length}</Badge>
+        </div>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            aria-label="搜索项目"
+            name="dashboard-analysis-search"
+            autoComplete="off"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="搜索项目…"
+            className="h-8 rounded-full pl-8 pr-8"
+          />
+          {query && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="清空项目搜索"
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full"
+              onClick={() => onQueryChange("")}
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+        <div className="max-w-full overflow-x-auto pb-1">
+          <SegmentedPill
+            value={sort}
+            items={SORT_OPTIONS}
+            onChange={onSortChange}
+            ariaLabel="项目排行排序"
+          />
         </div>
       </div>
       <div className="max-h-[740px] overflow-y-auto p-2">
@@ -433,9 +478,22 @@ function SourceTable({ sources }: { sources: DashboardAnalysisSource[] }) {
   );
 }
 
-export function DashboardAnalysisWorkbench({ startDate, endDate }: DashboardAnalysisWorkbenchProps) {
+export function DashboardAnalysisWorkbench({
+  startDate,
+  endDate,
+  periodType,
+  year = new Date().getFullYear(),
+  month = new Date().getMonth() + 1,
+  quarter = Math.floor(new Date().getMonth() / 3) + 1,
+  weekStart = startDate,
+  onPeriodTypeChange,
+  onYearChange,
+  onMonthChange,
+  onQuarterChange,
+  onWeekStartChange,
+}: DashboardAnalysisWorkbenchProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const grain = searchParams.get("grain") === "week" ? "week" : "month";
+  const grain: DashboardAnalysisGrain = periodType === "week" ? "week" : "month";
   const sortParam = searchParams.get("sort");
   const sort: DashboardAnalysisSort =
     sortParam === "labor_days_used_ratio" || sortParam === "labor_cost" || sortParam === "labor_days_delta"
@@ -446,7 +504,7 @@ export function DashboardAnalysisWorkbench({ startDate, endDate }: DashboardAnal
   const { data, isLoading, isError } = useDashboardAnalysis(startDate, endDate, grain);
 
   const updateParams = useCallback(
-    (updates: Partial<Record<"grain" | "sort" | "q" | "projectId", string>>) => {
+    (updates: Partial<Record<"sort" | "q" | "projectId", string>>) => {
       setSearchParams((current) => {
         const next = new URLSearchParams(current);
         Object.entries(updates).forEach(([key, value]) => {
@@ -525,50 +583,27 @@ export function DashboardAnalysisWorkbench({ startDate, endDate }: DashboardAnal
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <SegmentedPill
-              value={grain}
-              items={GRAIN_OPTIONS}
-              onChange={(value) => updateParams({ grain: value })}
-              ariaLabel="BI趋势粒度"
-            />
-            <Select value={sort} onValueChange={(value) => updateParams({ sort: value as DashboardAnalysisSort })}>
-              <SelectTrigger className="h-8 w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(SORT_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="button" variant="outline" size="sm" onClick={handleExport} disabled={!selectedProject}>
+            {periodType && onPeriodTypeChange && onYearChange && onMonthChange && onQuarterChange ? (
+              <PeriodFilter
+                periodType={periodType}
+                year={year}
+                month={month}
+                quarter={quarter}
+                weekStart={weekStart}
+                onPeriodTypeChange={onPeriodTypeChange}
+                onYearChange={onYearChange}
+                onMonthChange={onMonthChange}
+                onQuarterChange={onQuarterChange}
+                onWeekStartChange={onWeekStartChange}
+              />
+            ) : null}
+            <span className="rounded-full bg-muted/40 px-2.5 py-1 text-xs tabular-nums text-muted-foreground">
+              {startDate} ~ {endDate}
+            </span>
+            <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={handleExport} disabled={!selectedProject}>
               <FileDown className="mr-1.5 size-3.5" aria-hidden="true" />
               导出分析
             </Button>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <Input
-                aria-label="搜索项目"
-                name="dashboard-analysis-search"
-                autoComplete="off"
-                value={query}
-                onChange={(event) => updateParams({ q: event.target.value, projectId: "" })}
-                placeholder="搜索项目…"
-                className="h-8 w-52 pl-8 pr-8"
-              />
-              {query && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="清空项目搜索"
-                  className="absolute right-1 top-1/2 -translate-y-1/2"
-                  onClick={() => updateParams({ q: "", projectId: "" })}
-                >
-                  <X className="size-3.5" aria-hidden="true" />
-                </Button>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -578,6 +613,9 @@ export function DashboardAnalysisWorkbench({ startDate, endDate }: DashboardAnal
           projects={projects}
           selectedId={selectedProjectId}
           sort={sort}
+          query={query}
+          onSortChange={(value) => updateParams({ sort: value, projectId: "" })}
+          onQueryChange={(value) => updateParams({ q: value, projectId: "" })}
           onSelect={(projectId) => updateParams({ projectId: String(projectId) })}
         />
 

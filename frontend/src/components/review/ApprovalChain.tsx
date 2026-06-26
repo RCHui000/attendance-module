@@ -112,6 +112,13 @@ function projectLabel(assignee: ApprovalChainAssignee) {
   return [code, name].filter(Boolean).join(" ") || `项目 ${projectId}`;
 }
 
+function projectDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
+  const nodeStatus = textValue(assignee.node_status || node.node_status);
+  const assigneeStatus = textValue(assignee.status);
+  if (nodeStatus && nodeStatus !== "active") return nodeStatus;
+  return assigneeStatus || nodeStatus || "waiting";
+}
+
 function blockingLabel(node: ApprovalChainNode) {
   return node.blocking_nodes.map((item) => `${item.node_name}（${readableStatus(item.status)}）`).join("、");
 }
@@ -185,7 +192,7 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
                 </div>
               ) : null}
               {projects.map((project) => {
-                const rowStatus = String(project.status || project.node_status || node.node_status);
+                const rowStatus = projectDisplayStatus(project, node);
                 return (
                   <div
                     key={`${project.project_id || projectLabel(project)}-${rowStatus}`}

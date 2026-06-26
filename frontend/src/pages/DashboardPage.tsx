@@ -10,6 +10,7 @@ import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { computePeriodDates, type PeriodType } from "@/components/dashboard/periodUtils";
 import { Button } from "@/components/ui/button";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
+import { isoDate, mondayOfWeek } from "@/utils/dates";
 import {
   FileDown,
   LayoutDashboard,
@@ -31,10 +32,11 @@ export default function DashboardPage() {
   const yearParam = Number(searchParams.get("year"));
   const monthParam = Number(searchParams.get("month"));
   const quarterParam = Number(searchParams.get("quarter"));
+  const weekStartParam = searchParams.get("weekStart") || "";
   const tabParam = searchParams.get("tab");
 
   const periodType: PeriodType =
-    periodParam === "month" || periodParam === "quarter" || periodParam === "year"
+    periodParam === "week" || periodParam === "month" || periodParam === "quarter" || periodParam === "year"
       ? periodParam
       : "year";
   const year = Number.isInteger(yearParam) && yearParam > 2000 ? yearParam : now.getFullYear();
@@ -43,10 +45,11 @@ export default function DashboardPage() {
     Number.isInteger(quarterParam) && quarterParam >= 1 && quarterParam <= 4
       ? quarterParam
       : Math.floor(now.getMonth() / 3) + 1;
+  const weekStart = weekStartParam ? mondayOfWeek(weekStartParam) : mondayOfWeek(isoDate(now));
   const activeTab: DashboardTab = tabParam === "analytics" ? "analytics" : "overview";
 
   const updateDashboardParams = useCallback(
-    (updates: Partial<Record<"period" | "year" | "month" | "quarter" | "tab", string>>) => {
+    (updates: Partial<Record<"period" | "year" | "month" | "quarter" | "weekStart" | "tab", string>>) => {
       setSearchParams((current) => {
         const next = new URLSearchParams(current);
         Object.entries(updates).forEach(([key, value]) => {
@@ -60,8 +63,8 @@ export default function DashboardPage() {
   );
 
   const dates = useMemo(
-    () => computePeriodDates(periodType, year, month, quarter),
-    [periodType, year, month, quarter],
+    () => computePeriodDates(periodType, year, month, quarter, weekStart),
+    [periodType, year, month, quarter, weekStart],
   );
 
   const { data, isLoading, isError } = useDashboard(
@@ -97,38 +100,17 @@ export default function DashboardPage() {
   }, [data, dates]);
 
   return (
-    <div>
-      {/* Tab row: desktop tabs on left, PeriodFilter + actions on right */}
+    <div className="space-y-5">
       {!isMobile && (
-      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-        <SegmentedPill
-          value={activeTab}
-          items={TAB_OPTIONS}
-          onChange={(tab) => updateDashboardParams({ tab })}
-          ariaLabel="看板视图切换"
-        />
-
-        {/* PeriodFilter + actions */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <PeriodFilter
-            periodType={periodType}
-            year={year}
-            month={month}
-            quarter={quarter}
-            onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
-            onYearChange={(value) => updateDashboardParams({ year: String(value) })}
-            onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
-            onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-normal text-foreground">数据看板</h1>
+          <SegmentedPill
+            value={activeTab}
+            items={TAB_OPTIONS}
+            onChange={(tab) => updateDashboardParams({ tab })}
+            ariaLabel="看板视图切换"
           />
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {dates.startDate} ~ {dates.endDate}
-          </span>
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={!data}>
-            <FileDown className="size-3.5 mr-1.5" />
-            导出
-          </Button>
         </div>
-      </div>
       )}
 
       {/* Loading / Error */}
@@ -154,16 +136,42 @@ export default function DashboardPage() {
               year={year}
               month={month}
               quarter={quarter}
+              weekStart={weekStart}
               onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
               onYearChange={(value) => updateDashboardParams({ year: String(value) })}
               onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
               onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
+              onWeekStartChange={(value) => updateDashboardParams({ weekStart: value })}
             />
           ) : (
           <>
           {/* ---- Overview Tab ---- */}
           {activeTab === "overview" && (
             <section aria-label="总览" className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-app">
+                <div>
+                  <h2 className="text-base font-semibold">总览</h2>
+                  <p className="text-xs tabular-nums text-muted-foreground">{dates.startDate} ~ {dates.endDate}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <PeriodFilter
+                    periodType={periodType}
+                    year={year}
+                    month={month}
+                    quarter={quarter}
+                    weekStart={weekStart}
+                    onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
+                    onYearChange={(value) => updateDashboardParams({ year: String(value) })}
+                    onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
+                    onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
+                    onWeekStartChange={(value) => updateDashboardParams({ weekStart: value })}
+                  />
+                  <Button variant="outline" size="sm" className="rounded-full" onClick={handleExport} disabled={!data}>
+                    <FileDown className="mr-1.5 size-3.5" />
+                    导出
+                  </Button>
+                </div>
+              </div>
               {/* Metric cards */}
               <MetricCards dashboard={data} />
 
@@ -220,6 +228,16 @@ export default function DashboardPage() {
               <DashboardAnalysisWorkbench
                 startDate={dates.startDate}
                 endDate={dates.endDate}
+                periodType={periodType}
+                year={year}
+                month={month}
+                quarter={quarter}
+                weekStart={weekStart}
+                onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
+                onYearChange={(value) => updateDashboardParams({ year: String(value) })}
+                onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
+                onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
+                onWeekStartChange={(value) => updateDashboardParams({ weekStart: value })}
               />
             </section>
           )}

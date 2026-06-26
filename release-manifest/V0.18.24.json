@@ -1,0 +1,40 @@
+{
+  "version": "V0.18.24",
+  "released_at": "2026-06-27",
+  "base_version": "V0.18.23",
+  "commit": "b4d13e737ccceaa58af549c798f6042c2994e065",
+  "summary": "Consolidate the PSA frontend design system and repair high-impact readability, layering, and dashboard layout drift.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema or RPC changes are included in this release.",
+      "Function grant assertions are not required by this frontend-only release."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.24",
+    "notes": [
+      "Added PRODUCT.md and expanded DESIGN.md so PSA has an explicit product register and executable frontend design rules.",
+      "Introduced semantic z-index tokens for dropdown, sticky, popover, modal, toast, and tooltip layers.",
+      "Added shared feedback primitives for loading skeletons, empty states, error states, and refresh indicators.",
+      "Updated department color chips to keep text readable in both light and dark themes.",
+      "Tokenized segmented controls and aligned popovers, dialogs, sheets, selects, and tooltips with the shared layer scale.",
+      "Improved dashboard analysis chart readability, fixed distribution label alignment, and reduced dark-mode contrast drift.",
+      "Gave approval review tables more room for weekly timesheets while keeping OT lower priority.",
+      "Brought organization and approval configuration surfaces closer to the shared configuration-page design language."
+    ]
+  },
+  "verification": [
+    "Run impeccable detect against frontend/src.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.24 and production VITE variables.",
+    "Run sidebar menu geometry Playwright smoke.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.24.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.24."
+  ],
+  "known_warnings": [
+    "Vite may still warn that some chunks are larger than 500 kB.",
+    "The sidebar settings layering Playwright smoke depends on a reachable E2E_BASE_URL; local attempts can time out before assertions if the configured server is unavailable."
+  ]
+}

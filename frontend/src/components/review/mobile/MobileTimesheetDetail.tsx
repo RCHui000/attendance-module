@@ -28,7 +28,7 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
 
   if (isLoading) {
     return (
-      <div className="mt-3 border-t border-border bg-[#f8fafc] px-3 py-4 text-sm text-muted-foreground">
+      <div className="mt-3 border-t border-border bg-table-header px-3 py-4 text-sm text-muted-foreground">
         加载中...
       </div>
     );
@@ -36,7 +36,7 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
 
   if (isError) {
     return (
-      <div className="mt-3 border-t border-border bg-[#f8fafc] px-3 py-4 text-sm text-destructive">
+      <div className="mt-3 border-t border-border bg-table-header px-3 py-4 text-sm text-destructive">
         明细加载失败
       </div>
     );
@@ -44,14 +44,14 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
 
   if (!data || visibleEntries.length === 0) {
     return (
-      <div className="mt-3 border-t border-border bg-[#f8fafc] px-3 py-4 text-sm text-muted-foreground">
+      <div className="mt-3 border-t border-border bg-table-header px-3 py-4 text-sm text-muted-foreground">
         暂无明细数据
       </div>
     );
   }
 
   return (
-    <div className="mt-3 border-t border-border bg-[#f8fafc] px-3 py-3">
+    <div className="mt-3 border-t border-border bg-table-header px-3 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <strong className="text-sm text-foreground">{data.user_name}</strong>
         <span className="text-xs text-muted-foreground">{data.department || "-"}</span>

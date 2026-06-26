@@ -51,7 +51,7 @@ export function Sidebar() {
               <span className="min-w-0 truncate max-[1179px]:sr-only">{item.label}</span>
               <span
                 className={cn(
-                  "pointer-events-none absolute top-1/2 left-[calc(100%+0.5rem)] z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-md px-2 py-1 text-xs shadow-lg transition-opacity",
+                  "pointer-events-none absolute top-1/2 left-[calc(100%+0.5rem)] z-tooltip hidden -translate-y-1/2 whitespace-nowrap rounded-md px-2 py-1 text-xs shadow-lg transition-opacity",
                   "max-[1179px]:block max-[1179px]:opacity-0 max-[1179px]:group-hover:opacity-100 max-[1179px]:group-focus-visible:opacity-100",
                   currentView === item.view ? "bg-white text-sidebar-bg" : "bg-sidebar-bg text-white",
                 )}

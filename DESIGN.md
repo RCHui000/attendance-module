@@ -33,6 +33,9 @@ Use a "white workbench on soft gray" direction:
 5. No nested-card look
    Page sections should be full-width layouts or simple panels. Cards are for repeated items, modals, contained tools, and app entries.
 
+6. Stable work surfaces
+   A page should not jump, blank out, or change control positions during refresh. Prefer skeletons on first load and stale-while-refresh indicators after data has already rendered.
+
 ## Design Tokens
 
 ### Color
@@ -96,7 +99,22 @@ Dense tools may use `6px` and `10px` where the existing table/form layout needs 
 | `radius-lg` | `8px` | Cards, panels, dialogs |
 | `radius-pill` | `999px` | Pills and badges only |
 
-Avoid `12px+` card radii unless the component is a large modal or imported design pattern with a clear reason.
+Avoid `12px+` card radii unless the component is a large modal or a configuration shell with a clear reason. Page panels, repeated cards, tables, and form groups default to `8px`.
+
+### Z-index
+
+Use semantic layers instead of arbitrary large values:
+
+| Layer | Token | Use |
+| --- | --- | --- |
+| Dropdown | `--z-dropdown` | Select lists and compact dropdowns |
+| Sticky | `--z-sticky` | Sticky table headers and columns |
+| Popover | `--z-popover` | Anchored menus that must float over page content |
+| Modal | `--z-modal` | Dialogs, sheets, destructive confirmations |
+| Toast | `--z-toast` | Global notifications |
+| Tooltip | `--z-tooltip` | Tooltips and temporary hover labels |
+
+Do not introduce `z-[999]`, `z-[1000]`, or similar one-off layers. If a new layer is needed, add it here and in `frontend/src/index.css`.
 
 ### Shadow
 
@@ -115,6 +133,14 @@ Elevation should be subtle:
 - Icon buttons: square dimensions with standard icon sizes.
 - Active state: 1px press or small scale is acceptable.
 - Do not create text-only rounded rectangles when a standard icon action exists.
+- Full pills are reserved for segmented controls, filter chips, badges, and compact toolbar actions. Standard form and dialog buttons keep `radius-md`/`radius-lg`.
+
+### Pills and Segmented Controls
+
+- `SegmentedPill` is the default for peer navigation with 2-5 choices, such as 总览/分析, 年/月/季/周, and approval tabs.
+- The active indicator uses `primary`; inactive items use `muted-foreground` on a tokenized surface.
+- Labels must not wrap inside the pill. Shorten the label before allowing a two-line segmented item.
+- Use one segmented control per decision point. Do not stack segmented controls with unrelated buttons unless spacing clearly separates them.
 
 ### Inputs
 
@@ -138,12 +164,29 @@ Elevation should be subtle:
 - Keep radius at `8px`.
 - Use a border/ring by default and only a light shadow.
 - The whole app card should be clickable when it represents an app.
+- Avoid putting UI cards inside larger decorative cards. Configuration pages may use subtle field groups, but those groups should read as sections, not repeated floating cards.
+
+### Department Color
+
+- Department color is an identification aid, not a status color.
+- Light mode: pastel background plus near-black text.
+- Dark mode: transparent tinted background plus near-white text from the same hue family.
+- Never use generic gray text on colored department chips; it washes out and fails scanning.
+- If a department has no color token, render plain text without a pill.
+
+### Loading, Empty, and Error States
+
+- First load uses skeletons shaped like the real content.
+- Refresh after data exists keeps the existing content and adds a low-emphasis `更新中` indicator near the title.
+- Empty states should name what is empty and, where useful, the next action.
+- Error states must preserve page structure when possible and explain whether cached data is still visible.
 
 ### Dialogs, Sheets, Popovers
 
 - Dialogs and sheets should prioritize content height and scroll behavior.
 - Popovers should have a clear border/ring and compact padding.
 - Overlays should be light and should not visually disconnect the user from the workflow.
+- Anchored menus that cross sidebar/table/content boundaries must render through a portal or fixed-position layer.
 
 ### Navigation
 
@@ -159,6 +202,20 @@ Use short, practical transitions:
 - Press: immediate transform/scale feedback.
 - Dialog/sheet entry: `150ms-200ms`.
 - Avoid looping decorative motion on work pages.
+- Respect `prefers-reduced-motion`; loading skeletons and logo animation should degrade to static states.
+
+## Configuration Pages
+
+- Use the same configuration page pattern: left navigation/tree/list, right detail panel, grouped field sections, and a clear bottom/right save area.
+- Group names should use Chinese business language. Raw keys may appear only in collapsed `高级信息`.
+- Validation status belongs in the same toolbar row as save/restore actions.
+- Selected navigation items should use the normal selected-row language, not a dark block that competes with primary actions.
+
+## Charts
+
+- Chart axes, grids, fills, and tooltips must use theme tokens and be checked in both light and dark mode.
+- Long labels use fixed label columns and ellipsis; never allow labels to overlap bars or axes.
+- Use donut charts only for structure/composition, and bars/lines for comparison or trend.
 
 ## Accessibility
 

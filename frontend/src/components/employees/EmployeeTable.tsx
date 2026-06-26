@@ -162,7 +162,7 @@ export function EmployeeTable({
                   onClick={() => handleRowClick(emp.id)}
                 >
                   <TableCell
-                    className="sticky left-0 z-[5] bg-white p-1.5"
+                    className="sticky left-0 z-[5] bg-card p-1.5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Button

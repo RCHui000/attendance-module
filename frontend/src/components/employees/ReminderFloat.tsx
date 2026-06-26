@@ -57,7 +57,7 @@ export function ReminderFloat({ employees }: ReminderFloatProps) {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          <div className="absolute right-0 top-full z-50 mt-1 w-[340px] rounded-lg border border-border bg-card shadow-float">
+          <div className="absolute right-0 top-full z-popover mt-1 w-[340px] rounded-lg border border-border bg-card shadow-float">
             <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
               <strong className="text-sm">提醒事项</strong>
               <Button

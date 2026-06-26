@@ -71,7 +71,7 @@ function ConfigSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border/80 bg-background/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] dark:bg-card/60 dark:shadow-none">
+    <section className="rounded-lg border border-border bg-card p-3">
       <div className="mb-2 text-xs font-semibold text-muted-foreground">{title}</div>
       <div className="space-y-2">{children}</div>
     </section>
@@ -345,7 +345,7 @@ export function OrganizationPanel({
       </div>
 
       <div className="grid grid-cols-[minmax(280px,0.92fr)_minmax(420px,1.48fr)] gap-4 max-[900px]:grid-cols-1">
-        <div className="rounded-2xl border border-border bg-card p-3 shadow-app">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-app">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <div className="text-sm font-semibold">部门树</div>
@@ -374,7 +374,7 @@ export function OrganizationPanel({
                     key={org.id}
                     type="button"
                     className={cn(
-                      "group flex w-full items-center gap-2 rounded-xl border border-border/80 bg-card px-2.5 py-2 text-left transition-[background-color,border-color,box-shadow] duration-150 hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+                      "group flex w-full items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 text-left transition-[background-color,border-color,box-shadow] duration-150 hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
                       isSelected && "border-foreground/70 bg-row-selected shadow-focus",
                     )}
                     onClick={() => {
@@ -414,7 +414,7 @@ export function OrganizationPanel({
           )}
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-app">
+        <div className="rounded-lg border border-border bg-card p-4 shadow-app">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="truncate text-lg font-semibold tracking-normal">{detailTitle}</h3>
@@ -428,7 +428,7 @@ export function OrganizationPanel({
           </div>
 
           {!isNew && !selectedOrg ? (
-            <div className="flex min-h-72 items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
+            <div className="flex min-h-72 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
               请选择一个部门
             </div>
           ) : (
@@ -550,7 +550,7 @@ export function OrganizationPanel({
                     <ChevronDown className="size-3.5 text-muted-foreground" />
                   </button>
                   {isColorOpen && canManage && (
-                    <div className="absolute z-20 mt-2 w-full rounded-xl border border-border bg-popover p-2 shadow-lg">
+                    <div className="absolute z-dropdown mt-2 w-full rounded-lg border border-border bg-popover p-2 shadow-float">
                       <div className="grid grid-cols-4 gap-1.5 max-[520px]:grid-cols-2">
                         {departmentColorOptions.map((option) => {
                           const active = editData.colorToken === option.token;

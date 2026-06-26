@@ -1,4 +1,13 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import { Check, ChevronRight, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,10 +27,24 @@ const themeOptions = [
 type ThemeValue = (typeof themeOptions)[number]["value"];
 
 const menuSurfaceClass =
-  "border-slate-200 bg-white text-slate-900 shadow-xl ring-1 ring-slate-950/10 dark:border-slate-600/80 dark:bg-[#101720] dark:text-slate-100 dark:ring-white/10";
+  "border-border bg-popover text-popover-foreground shadow-float ring-1 ring-foreground/10";
 const menuItemClass =
-  "flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-slate-800 transition-colors hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none dark:text-slate-100 dark:hover:bg-white/10 dark:focus-visible:bg-white/10";
-const menuIconClass = "size-4 text-slate-500 dark:text-slate-300";
+  "flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-popover-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none";
+const menuIconClass = "size-4 text-muted-foreground";
+
+const MENU_WIDTH = 176;
+const SUBMENU_WIDTH = 144;
+const FLOAT_GAP = 8;
+const VIEWPORT_PADDING = 8;
+const ESTIMATED_MENU_HEIGHT = 96;
+const ESTIMATED_SUBMENU_HEIGHT = 120;
+
+type SubmenuSide = "left" | "right";
+
+function clamp(value: number, min: number, max: number) {
+  if (max < min) return min;
+  return Math.min(Math.max(value, min), max);
+}
 
 interface SidebarSettingsMenuProps {
   userName: string;
@@ -38,7 +61,12 @@ export function SidebarSettingsMenu({
   const activeTheme = (theme || "system") as ThemeValue;
   const [open, setOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({ left: 0, top: 0 });
+  const [submenuStyle, setSubmenuStyle] = useState<CSSProperties>({ left: 0, top: 0 });
+  const [submenuSide, setSubmenuSide] = useState<SubmenuSide>("right");
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const submenuRef = useRef<HTMLDivElement | null>(null);
   const previousPointerRef = useRef<PointerPoint | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,11 +88,74 @@ export function SidebarSettingsMenu({
     }
   };
 
+  const containsMenuNode = useCallback((target: Node | null) => {
+    if (!target) return false;
+    return Boolean(
+      rootRef.current?.contains(target) ||
+        menuRef.current?.contains(target) ||
+        submenuRef.current?.contains(target),
+    );
+  }, []);
+
+  const updateMenuPosition = useCallback(() => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const menuRect = menuRef.current?.getBoundingClientRect();
+    const menuWidth = menuRect?.width || MENU_WIDTH;
+    const menuHeight = menuRect?.height || ESTIMATED_MENU_HEIGHT;
+    const collapsed = window.matchMedia("(max-width: 1179px)").matches;
+
+    let left: number;
+    let top: number;
+
+    if (collapsed) {
+      const rightSideLeft = rect.right + FLOAT_GAP;
+      const canOpenRight = rightSideLeft + menuWidth <= viewportWidth - VIEWPORT_PADDING;
+      left = canOpenRight ? rightSideLeft : rect.left - menuWidth - FLOAT_GAP;
+      top = rect.top + rect.height - menuHeight;
+    } else {
+      left = rect.right - menuWidth;
+      top = rect.top - menuHeight - FLOAT_GAP;
+    }
+
+    setMenuStyle({
+      left: clamp(left, VIEWPORT_PADDING, viewportWidth - menuWidth - VIEWPORT_PADDING),
+      top: clamp(top, VIEWPORT_PADDING, viewportHeight - menuHeight - VIEWPORT_PADDING),
+    });
+  }, []);
+
+  const updateSubmenuPosition = useCallback(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+
+    const menuRect = menu.getBoundingClientRect();
+    const submenuRect = submenuRef.current?.getBoundingClientRect();
+    const submenuWidth = submenuRect?.width || SUBMENU_WIDTH;
+    const submenuHeight = submenuRect?.height || ESTIMATED_SUBMENU_HEIGHT;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const rightLeft = menuRect.right + FLOAT_GAP;
+    const canOpenRight = rightLeft + submenuWidth <= viewportWidth - VIEWPORT_PADDING;
+    const side: SubmenuSide = canOpenRight ? "right" : "left";
+    const left = side === "right" ? rightLeft : menuRect.left - submenuWidth - FLOAT_GAP;
+    const top = menuRect.bottom - submenuHeight;
+
+    setSubmenuSide(side);
+    setSubmenuStyle({
+      left: clamp(left, VIEWPORT_PADDING, viewportWidth - submenuWidth - VIEWPORT_PADDING),
+      top: clamp(top, VIEWPORT_PADDING, viewportHeight - submenuHeight - VIEWPORT_PADDING),
+    });
+  }, []);
+
   useEffect(() => {
     if (!open) return undefined;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      if (!containsMenuNode(event.target as Node)) {
         setOpen(false);
         setThemeOpen(false);
       }
@@ -82,7 +173,37 @@ export function SidebarSettingsMenu({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, [containsMenuNode, open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    updateMenuPosition();
+    if (themeOpen) updateSubmenuPosition();
+
+    const frame = requestAnimationFrame(() => {
+      updateMenuPosition();
+      if (themeOpen) updateSubmenuPosition();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [open, themeOpen, updateMenuPosition, updateSubmenuPosition]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const updatePosition = () => {
+      updateMenuPosition();
+      if (themeOpen) updateSubmenuPosition();
+    };
+
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, themeOpen, updateMenuPosition, updateSubmenuPosition]);
 
   useEffect(
     () => () => {
@@ -95,7 +216,7 @@ export function SidebarSettingsMenu({
   const submenuBounds = (): SubmenuGraceBounds | null => {
     const rect = submenuRef.current?.getBoundingClientRect();
     if (!rect) return null;
-    return { left: rect.left, top: rect.top, bottom: rect.bottom };
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, side: submenuSide };
   };
 
   const scheduleThemeClose = () => {
@@ -103,12 +224,12 @@ export function SidebarSettingsMenu({
     closeTimerRef.current = setTimeout(() => setThemeOpen(false), 220);
   };
 
-  const scheduleMenuClose = () => {
+  const scheduleMenuClose = (delay = 160) => {
     clearMenuCloseTimer();
     menuCloseTimerRef.current = setTimeout(() => {
       setOpen(false);
       setThemeOpen(false);
-    }, 160);
+    }, delay);
   };
 
   const handlePointerMove = (event: ReactMouseEvent) => {
@@ -117,7 +238,7 @@ export function SidebarSettingsMenu({
 
   const handleMenuPointerLeave = (event: ReactMouseEvent) => {
     const nextTarget = event.relatedTarget as Node | null;
-    if (nextTarget && submenuRef.current?.contains(nextTarget)) return;
+    if (containsMenuNode(nextTarget)) return;
 
     const current = { x: event.clientX, y: event.clientY };
     const insideGraceArea = isPointerInsideSubmenuGraceArea({
@@ -127,9 +248,17 @@ export function SidebarSettingsMenu({
     });
     if (insideGraceArea) {
       scheduleThemeClose();
+      scheduleMenuClose(280);
       return;
     }
     setThemeOpen(false);
+    scheduleMenuClose();
+  };
+
+  const handleRootPointerLeave = (event: ReactMouseEvent) => {
+    const nextTarget = event.relatedTarget as Node | null;
+    if (containsMenuNode(nextTarget)) return;
+    scheduleMenuClose();
   };
 
   const chooseTheme = (value: ThemeValue) => {
@@ -143,46 +272,19 @@ export function SidebarSettingsMenu({
     onLogout();
   };
 
-  return (
-    <div
-      ref={rootRef}
-      className="relative flex items-center justify-end"
-      data-testid="sidebar-settings-root"
-      onMouseEnter={() => {
-        clearMenuCloseTimer();
-        setOpen(true);
-      }}
-      onMouseLeave={scheduleMenuClose}
-      onFocus={() => {
-        clearMenuCloseTimer();
-        setOpen(true);
-      }}
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="rounded-full border border-white/10 bg-white/5 text-sidebar-text hover:bg-white/10 hover:text-white focus-visible:ring-white/25"
-        aria-label={identityLabel ? `${identityLabel} · 设置` : "设置"}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => {
-          clearMenuCloseTimer();
-          setOpen(true);
-        }}
-      >
-        <Settings className="size-4" />
-      </Button>
+  const canPortal = typeof document !== "undefined";
 
-      {open && (
+  const menu = open && canPortal
+    ? createPortal(
         <div
+          ref={menuRef}
           role="menu"
           data-testid="sidebar-settings-menu"
           className={cn(
-            "absolute right-0 bottom-[calc(100%+0.5rem)] z-50 w-44 rounded-lg p-1.5 text-sm",
+            "fixed z-popover isolate w-44 rounded-lg p-1.5 text-sm",
             menuSurfaceClass,
-            "max-[1179px]:bottom-0 max-[1179px]:left-[calc(100%+0.5rem)] max-[1179px]:right-auto",
           )}
+          style={menuStyle}
           onMouseMove={handlePointerMove}
           onMouseEnter={() => {
             clearCloseTimer();
@@ -198,6 +300,7 @@ export function SidebarSettingsMenu({
             className={menuItemClass}
             onMouseEnter={() => {
               clearCloseTimer();
+              clearMenuCloseTimer();
               setThemeOpen(true);
             }}
             onClick={() => setThemeOpen((value) => !value)}
@@ -222,45 +325,89 @@ export function SidebarSettingsMenu({
             <LogOut className="size-4" />
             <span>登出</span>
           </button>
+        </div>,
+        document.body,
+      )
+    : null;
 
-          {themeOpen && (
-            <div
-              ref={submenuRef}
-              role="menu"
-              data-testid="sidebar-theme-submenu"
-              className={cn(
-                "absolute bottom-0 left-[calc(100%+0.5rem)] z-50 w-36 rounded-lg p-1.5 text-sm",
-                menuSurfaceClass,
-              )}
-              onMouseEnter={clearCloseTimer}
-              onMouseLeave={(event) => {
-                const nextTarget = event.relatedTarget as Node | null;
-                if (nextTarget && rootRef.current?.contains(nextTarget)) return;
-                setThemeOpen(false);
-              }}
-            >
-              {themeOptions.map((option) => {
-                const Icon = option.icon;
-                const active = activeTheme === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={active}
-                    className={menuItemClass}
-                    onClick={() => chooseTheme(option.value)}
-                  >
-                    <Icon className={menuIconClass} />
-                    <span className="min-w-0 flex-1">{option.label}</span>
-                    {active && <Check className="size-4 text-primary dark:text-sky-300" />}
-                  </button>
-                );
-              })}
-            </div>
+  const themeMenu = themeOpen && canPortal
+    ? createPortal(
+        <div
+          ref={submenuRef}
+          role="menu"
+          data-testid="sidebar-theme-submenu"
+          className={cn(
+            "fixed z-popover isolate w-36 rounded-lg p-1.5 text-sm",
+            menuSurfaceClass,
           )}
-        </div>
-      )}
+          style={submenuStyle}
+          onMouseEnter={() => {
+            clearCloseTimer();
+            clearMenuCloseTimer();
+          }}
+          onMouseLeave={(event) => {
+            const nextTarget = event.relatedTarget as Node | null;
+            if (containsMenuNode(nextTarget)) return;
+            setThemeOpen(false);
+            scheduleMenuClose();
+          }}
+        >
+          {themeOptions.map((option) => {
+            const Icon = option.icon;
+            const active = activeTheme === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                className={menuItemClass}
+                onClick={() => chooseTheme(option.value)}
+              >
+                <Icon className={menuIconClass} />
+                <span className="min-w-0 flex-1">{option.label}</span>
+                {active && <Check className="size-4 text-primary" />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative flex items-center justify-end"
+      data-testid="sidebar-settings-root"
+      onMouseEnter={() => {
+        clearMenuCloseTimer();
+        setOpen(true);
+      }}
+      onMouseLeave={handleRootPointerLeave}
+      onFocus={() => {
+        clearMenuCloseTimer();
+        setOpen(true);
+      }}
+    >
+      <Button
+        ref={buttonRef}
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="rounded-full border border-white/10 bg-white/5 text-sidebar-text hover:bg-white/10 hover:text-white focus-visible:ring-white/25"
+        aria-label={identityLabel ? `${identityLabel} · 设置` : "设置"}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          clearMenuCloseTimer();
+          setOpen(true);
+        }}
+      >
+        <Settings className="size-4" />
+      </Button>
+      {menu}
+      {themeMenu}
     </div>
   );
 }

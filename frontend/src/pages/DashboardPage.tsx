@@ -10,6 +10,7 @@ import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { computePeriodDates, type PeriodType } from "@/components/dashboard/periodUtils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ErrorState, RefreshBadge, SkeletonBlock } from "@/components/ui/feedback";
 import { isoDate, mondayOfWeek } from "@/utils/dates";
 import { formatMoney } from "@/utils/dates";
 import { buildAnalysisEntities, type AnalysisEntity, type AnalysisView } from "@/components/dashboard/analysisModel";
@@ -58,10 +59,6 @@ function OverviewInsightCard({
   );
 }
 
-function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-muted/60 dark:bg-muted/30 ${className}`} />;
-}
-
 function DashboardOverviewSkeleton() {
   return (
     <section aria-label="数据看板加载中" className="space-y-5">
@@ -104,14 +101,6 @@ function DashboardOverviewSkeleton() {
         </div>
       </div>
     </section>
-  );
-}
-
-function DashboardErrorState() {
-  return (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-10 text-center text-sm text-destructive">
-      数据加载失败，请稍后重试
-    </div>
   );
 }
 
@@ -238,7 +227,7 @@ export default function DashboardPage() {
           showInitialLoading ? (
             <DashboardOverviewSkeleton />
           ) : isError && !data ? (
-            <DashboardErrorState />
+            <ErrorState title="数据加载失败" description="请稍后重试，或检查网络连接。" />
           ) : data ? (
             <DashboardMobile
               data={data}
@@ -262,7 +251,7 @@ export default function DashboardPage() {
             showInitialLoading ? (
               <DashboardOverviewSkeleton />
             ) : isError && !data ? (
-              <DashboardErrorState />
+              <ErrorState title="数据加载失败" description="请稍后重试，或检查网络连接。" />
             ) : data ? (
             <section aria-label="总览" className="space-y-5">
               {isError && (
@@ -274,12 +263,7 @@ export default function DashboardPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-semibold">经营驾驶舱</h2>
-                    {(showBackgroundRefresh || isAnalysisFetching) && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                        <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-                        更新中
-                      </span>
-                    )}
+                    <RefreshBadge show={showBackgroundRefresh || isAnalysisFetching} />
                   </div>
                   <p className="text-xs tabular-nums text-muted-foreground">
                     {dates.startDate} ~ {dates.endDate} · 快速判断资金、工日和异常线索

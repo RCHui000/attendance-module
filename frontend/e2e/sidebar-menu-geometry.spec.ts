@@ -23,6 +23,18 @@ test.describe("sidebar submenu grace area", () => {
         current: { x: 130, y: 175 },
         submenu,
       }),
-    ).toBe(false);
+      ).toBe(false);
+  });
+
+  test("keeps a left-flipped submenu open while the pointer moves diagonally toward it", () => {
+    const submenu = { left: 24, right: 168, top: 100, bottom: 220, side: "left" as const };
+
+    expect(
+      isPointerInsideSubmenuGraceArea({
+        previous: { x: 230, y: 160 },
+        current: { x: 182, y: 175 },
+        submenu,
+      }),
+    ).toBe(true);
   });
 });

@@ -67,7 +67,7 @@ export function SegmentedPill<T extends string>({
       role="group"
       aria-label={ariaLabel}
       className={cn(
-        "relative inline-flex rounded-full border border-slate-200/80 bg-[#f8fafc] p-0.5 shadow-sm",
+        "relative inline-flex max-w-full overflow-hidden rounded-full border border-border bg-secondary p-0.5 shadow-sm dark:bg-input/30",
         className,
       )}
     >
@@ -75,7 +75,7 @@ export function SegmentedPill<T extends string>({
         aria-hidden="true"
         className={cn(
           "pointer-events-none absolute top-0.5 bottom-0.5 rounded-full bg-primary shadow-sm",
-          "transition-[transform,width,opacity] duration-200 ease-out",
+          "transition-[transform,width,opacity] duration-200 ease-out motion-reduce:transition-none",
           !indicator.ready && "opacity-0",
         )}
         style={{
@@ -92,6 +92,7 @@ export function SegmentedPill<T extends string>({
             type="button"
             className={cn(
               "relative z-10 inline-flex h-8 items-center justify-center rounded-full px-3 text-xs font-medium transition-colors",
+              "min-w-0 max-w-36 whitespace-nowrap",
               "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
               active
                 ? "text-primary-foreground"
@@ -101,7 +102,7 @@ export function SegmentedPill<T extends string>({
             aria-pressed={active}
           >
             {item.icon && <span className="mr-1.5 inline-flex items-center">{item.icon}</span>}
-            <span>{item.label}</span>
+            <span className="min-w-0 truncate">{item.label}</span>
             {item.meta != null && (
               <span
                 className={cn(

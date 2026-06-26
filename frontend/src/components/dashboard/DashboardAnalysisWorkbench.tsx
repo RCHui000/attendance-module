@@ -3,8 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -18,6 +16,7 @@ import { ArrowDownRight, ArrowUpRight, FileDown, FileSearch, Search, X } from "l
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState, ErrorState, RefreshBadge, SkeletonBlock } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import {
   buildAnalysisEntities,
@@ -131,40 +130,6 @@ function ChartTooltip({
         ))}
       </div>
     </div>
-  );
-}
-
-function truncateLabel(value: string, maxLength: number) {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, Math.max(1, maxLength - 1))}…`;
-}
-
-function CategoryTick({
-  x = 0,
-  y = 0,
-  payload,
-  width = 112,
-}: {
-  x?: number;
-  y?: number;
-  payload?: { value?: string };
-  width?: number;
-}) {
-  const rawLabel = String(payload?.value || "");
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <title>{rawLabel}</title>
-      <text
-        x={0}
-        y={0}
-        dy={4}
-        textAnchor="start"
-        fill="var(--color-chart-axis)"
-        fontSize={11}
-      >
-        {truncateLabel(rawLabel, width >= 120 ? 9 : 7)}
-      </text>
-    </g>
   );
 }
 
@@ -367,27 +332,41 @@ function TrendPanel({ entity }: { entity: AnalysisEntity }) {
         </div>
       </div>
       {chartData.length === 0 ? (
-        <div className="flex h-[250px] items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
-          当前{getAnalysisViewLabel(entity.view)}暂无趋势数据
-        </div>
+        <EmptyState
+          title={`当前${getAnalysisViewLabel(entity.view)}暂无趋势数据`}
+          description="切换周期或选择其他对象后再查看趋势。"
+          className="h-[250px]"
+        />
       ) : (
         <ResponsiveContainer width="100%" height={260}>
           <AreaChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id={`dashboardTrendFill-${entity.view}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-chart-primary)" stopOpacity={0.42} />
-                <stop offset="95%" stopColor="var(--color-chart-primary)" stopOpacity={0.08} />
+                <stop offset="5%" stopColor="var(--color-chart-primary)" stopOpacity={0.5} />
+                <stop offset="95%" stopColor="var(--color-chart-primary)" stopOpacity={0.12} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-grid)" strokeOpacity={0.85} />
-            <XAxis dataKey="bucket" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "var(--color-chart-axis)" }} />
-            <YAxis fontSize={11} tickLine={false} axisLine={false} width={36} tick={{ fill: "var(--color-chart-axis)" }} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-grid)" strokeOpacity={0.75} />
+            <XAxis
+              dataKey="bucket"
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: "var(--color-chart-axis)", fontWeight: 500 }}
+            />
+            <YAxis
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+              width={36}
+              tick={{ fill: "var(--color-chart-axis)", fontWeight: 500 }}
+            />
             <Tooltip content={<ChartTooltip />} />
             <Area
               dataKey="工日"
               stroke="var(--color-chart-primary)"
               fill={`url(#dashboardTrendFill-${entity.view})`}
-              strokeWidth={2.5}
+              strokeWidth={2.75}
               type="monotone"
             />
           </AreaChart>
@@ -410,9 +389,7 @@ function DonutPanel({ title, description, items }: { title: string; description:
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
       {donutData.length === 0 ? (
-        <div className="flex h-[260px] items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
-          暂无结构拆分
-        </div>
+        <EmptyState title="暂无结构拆分" description="当前对象还没有可用于占比分析的工时。" className="h-[260px]" />
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)_170px] gap-3 max-[1180px]:grid-cols-1">
           <ResponsiveContainer width="100%" height={260}>
@@ -425,7 +402,7 @@ function DonutPanel({ title, description, items }: { title: string; description:
                 outerRadius={102}
                 paddingAngle={3}
                 cornerRadius={8}
-                stroke="hsl(var(--card))"
+                stroke="var(--color-card)"
                 strokeWidth={3}
               >
                 {donutData.map((item, index) => (
@@ -464,14 +441,8 @@ function LoadPanel({ entity }: { entity: AnalysisEntity }) {
         labor_cost: employee.labor_cost,
         project_count: employee.project_count,
       }));
-  const chartData = items
-    .slice(0, 12)
-    .map((item) => ({
-      name: item.name,
-      工日: Number(item.labor_days || 0),
-      meta: item.meta,
-    }))
-    .reverse();
+  const chartRows = items.slice(0, 8);
+  const maxLaborDays = Math.max(...chartRows.map((item) => Number(item.labor_days || 0)), 1);
 
   return (
     <Card className="rounded-lg p-4">
@@ -479,27 +450,44 @@ function LoadPanel({ entity }: { entity: AnalysisEntity }) {
         <h3 className="text-sm font-semibold">{isEmployeeView ? "项目分布" : "人员负荷"}</h3>
         <p className="text-xs text-muted-foreground">{isEmployeeView ? "该人员投入到哪些项目" : "谁投入最多，是否集中在少数人员"}</p>
       </div>
-      {chartData.length === 0 ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
-          暂无投入数据
-        </div>
+      {chartRows.length === 0 ? (
+        <EmptyState title="暂无投入数据" description="当前对象还没有人员或项目投入记录。" className="h-[300px]" />
       ) : (
-        <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 34)}>
-          <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-chart-grid)" strokeOpacity={0.85} />
-            <XAxis type="number" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "var(--color-chart-axis)" }} />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={isEmployeeView ? 128 : 92}
-              tickLine={false}
-              axisLine={false}
-              tick={<CategoryTick width={isEmployeeView ? 128 : 92} />}
-            />
-            <Tooltip content={<ChartTooltip />} />
-            <Bar dataKey="工日" fill="#3b82f6" radius={[0, 6, 6, 0]} barSize={14} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="rounded-md border border-border/70 bg-muted/10 px-3 py-3">
+          <div className="space-y-3">
+            {chartRows.map((item) => {
+              const value = Number(item.labor_days || 0);
+              const width = `${Math.max((value / maxLaborDays) * 100, value > 0 ? 8 : 0)}%`;
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "grid items-center gap-3",
+                    isEmployeeView
+                      ? "grid-cols-[minmax(7.5rem,10rem)_minmax(0,1fr)_3.5rem]"
+                      : "grid-cols-[4.25rem_minmax(0,1fr)_3.5rem]",
+                  )}
+                >
+                  <span className="min-w-0 truncate text-xs font-medium text-foreground" title={item.name}>
+                    {item.name || "未命名"}
+                  </span>
+                  <div className="relative h-3 overflow-hidden rounded-full bg-muted ring-1 ring-border/70">
+                    <div
+                      className="h-full rounded-full bg-primary ring-1 ring-primary/10"
+                      style={{ width }}
+                    />
+                  </div>
+                  <span className="text-right text-xs text-muted-foreground tabular-nums">{value.toFixed(1)}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex justify-between border-t border-border/70 pt-2 text-[11px] text-muted-foreground tabular-nums">
+            <span>0</span>
+            <span>{(maxLaborDays / 2).toFixed(maxLaborDays >= 10 ? 0 : 1)}</span>
+            <span>{maxLaborDays.toFixed(maxLaborDays >= 10 ? 0 : 1)} 工日</span>
+          </div>
+        </div>
       )}
       <div className="mt-3 space-y-2">
         {items.slice(0, 5).map((item) => (
@@ -507,7 +495,7 @@ function LoadPanel({ entity }: { entity: AnalysisEntity }) {
             key={item.id}
             className={cn(
               "grid items-center gap-3 rounded-md bg-muted/30 px-3 py-2 text-xs",
-              isEmployeeView ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[3.5em_minmax(0,1fr)_auto]",
+              isEmployeeView ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[4em_minmax(0,1fr)_auto]",
             )}
           >
             <span className="min-w-0 truncate font-medium" title={item.name}>
@@ -579,10 +567,6 @@ function SourceTable({ sources }: { sources: DashboardAnalysisSource[] }) {
       </div>
     </div>
   );
-}
-
-function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-muted/60 dark:bg-muted/30 ${className}`} />;
 }
 
 function AnalysisWorkbenchSkeleton() {
@@ -727,7 +711,7 @@ export function DashboardAnalysisWorkbench({
   }
 
   if (isError && !data) {
-    return <div className="flex h-[420px] items-center justify-center text-sm text-destructive">分析数据加载失败，请稍后重试</div>;
+    return <ErrorState title="分析数据加载失败" description="请稍后重试，或切换时间范围后再查看。" className="h-[420px]" />;
   }
 
   if (!data) return null;
@@ -750,12 +734,7 @@ export function DashboardAnalysisWorkbench({
                 onChange={handleViewChange}
                 ariaLabel="分析视角"
               />
-              {isFetching && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                  <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-                  更新中
-                </span>
-              )}
+              <RefreshBadge show={isFetching} />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {startDate} ~ {endDate} · {data.summary.project_count} 个项目 · {data.summary.employee_count} 名人员 · {data.summary.labor_days.toFixed(1)} 工日

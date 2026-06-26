@@ -5,8 +5,10 @@ export type PointerPoint = {
 
 export type SubmenuGraceBounds = {
   left: number;
+  right?: number;
   top: number;
   bottom: number;
+  side?: "left" | "right";
 };
 
 export function isPointerInsideSubmenuGraceArea({
@@ -19,11 +21,20 @@ export function isPointerInsideSubmenuGraceArea({
   submenu: SubmenuGraceBounds | null;
 }): boolean {
   if (!previous || !submenu) return false;
-  if (current.x <= previous.x) return false;
-  if (current.x > submenu.left) return false;
 
-  const topTarget = { x: submenu.left, y: submenu.top };
-  const bottomTarget = { x: submenu.left, y: submenu.bottom };
+  const side = submenu.side || "right";
+  const targetX = side === "right" ? submenu.left : (submenu.right ?? submenu.left);
+
+  if (side === "right") {
+    if (current.x <= previous.x) return false;
+    if (current.x > targetX) return false;
+  } else {
+    if (current.x >= previous.x) return false;
+    if (current.x < targetX) return false;
+  }
+
+  const topTarget = { x: targetX, y: submenu.top };
+  const bottomTarget = { x: targetX, y: submenu.bottom };
   return pointInTriangle(current, previous, topTarget, bottomTarget);
 }
 

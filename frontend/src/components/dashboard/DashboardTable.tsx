@@ -40,7 +40,7 @@ function ExpandedRow({
   return (
     <TableRow className="hover:bg-transparent">
       <TableCell colSpan={COL_SPAN + 1} className="p-0 border-b">
-        <div className="px-4 py-3 bg-[#f8fafc]">
+        <div className="bg-table-header px-4 py-3">
           {isLoading && (
             <span className="text-sm text-muted-foreground">加载中…</span>
           )}

@@ -155,7 +155,7 @@ export function ApprovalTable({
 
           {approvalTab === "pending" && (
             <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
-              <div className="h-full min-h-[360px] max-h-[calc(100vh-18rem)] w-full max-w-full overflow-auto">
+              <div className="h-full min-h-[440px] max-h-[calc(100vh-14.5rem)] w-full max-w-full overflow-auto">
                 <Table className="min-w-[760px] table-fixed">
                   <TableHeader className="sticky top-0 bg-table-header">
                     <TableRow>
@@ -274,7 +274,7 @@ export function ApprovalTable({
 
           {approvalTab === "reviewed" && (
             <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
-              <div className="h-full min-h-[360px] max-h-[calc(100vh-18rem)] w-full max-w-full overflow-auto">
+              <div className="h-full min-h-[440px] max-h-[calc(100vh-14.5rem)] w-full max-w-full overflow-auto">
                 <Table className="min-w-[760px] table-fixed">
                   <TableHeader className="sticky top-0 bg-table-header">
                     <TableRow>
@@ -335,7 +335,7 @@ export function ApprovalTable({
           </div>
 
           <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
-            <div className="max-h-[16vh] min-h-[88px] max-w-full overflow-auto">
+            <div className="max-h-[12vh] min-h-[80px] max-w-full overflow-auto">
               <Table className="min-w-[680px] table-fixed">
                 <TableHeader className="sticky top-0 bg-table-header">
                   <TableRow>

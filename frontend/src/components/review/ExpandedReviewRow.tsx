@@ -30,7 +30,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
   return (
     <tr className="hover:bg-transparent">
       <td colSpan={colSpan} className="max-w-0 p-0 border-b">
-        <div className="min-w-0 max-w-full overflow-hidden bg-[#f8fafc] px-4 py-3">
+        <div className="min-w-0 max-w-full overflow-hidden bg-table-header px-4 py-3">
           {isLoading && (
             <span className="text-sm text-muted-foreground">加载中…</span>
           )}

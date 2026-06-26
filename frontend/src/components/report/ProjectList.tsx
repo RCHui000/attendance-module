@@ -491,7 +491,7 @@ export function ProjectList() {
       <div
         className={cn(
           "rounded-lg border border-border bg-white p-4",
-          "max-[767px]:fixed max-[767px]:inset-x-3 max-[767px]:top-6 max-[767px]:bottom-6 max-[767px]:z-50 max-[767px]:overflow-y-auto max-[767px]:shadow-xl",
+          "max-[767px]:fixed max-[767px]:inset-x-3 max-[767px]:top-6 max-[767px]:bottom-6 max-[767px]:z-modal max-[767px]:overflow-y-auto max-[767px]:shadow-xl",
           (!isMobile || (selectedId && editorOpen)) ? "" : "max-[767px]:hidden",
         )}
       >

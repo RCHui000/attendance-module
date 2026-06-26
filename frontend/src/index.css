@@ -71,6 +71,14 @@
 
   /* Animation */
   --animate-fade-in: fade-in 0.18s ease;
+
+  /* Semantic layers */
+  --z-dropdown: 40;
+  --z-sticky: 50;
+  --z-popover: 70;
+  --z-modal: 80;
+  --z-toast: 90;
+  --z-tooltip: 100;
 }
 
 /* ---- Base layer ---- */
@@ -311,4 +319,28 @@ dialog {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
+}
+
+.z-dropdown {
+  z-index: var(--z-dropdown);
+}
+
+.z-sticky {
+  z-index: var(--z-sticky);
+}
+
+.z-popover {
+  z-index: var(--z-popover);
+}
+
+.z-modal {
+  z-index: var(--z-modal);
+}
+
+.z-toast {
+  z-index: var(--z-toast);
+}
+
+.z-tooltip {
+  z-index: var(--z-tooltip);
 }

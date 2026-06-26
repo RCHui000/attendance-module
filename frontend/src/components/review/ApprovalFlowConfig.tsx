@@ -240,8 +240,8 @@ function FlowNodeCard({
         onDrop={onDrop}
         onClick={onSelect}
         className={cn(
-          "group min-h-[154px] w-[240px] rounded-xl border bg-card p-4 text-left shadow-sm transition-[border-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
-          selected ? "border-foreground shadow-md" : "border-border",
+          "group min-h-[154px] w-[240px] rounded-lg border bg-card p-4 text-left shadow-sm transition-[border-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
+          selected ? "border-foreground bg-row-selected shadow-md dark:bg-row-selected" : "border-border",
         )}
       >
         <div className="flex items-start justify-between gap-2">
@@ -311,7 +311,7 @@ function NodeInspector({
 }) {
   if (!template || !node) {
     return (
-      <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+      <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
         选择一个节点后可以配置审批人来源、角色和通过策略。
       </div>
     );
@@ -321,7 +321,7 @@ function NodeInspector({
   const submitter = isSubmitterNode(node);
 
   return (
-    <div className="space-y-4 rounded-xl border border-border bg-card p-5">
+    <div className="space-y-4 rounded-lg border border-border bg-card p-5">
       <div>
         <div className="text-sm font-semibold text-foreground">节点属性</div>
         <div className="mt-1 text-xs text-muted-foreground">
@@ -524,7 +524,7 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
-      <aside className="rounded-xl border border-border bg-card p-2">
+      <aside className="rounded-lg border border-border bg-card p-2">
         <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">审批模板</div>
         <div className="space-y-1">
           {configurableTemplates.map((template) => {
@@ -534,8 +534,8 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
                 key={template.id}
                 type="button"
                 className={cn(
-                  "w-full rounded-lg px-3 py-3 text-left transition-[background-color,color,box-shadow] duration-150 hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none",
-                  active && "bg-foreground text-background shadow-sm hover:bg-foreground",
+                  "w-full rounded-lg border border-transparent px-3 py-3 text-left transition-[background-color,border-color,box-shadow] duration-150 hover:bg-row-hover focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none",
+                  active && "border-foreground/60 bg-row-selected shadow-sm hover:bg-row-selected",
                 )}
                 onClick={() => {
                   const next = cloneTemplate(template);
@@ -544,10 +544,10 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
                   setSelectedNodeKey(next.nodes[0]?.node_key || null);
                 }}
               >
-                <div className={cn("font-semibold text-foreground", active && "text-background")}>
+                <div className="font-semibold text-foreground">
                   {templateDisplayName(template)}
                 </div>
-                <div className={cn("mt-1 text-xs text-muted-foreground", active && "text-background/75")}>
+                <div className="mt-1 text-xs text-muted-foreground">
                   {templateDescription(template)}
                 </div>
               </button>
@@ -557,7 +557,7 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
       </aside>
 
       <main className="min-w-0 space-y-4">
-        <section className="rounded-xl border border-border bg-card p-4">
+        <section className="rounded-lg border border-border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -644,7 +644,7 @@ export function ApprovalFlowConfig({ canWrite }: { canWrite: boolean }) {
           )}
         </section>
 
-        <section className="overflow-x-auto rounded-xl border border-border bg-background/70 p-5 dark:bg-card/60">
+        <section className="overflow-x-auto rounded-lg border border-border bg-card p-5">
           <div className="flex min-w-max items-center gap-4">
             {nodes.map((node, index) => (
               <div key={node.node_key} className="flex items-center gap-4">

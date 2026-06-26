@@ -276,7 +276,7 @@ function ProjectPicker({
     ? createPortal(
         <div
           ref={popupRef}
-          className="fixed z-50 rounded-lg border border-border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          className="fixed z-popover rounded-lg border border-border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
           style={{
             top: popupStyle.top,
             left: popupStyle.left,

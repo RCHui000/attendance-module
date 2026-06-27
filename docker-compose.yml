@@ -5,9 +5,9 @@ services:
     container_name: attendance-module
     restart: unless-stopped
     environment:
-      SUPABASE_AUTH_URL: http://192.168.2.100:8777
-      SUPABASE_REST_URL: http://192.168.2.100:8779
-      GOTRUE_URL: http://192.168.2.100:8777
+      SUPABASE_AUTH_URL: ${SUPABASE_AUTH_URL:-http://192.168.2.100:8777}
+      SUPABASE_REST_URL: ${SUPABASE_REST_URL:-http://192.168.2.100:8779}
+      GOTRUE_URL: ${GOTRUE_URL:-http://192.168.2.100:8777}
       JWT_SECRET: ${JWT_SECRET}
       DEFAULT_INITIAL_PASSWORD: ${DEFAULT_INITIAL_PASSWORD}
     ports:

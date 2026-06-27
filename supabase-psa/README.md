@@ -15,6 +15,7 @@ This directory contains the self-hosted Supabase-compatible runtime and ordered 
 
 - Add a new numbered migration for every database change.
 - Do not edit already deployed migrations.
+- On a fresh self-hosted stack, start `postgres`, `gotrue`, `realtime`, and `postgrest` before applying application migrations. Realtime owns the base `public.tenants`, `public.extensions`, and `public.schema_migrations` tables; application migrations use `public.psa_schema_migrations`.
 - Apply migrations on NAS/cloud before deploying frontend code that depends on them.
 - Refresh PostgREST schema cache with `NOTIFY pgrst, 'reload schema'` when schema changes.
 - Back up cloud PostgreSQL before production migration.

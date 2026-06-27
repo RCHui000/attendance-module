@@ -10,14 +10,14 @@ services:
     command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_DB: psa
-      POSTGRES_USER: psa_admin
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./pgdata:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U psa_admin -d psa"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d psa"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,8 +31,8 @@ services:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: "postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa?sslmode=disable"
-      GOTRUE_SITE_URL: "http://192.168.2.100:8767"
+      GOTRUE_DB_DATABASE_URL: "postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/psa?sslmode=disable"
+      GOTRUE_SITE_URL: "http://${NAS_HOST:-192.168.2.100}:8767"
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_AUD: authenticated
       GOTRUE_JWT_EXP: 86400
@@ -41,9 +41,9 @@ services:
       GOTRUE_SMTP_ADMIN_EMAIL: admin@psa.local
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
       GOTRUE_EXTERNAL_GITHUB_ENABLED: "false"
-      API_EXTERNAL_URL: "http://192.168.2.100:8777"
-      GOTRUE_EXTERNAL_URL: "http://192.168.2.100:8777"
-      GOTRUE_CORS_ALLOWED_ORIGINS: "http://192.168.2.100:8767,http://localhost:5173"
+      API_EXTERNAL_URL: "http://${NAS_HOST:-192.168.2.100}:8777"
+      GOTRUE_EXTERNAL_URL: "http://${NAS_HOST:-192.168.2.100}:8777"
+      GOTRUE_CORS_ALLOWED_ORIGINS: "http://${NAS_HOST:-192.168.2.100}:8767,http://${NAS_HOST:-192.168.2.100}:8080,http://localhost:5173"
       GOTRUE_CORS_ALLOWED_HEADERS: "apikey,authorization,content-type,x-client-info"
       GOTRUE_CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
     ports:
@@ -62,7 +62,7 @@ services:
       PORT: 4000
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USER: psa_admin
+      DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: psa
       DB_SSL: "false"
@@ -100,7 +100,7 @@ services:
     container_name: psa-postgrest
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: "postgres://psa_admin:${POSTGRES_PASSWORD}@postgres:5432/psa"
+      PGRST_DB_URI: "postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/psa"
       PGRST_DB_SCHEMA: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET}

@@ -31,3 +31,7 @@ id_ed25519
 implement plan.md
 implementation_plan.md
 immplement_plan.md
+
+# Local agent context
+.agent/local.current.yaml
+.agent/local.yaml

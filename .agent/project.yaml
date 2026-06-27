@@ -1,0 +1,21 @@
+schema: agentctx.project/v1
+project_id: timesheet
+name: 工时统计模块
+
+docs:
+  deployment: docs/ops/NAS_DEPLOYMENT.md
+  release_runbook: docs/ops/RELEASE_RUNBOOK.md
+  product: docs/product/PRODUCT.md
+  user_guide: docs/product/USER_GUIDE.md
+
+default_target: nas-test
+
+targets:
+  nas-test:
+    kind: nas
+    binding: timesheet.nas-test
+    risk: medium
+  cloud-prod:
+    kind: cloud
+    risk: high
+    require_confirm: true

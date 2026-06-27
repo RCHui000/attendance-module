@@ -4,10 +4,29 @@
 
 ## 连接与路径
 
+优先从 `agentctx` 读取当前 NAS 测试环境上下文：
+
+```powershell
+agentctx show --target nas-test
+```
+
+当前 `nas-test` 目标解析到：
+
+```text
+SSH alias: home-nas
+应用目录: /home/Huiruochao/deploy/attendance-module
+Supabase 目录: /home/Huiruochao/deploy/supabase-psa
+访问入口: http://192.168.31.142:8767
+```
+
+当前 NAS Docker socket 为 `root:docker`，`Huiruochao` 用户需要 sudo 或加入 docker 组后才能执行 `docker compose build/up`。
+
+旧办公室 NAS 连接信息仍保留在归档文档中，仅在明确切回办公室 NAS 时使用。
+
 常用 NAS SSH alias：
 
 ```bash
-ssh inquiry-nas
+ssh home-nas
 ```
 
 如果本机没有 alias，在用户级 SSH config 中维护 Host、User、Port、IdentityFile。不要把密码、私钥、token 或 `.env` 敏感值写进仓库。
@@ -15,36 +34,31 @@ ssh inquiry-nas
 主要路径：
 
 ```text
-/vol1/@team/个人工作文件/惠若超/attendance-module
-/vol1/@team/个人工作文件/惠若超/supabase-psa
+/home/Huiruochao/deploy/attendance-module
+/home/Huiruochao/deploy/supabase-psa
 ```
 
 环境变量文件：
 
 ```text
-/vol1/@team/个人工作文件/惠若超/attendance-module/frontend/.env.production
-/vol1/@team/个人工作文件/惠若超/attendance-module/.env
+/home/Huiruochao/deploy/attendance-module/frontend/.env.production
+/home/Huiruochao/deploy/attendance-module/.env
 ```
 
 ## 访问入口
 
 ```text
-反向代理入口: http://192.168.2.100:8080
-旧 Web 直连:   http://192.168.2.100:8767
-GoTrue:        http://192.168.2.100:8777
-Realtime:      http://192.168.2.100:8778
-PostgREST:     http://192.168.2.100:8779
-Postgres:      192.168.2.100:5433
+Web 直连: http://192.168.31.142:8767
 ```
 
 ## 构建与启动
 
 ```bash
-cd /vol1/@team/个人工作文件/惠若超/attendance-module
+cd /home/Huiruochao/deploy/attendance-module
 npm --prefix frontend ci
 npm --prefix frontend run build
-docker compose build
-docker compose up -d
+sudo docker compose build
+sudo docker compose up -d
 ```
 
 应用容器默认通过 Nginx 服务静态 React 产物，并连接自托管 Supabase 运行栈。
@@ -65,25 +79,25 @@ POSTGRES_CONTAINER_NAME=psa-postgres POSTGRES_USER=psa_admin POSTGRES_DB=psa \
 查看容器状态：
 
 ```bash
-ssh inquiry-nas "docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' | grep -E 'attendance-module|psa-reverse-proxy|psa-postgrest|psa-gotrue|psa-realtime|psa-postgres'"
+ssh home-nas "sudo docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' | grep -E 'attendance-module|psa-reverse-proxy|psa-postgrest|psa-gotrue|psa-realtime|psa-postgres'"
 ```
 
 重启应用：
 
 ```bash
-ssh inquiry-nas "cd '/vol1/@team/个人工作文件/惠若超/attendance-module' && docker compose up -d --build attendance-module"
+ssh home-nas "cd /home/Huiruochao/deploy/attendance-module && sudo docker compose up -d --build attendance-module"
 ```
 
 重启反向代理：
 
 ```bash
-ssh inquiry-nas "cd '/vol1/@team/个人工作文件/惠若超/attendance-module' && docker compose -f docker-compose.proxy.yml up -d"
+ssh home-nas "cd /home/Huiruochao/deploy/attendance-module && sudo docker compose -f docker-compose.proxy.yml up -d"
 ```
 
 重启 PostgREST：
 
 ```bash
-ssh inquiry-nas "cd '/vol1/@team/个人工作文件/惠若超/supabase-psa' && docker compose restart postgrest"
+ssh home-nas "cd /home/Huiruochao/deploy/supabase-psa && sudo docker compose restart postgrest"
 ```
 
 同步前端构建产物：
@@ -92,8 +106,8 @@ ssh inquiry-nas "cd '/vol1/@team/个人工作文件/惠若超/supabase-psa' && d
 cd frontend
 npm run build
 cd ..
-ssh inquiry-nas "rm -rf '/vol1/@team/个人工作文件/惠若超/attendance-module/frontend/dist'/* && mkdir -p '/vol1/@team/个人工作文件/惠若超/attendance-module/frontend/dist/assets' '/vol1/@team/个人工作文件/惠若超/attendance-module/frontend/dist/logo'"
-scp -r frontend/dist/* inquiry-nas:"/vol1/@team/个人工作文件/惠若超/attendance-module/frontend/dist/"
+ssh home-nas "mkdir -p /home/Huiruochao/deploy/attendance-module/frontend/dist"
+scp -r frontend/dist/* home-nas:/home/Huiruochao/deploy/attendance-module/frontend/dist/
 ```
 
 ## 安全注意事项

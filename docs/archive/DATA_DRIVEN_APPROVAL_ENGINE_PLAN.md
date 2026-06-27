@@ -1,6 +1,6 @@
 # Data-Driven Approval Engine Plan
 
-This document records the direction implemented after `TIMESHEET_APPROVAL_DATA_DRIVEN_GAP.md`.
+This document records the direction implemented after `TIMESHEET_APPROVAL_DATA_DRIVEN_GAP.md`. The current summary lives in `../architecture/APPROVAL_ARCHITECTURE.md`.
 
 ## Goal
 

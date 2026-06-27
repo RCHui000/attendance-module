@@ -11,7 +11,7 @@ Use this document when you need to:
 - deploy a tagged version to production;
 - verify or roll back the deployed version.
 
-For the shorter checklist, see `RELEASE_PROCESS.md`.
+For the current shorter checklist, see `../ops/RELEASE_RUNBOOK.md`.
 
 ## Production Target
 
@@ -278,7 +278,7 @@ Restore the backed-up app directory only if the code overlay itself must be reve
 - The server app directory is not a git checkout.
 - Do not leak production env values into logs, release notes, or final agent responses.
 - If migration execution behaves unexpectedly, inspect the migration ledger before rerunning old migrations.
-- `CLOUD_DEPLOY_CHECKLIST.md` may contain encoding issues in this workspace; prefer this runbook as the current handoff source.
+- The old cloud checklist may contain encoding issues in this workspace; prefer `../ops/RELEASE_RUNBOOK.md` as the current handoff source.
 
 ## Agent Handoff Checklist
 

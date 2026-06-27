@@ -2,7 +2,7 @@
 
 Use this process when the product owner says the current work is ready for a GitHub release and cloud deployment.
 
-For the detailed SSH, packaging, cloud deployment, verification, and rollback runbook, see `DEVOPS_RELEASE_RUNBOOK.md`.
+For the current SSH, packaging, cloud deployment, verification, and rollback runbook, see `../ops/RELEASE_RUNBOOK.md`.
 
 ## Standard Flow
 

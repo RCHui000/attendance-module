@@ -92,9 +92,8 @@ bash deploy/scripts/restore-postgres.sh /opt/approval-app/backups/postgres-YYYY-
 
 按以下文件执行：
 
-- `CLOUD_DEPLOY_CHECKLIST.md`
-- `SMOKE_TEST.md`
-- `ACCOUNT_SECURITY_RUNBOOK.md`
+- `../ops/RELEASE_RUNBOOK.md`
+- `../ops/ACCOUNT_SECURITY_RUNBOOK.md`
 
 自动冒烟测试示例：
 

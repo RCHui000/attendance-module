@@ -15,6 +15,7 @@ backups/
 
 .DS_Store
 Thumbs.db
+frontend/dist/
 .env
 supabase-psa/.env
 

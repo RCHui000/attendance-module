@@ -631,13 +631,13 @@ flowchart LR
 | `docker-compose.aliyun.yml` | 阿里云部署 compose |
 | `.env.production.example` | 生产环境变量模板，不含真实密码 |
 | `deploy/nginx/app.conf` | Nginx 反向代理配置 |
-| `ALIYUN_DEPLOYMENT.md` | 阿里云部署说明 |
-| `CLOUD_DEPLOY_CHECKLIST.md` | 云端上线检查清单 |
-| `ACCOUNT_SECURITY_RUNBOOK.md` | 账号安全整理 |
-| `使用说明.md` | Markdown 使用说明 |
-| `使用说明.html` | 单文件 HTML 使用手册，内嵌截图 |
+| `docs/ops/RELEASE_RUNBOOK.md` | 云端发布、部署、验证与回滚权威说明 |
+| `docs/ops/NAS_DEPLOYMENT.md` | NAS / 本地部署补充 |
+| `docs/ops/ACCOUNT_SECURITY_RUNBOOK.md` | 账号安全整理 |
+| `docs/product/USER_GUIDE.md` | Markdown 使用说明 |
 | `frontend/src/**/README.md` | 前端模块职责、接口、关键规则 |
 | `supabase-psa/README.md` | Supabase 运行态与迁移说明 |
+| `docs/archive/` | 历史计划、旧部署说明和一次性审计材料 |
 
 当前部署状态：
 

@@ -11,6 +11,8 @@ interface ReviewDesktopProps {
   isError: boolean;
   approvalTab: "pending" | "reviewed";
   onTabChange: (tab: "pending" | "reviewed") => void;
+  currentWeek: string;
+  onWeekChange: (week: string) => void;
 }
 
 export function ReviewDesktop({
@@ -19,6 +21,8 @@ export function ReviewDesktop({
   isError,
   approvalTab,
   onTabChange,
+  currentWeek,
+  onWeekChange,
 }: ReviewDesktopProps) {
   const { canAccess } = useAuthStore();
   const [pageTab, setPageTab] = useState<"tasks" | "templates">("tasks");
@@ -56,7 +60,13 @@ export function ReviewDesktop({
       )}
 
       {visiblePageTab === "tasks" && data && (
-        <ApprovalTable data={data} approvalTab={approvalTab} onTabChange={onTabChange} />
+        <ApprovalTable
+          data={data}
+          approvalTab={approvalTab}
+          onTabChange={onTabChange}
+          currentWeek={currentWeek}
+          onWeekChange={onWeekChange}
+        />
       )}
     </div>
   );

@@ -49,6 +49,7 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
       </div>
     );
   }
+  const displayStatus = data.approval_status || data.status;
 
   return (
     <div className="mt-3 border-t border-border bg-table-header px-3 py-3">
@@ -65,15 +66,15 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
         )}
         <Badge
           variant={
-            data.status === "approved"
+            displayStatus === "approved"
               ? "success"
-              : data.status === "rejected"
+              : displayStatus === "rejected" || displayStatus === "revision_required"
                 ? "destructive"
                 : "secondary"
           }
           className="ml-auto text-[10px]"
         >
-          {statusText[data.status] || data.status}
+          {statusText[displayStatus] || displayStatus}
         </Badge>
       </div>
 

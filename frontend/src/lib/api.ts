@@ -1,5 +1,6 @@
 import { getStoredToken, clearStoredToken } from "./supabase";
 import { accessRank, decodeJwt, payload, rest, type AnyRow } from "./restClient";
+import { deriveApprovalDisplayStatus } from "@/lib/approvalAudit";
 import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
 import { effectiveOrgColorToken } from "@/utils/orgTree";
 import type { Organization } from "@/types/employee";
@@ -106,6 +107,42 @@ function latestPendingTasks(tasks: AnyRow[]): AnyRow[] {
     latest.set(key, { ...(shouldUseNext ? task : current), assignee_user_ids });
   }
   return Array.from(latest.values());
+}
+
+async function approvalNodeStatusesBySheet(sheetIds: number[]) {
+  const result = new Map<number, Array<{ node_status: string }>>();
+  if (!sheetIds.length) return result;
+
+  const instances = await rest<AnyRow[]>(
+    `/approval_instances?select=id,target_id,status&target_type=eq.timesheet&target_id=in.(${sheetIds.join(",")})`,
+  ).catch(() => []);
+  const selectedInstances = new Map<number, AnyRow>();
+  for (const instance of instances) {
+    const sheetId = Number(instance.target_id);
+    const current = selectedInstances.get(sheetId);
+    const currentRank = current?.status === "running" ? 0 : 1;
+    const nextRank = instance.status === "running" ? 0 : 1;
+    if (!current || nextRank < currentRank || (nextRank === currentRank && Number(instance.id) > Number(current.id))) {
+      selectedInstances.set(sheetId, instance);
+    }
+  }
+
+  const instanceIds = [...new Set(Array.from(selectedInstances.values()).map((instance) => Number(instance.id)))].filter(Boolean);
+  if (!instanceIds.length) return result;
+
+  const sheetByInstance = new Map(
+    Array.from(selectedInstances.entries()).map(([sheetId, instance]) => [Number(instance.id), sheetId]),
+  );
+  const nodes = await rest<AnyRow[]>(
+    `/approval_nodes?select=instance_id,status&instance_id=in.(${instanceIds.join(",")})`,
+  ).catch(() => []);
+  for (const node of nodes) {
+    const sheetId = sheetByInstance.get(Number(node.instance_id));
+    if (!sheetId) continue;
+    if (!result.has(sheetId)) result.set(sheetId, []);
+    result.get(sheetId)!.push({ node_status: String(node.status || "") });
+  }
+  return result;
 }
 
 function isReportableTimesheet(sheet?: AnyRow | null): sheet is AnyRow {
@@ -690,12 +727,29 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       name: entry.projects?.name || "",
     });
   }
+  const approvalChain = approvalChainResult.data.map((node) => {
+    const scopeId = node.scope_id == null ? null : Number(node.scope_id);
+    const projectInfo = node.scope_type === "project" && scopeId ? projectInfoById.get(scopeId) : null;
+    return {
+      ...node,
+      node_id: Number(node.node_id),
+      node_status: String(node.node_status || ""),
+      scope_id: scopeId,
+      project_code: projectInfo?.code || "",
+      project_name: projectInfo?.name || "",
+      sort_order: Number(node.sort_order ?? 9999),
+      can_current_user_act: Boolean(node.can_current_user_act),
+      assignees: Array.isArray(node.assignees) ? node.assignees : [],
+      blocking_nodes: Array.isArray(node.blocking_nodes) ? node.blocking_nodes : [],
+    };
+  });
   return {
     id: Number(sheet.id),
     user_name: userName,
     department: profile?.organizations?.org_name || "",
     week_start_date: sheet.week_start_date,
     status: sheet.status,
+    approval_status: deriveApprovalDisplayStatus(String(sheet.status || ""), approvalChain),
     remark: sheet.remark || "",
     days: weekDays(sheet.week_start_date),
     entries: entries.map((entry) => ({
@@ -713,21 +767,7 @@ async function getTimesheetDetail(timesheetId: number): Promise<AnyRow> {
       status: entry.status || "",
     })),
     project_statuses: reviews.length ? projectStatusFromReviews(reviews, sheet.status) : [],
-    approval_chain: approvalChainResult.data.map((node) => {
-      const scopeId = node.scope_id == null ? null : Number(node.scope_id);
-      const projectInfo = node.scope_type === "project" && scopeId ? projectInfoById.get(scopeId) : null;
-      return {
-        ...node,
-        node_id: Number(node.node_id),
-        scope_id: scopeId,
-        project_code: projectInfo?.code || "",
-        project_name: projectInfo?.name || "",
-        sort_order: Number(node.sort_order ?? 9999),
-        can_current_user_act: Boolean(node.can_current_user_act),
-        assignees: Array.isArray(node.assignees) ? node.assignees : [],
-        blocking_nodes: Array.isArray(node.blocking_nodes) ? node.blocking_nodes : [],
-      };
-    }),
+    approval_chain: approvalChain,
     approval_chain_error: approvalChainResult.error,
   };
 }
@@ -775,21 +815,29 @@ async function timesheetAction(body: AnyRow): Promise<AnyRow> {
   });
 }
 
-async function approvalTasks(_weekStart: string): Promise<AnyRow> {
+async function approvalTasks(weekStart: string): Promise<AnyRow> {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated");
   const admin = await isAdmin();
+  const reviewedPeriodStart = timesheetPeriodStartOfDate(weekStart || todayMonday());
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
   const reviewedTaskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const [graphPending, graphReviewed, visibleRows, employees, employeeProfiles, organizations, entries] = await Promise.all([
+  const [reviewedPeriodSheets, graphPending, visibleRows, employees, employeeProfiles, organizations, entries] = await Promise.all([
+    rest<AnyRow[]>(`/timesheets?select=*&week_start_date=eq.${reviewedPeriodStart}`).catch(() => []),
     rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
-    rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}`).catch(() => []),
     rest<AnyRow[]>("/approval_visible_timesheets_view?select=*&order=submitted_at.asc").catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles?select=employee_id,org_id,organizations(org_name,color_token)"),
     rest<AnyRow[]>("/organizations?select=id,org_code,org_name,parent_id,org_type,color_token,status"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,work_date,hours"),
   ]);
+  const reviewedPeriodSheetIds = [...new Set(reviewedPeriodSheets.map((sheet: AnyRow) => Number(sheet.id)))].filter(Boolean);
+  const reviewedTargetFilter = reviewedPeriodSheetIds.length
+    ? `&target_id=in.(${reviewedPeriodSheetIds.join(",")})`
+    : "&target_id=eq.-1";
+  const graphReviewed = await rest<AnyRow[]>(
+    `/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}${reviewedTargetFilter}`,
+  ).catch(() => []);
   const tasks = graphPending.map(normalizedApprovalTask);
   const reviewedTasks = graphReviewed
     .map(normalizedApprovalTask)
@@ -805,9 +853,16 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
   const sheets = allSheetIds.length > 0
     ? await rest<AnyRow[]>(`/timesheets?select=*&id=in.(${allSheetIds.join(",")})`)
     : [];
+  const approvalNodesBySheet = await approvalNodeStatusesBySheet(allSheetIds);
 
   // Fetch overtime entries for ALL pending ones (not filtered by week)
-  const overtimeRowsRaw = await rest<AnyRow[]>("/overtime_entries?select=*&status=eq.pending");
+  const [overtimePendingRowsRaw, overtimeReviewedRowsRaw] = await Promise.all([
+    rest<AnyRow[]>("/overtime_entries?select=*&status=eq.pending"),
+    reviewedPeriodSheetIds.length
+      ? rest<AnyRow[]>(`/overtime_entries?select=*&status=in.(approved,rejected)&timesheet_id=in.(${reviewedPeriodSheetIds.join(",")})`)
+      : Promise.resolve([]),
+  ]);
+  const overtimeRowsRaw = [...overtimePendingRowsRaw, ...overtimeReviewedRowsRaw];
   const otSheetIds = [...new Set(overtimeRowsRaw.map((o: AnyRow) => Number(o.timesheet_id)))].filter(Boolean);
   const otSheets = otSheetIds.length > 0
     ? await rest<AnyRow[]>(`/timesheets?select=id,status,week_start_date,user_id&id=in.(${otSheetIds.join(",")})`)
@@ -865,14 +920,10 @@ async function approvalTasks(_weekStart: string): Promise<AnyRow> {
           .filter(Boolean)
           .join("、")
       : "";
-    const action = String(source.result_action || "");
-    const reviewStatus = ["rejected", "revision_required"].includes(String(sheet.status || ""))
-      ? "rejected"
-      : action === "approve" || action === "approved"
-        ? "approved"
-        : action === "reject" || action === "rejected"
-          ? "rejected"
-          : sheet.status;
+    const reviewStatus = deriveApprovalDisplayStatus(
+      String(sheet.status || ""),
+      approvalNodesBySheet.get(Number(sheet.id)) || [],
+    );
     return {
       task_id: source.id ? Number(source.id) : undefined,
       timesheet_id: Number(sheet.id),

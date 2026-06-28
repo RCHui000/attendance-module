@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { ReviewMobileCards } from "@/components/review/mobile/ReviewMobileCards";
+import { WeekNavigator } from "@/components/timesheet/WeekNavigator";
+import { getTimesheetPeriodEnd } from "@/utils/dates";
 import type { ApprovalTasks } from "@/types/approval";
 
 interface ReviewMobileProps {
@@ -8,6 +10,8 @@ interface ReviewMobileProps {
   isError: boolean;
   approvalTab: "pending" | "reviewed";
   onTabChange: (tab: "pending" | "reviewed") => void;
+  currentWeek: string;
+  onWeekChange: (week: string) => void;
 }
 
 export function ReviewMobile({
@@ -16,6 +20,8 @@ export function ReviewMobile({
   isError,
   approvalTab,
   onTabChange,
+  currentWeek,
+  onWeekChange,
 }: ReviewMobileProps) {
   const counts = useMemo(
     () => ({
@@ -45,6 +51,14 @@ export function ReviewMobile({
             </button>
           ))}
         </div>
+        {approvalTab === "reviewed" && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {currentWeek} 至 {getTimesheetPeriodEnd(currentWeek)}
+            </span>
+            <WeekNavigator currentWeek={currentWeek} onWeekChange={onWeekChange} />
+          </div>
+        )}
       </div>
 
       {isLoading && (

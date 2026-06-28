@@ -51,6 +51,8 @@ export const statusText: Record<string, string> = {
   submitted: "已提交",
   approved: "已通过",
   rejected: "已退回",
+  revision_required: "待重新提交",
+  needs_reapproval: "待重新审批",
   locked: "已锁定",
   summarized: "已汇总",
 };

@@ -378,7 +378,7 @@ export function LoginScreen() {
     <div className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-[radial-gradient(circle_at_22%_20%,rgba(180,154,141,0.22),transparent_34%),radial-gradient(circle_at_84%_12%,rgba(159,179,187,0.28),transparent_31%),linear-gradient(135deg,#e7ebe6_0%,#f3f2ed_46%,#e4ebe9_100%)] p-5">
       <LayeredWaveBackground />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(37,48,51,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(37,48,51,0.04)_1px,transparent_1px)] bg-[length:22px_22px] opacity-[0.18] mix-blend-multiply [mask-image:radial-gradient(circle_at_center,black_0%,transparent_76%)]" />
-      <div className="relative w-full max-w-[420px] rounded-lg border border-[rgba(68,82,82,0.16)] bg-white/70 p-6 text-[#253033] shadow-[0_24px_70px_rgba(36,47,48,0.16)] backdrop-blur-[22px] backdrop-saturate-[1.02]">
+      <div className="relative w-full max-w-[420px] rounded-lg border border-border/80 bg-card/80 p-6 text-card-foreground shadow-float backdrop-blur-[22px] backdrop-saturate-[1.02] dark:bg-card/85 dark:shadow-[0_24px_70px_rgba(0,0,0,0.38)]">
         <div className="mb-5 flex justify-center">
           <Brand />
         </div>
@@ -396,7 +396,7 @@ export function LoginScreen() {
           onChange={(event) => setLoginName(event.target.value)}
           onKeyDown={handleLoginKeyDown}
           onInput={() => setLoginError("")}
-          className="mb-3 h-10 border-[rgba(72,86,87,0.2)] bg-white/60 focus-visible:border-[rgba(115,139,135,0.78)] focus-visible:bg-white/85 focus-visible:ring-[rgba(115,139,135,0.13)]"
+          className="mb-3 h-10 bg-background/65 focus-visible:bg-card dark:bg-input/30 dark:focus-visible:bg-input/45"
         />
 
         <Label htmlFor="loginPassword" className="mb-1 block text-sm">
@@ -411,7 +411,7 @@ export function LoginScreen() {
           onChange={setLoginPassword}
           onKeyDown={handleLoginKeyDown}
           onInput={() => setLoginError("")}
-          className="mb-3 [&_input]:h-10 [&_input]:border-[rgba(72,86,87,0.2)] [&_input]:bg-white/60 [&_input]:focus-visible:border-[rgba(115,139,135,0.78)] [&_input]:focus-visible:bg-white/85 [&_input]:focus-visible:ring-[rgba(115,139,135,0.13)]"
+          className="mb-3 [&_input]:h-10 [&_input]:bg-background/65 [&_input]:focus-visible:bg-card dark:[&_input]:bg-input/30 dark:[&_input]:focus-visible:bg-input/45"
         />
 
         {loginError && <p className="mb-3 text-sm text-destructive">{loginError}</p>}

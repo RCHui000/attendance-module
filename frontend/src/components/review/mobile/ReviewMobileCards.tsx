@@ -49,6 +49,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
   const inProgressTitle = isAdmin ? "流转中可见（无需处理）" : "流转中（未轮到我）";
 
   const pendingWeeks = useMemo(() => groupByWeek(data.timesheets), [data.timesheets]);
+  const reviewedWeeks = useMemo(() => groupByWeek(data.reviewed), [data.reviewed]);
   const inProgress = useMemo(() => data.inProgress || [], [data.inProgress]);
   const inProgressWeeks = useMemo(() => groupByWeek(inProgress), [inProgress]);
   const hasPending = data.timesheets.length > 0 || inProgress.length > 0 || data.overtime.length > 0;
@@ -92,7 +93,7 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
             <section key={week} className="space-y-2">
               <SectionTitle
                 title={`${week} 至 ${getTimesheetPeriodEnd(week)}`}
-                meta={pendingGroupMeta(items)}
+                meta={taskGroupMeta(items, "待处理节点")}
               />
               <div className="space-y-2">
                 {items.map((item) => {
@@ -175,34 +176,38 @@ export function ReviewMobileCards({ data, approvalTab }: ReviewMobileCardsProps)
           <EmptyState title="暂无已审批记录" description="处理后的周表和加班记录会显示在这里。" />
         )}
 
-        {approvalTab === "reviewed" && data.reviewed.length > 0 && (
-          <section className="space-y-2">
-            <SectionTitle title="已审批周表" meta={`${data.reviewed.length} 份`} />
-            <div className="space-y-2">
-              {data.reviewed.map((item) => {
-                const itemKey = taskKey(item);
-                const isExpanded = expandedKey === itemKey;
-                return (
-                  <TimesheetCard
-                    key={itemKey}
-                    item={item}
-                    mode="reviewed"
-                    isExpanded={isExpanded}
-                    onToggle={() => setExpandedKey(isExpanded ? null : itemKey)}
-                    onReopen={() =>
-                      reviewAction.mutate({
-                        timesheetId: item.timesheet_id,
-                        action: "reopen",
-                        comment: "重新打开",
-                      })
-                    }
-                    actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
-                  />
-                );
-              })}
-            </div>
-          </section>
-        )}
+        {approvalTab === "reviewed" &&
+          reviewedWeeks.map(([week, items]) => (
+            <section key={`reviewed-${week}`} className="space-y-2">
+              <SectionTitle
+                title={`${week} 至 ${getTimesheetPeriodEnd(week)}`}
+                meta={taskGroupMeta(items, "审核节点")}
+              />
+              <div className="space-y-2">
+                {items.map((item) => {
+                  const itemKey = taskKey(item);
+                  const isExpanded = expandedKey === itemKey;
+                  return (
+                    <TimesheetCard
+                      key={itemKey}
+                      item={item}
+                      mode="reviewed"
+                      isExpanded={isExpanded}
+                      onToggle={() => setExpandedKey(isExpanded ? null : itemKey)}
+                      onReopen={() =>
+                        reviewAction.mutate({
+                          timesheetId: item.timesheet_id,
+                          action: "reopen",
+                          comment: "重新打开",
+                        })
+                      }
+                      actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          ))}
 
         {approvalTab === "reviewed" && data.overtimeReviewed.length > 0 && (
           <section className="space-y-2">
@@ -277,7 +282,7 @@ function TimesheetCard({
   const variant =
     item.status === "approved"
       ? ("success" as const)
-      : item.status === "rejected"
+      : item.status === "rejected" || item.status === "revision_required"
         ? ("destructive" as const)
         : ("secondary" as const);
 
@@ -454,14 +459,14 @@ function EmptyState({ title, description }: { title: string; description: string
   );
 }
 
-function pendingGroupMeta(items: ApprovalTaskItem[]) {
+function taskGroupMeta(items: Array<ApprovalTaskItem | ReviewedTaskItem>, nodeLabel: string) {
   const sheetCount = new Set(items.map((item) => item.timesheet_id)).size;
   if (items.length === sheetCount) return `${sheetCount} 份周表`;
-  return `${items.length} 个待处理节点 / ${sheetCount} 份周表`;
+  return `${items.length} 个${nodeLabel} / ${sheetCount} 份周表`;
 }
 
-function groupByWeek(items: ApprovalTaskItem[]) {
-  const grouped = new Map<string, ApprovalTaskItem[]>();
+function groupByWeek<T extends { week_start_date: string }>(items: T[]) {
+  const grouped = new Map<string, T[]>();
   for (const item of items) {
     if (!grouped.has(item.week_start_date)) grouped.set(item.week_start_date, []);
     grouped.get(item.week_start_date)!.push(item);

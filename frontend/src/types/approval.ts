@@ -68,6 +68,7 @@ export interface TimesheetDetail {
   department: string;
   week_start_date: string;
   status: string;
+  approval_status?: string;
   remark: string;
   days: string[];
   entries: TimesheetDetailEntry[];

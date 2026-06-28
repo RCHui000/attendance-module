@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getAssigneeAuditSummary } from "@/lib/approvalAudit";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval";
 
 interface ApprovalChainProps {
@@ -146,6 +147,10 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
   const hint = nodeHint(node, nodeNumber, blockingNodes);
   const projects = projectRows(node);
   const showSummaryRow = isDepartmentSummaryNode(node) && projects.length === 0;
+  const auditAssignees = fallbackAssignees(node).filter((assignee) => {
+    const name = assigneeKey(assignee);
+    return Boolean(name && name !== "员工 0");
+  });
 
   return (
     <div
@@ -205,6 +210,43 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
                     >
                       {readableStatus(rowStatus)}
                     </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+        {auditAssignees.length ? (
+          <div className="space-y-1">
+            <div className="text-muted-foreground">审批记录</div>
+            <div className="space-y-1">
+              {auditAssignees.map((assignee) => {
+                const name = assigneeKey(assignee);
+                const summary = getAssigneeAuditSummary(assignee);
+                return (
+                  <div
+                    key={`${name}-${assignee.action || assignee.status || "pending"}-${assignee.acted_at || "no-time"}`}
+                    className="rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5"
+                  >
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="min-w-0 break-words text-foreground">{name}</span>
+                      <Badge
+                        variant={statusVariant[assignee.status] || "secondary"}
+                        className="whitespace-normal text-center text-[10px] leading-4"
+                      >
+                        {summary.actionLabel}
+                      </Badge>
+                      {summary.timeLabel ? (
+                        <span className="text-[11px] tabular-nums text-muted-foreground">
+                          {summary.timeLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                    {summary.commentLabel ? (
+                      <p className="mt-1 break-words text-[11px] leading-4 text-muted-foreground">
+                        {summary.commentLabel}
+                      </p>
+                    ) : null}
                   </div>
                 );
               })}

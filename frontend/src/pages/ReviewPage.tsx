@@ -5,7 +5,7 @@ import { ReviewDesktop } from "@/pages/review/ReviewDesktop";
 import { ReviewMobile } from "@/pages/review/ReviewMobile";
 
 export default function ReviewPage() {
-  const { currentWeek, approvalTab, setApprovalTab } = useAppStore();
+  const { currentWeek, setCurrentWeek, approvalTab, setApprovalTab } = useAppStore();
   const isMobile = useIsMobile();
   const { data, isLoading, isError } = useApprovalTasks(currentWeek);
 
@@ -17,6 +17,8 @@ export default function ReviewPage() {
         isError={isError}
         approvalTab={approvalTab}
         onTabChange={setApprovalTab}
+        currentWeek={currentWeek}
+        onWeekChange={setCurrentWeek}
       />
     );
   }
@@ -28,6 +30,8 @@ export default function ReviewPage() {
       isError={isError}
       approvalTab={approvalTab}
       onTabChange={setApprovalTab}
+      currentWeek={currentWeek}
+      onWeekChange={setCurrentWeek}
     />
   );
 }

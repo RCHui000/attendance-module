@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
+import { WeekNavigator } from "@/components/timesheet/WeekNavigator";
 import { getTimesheetPeriodEnd } from "@/utils/dates";
 import {
   AlertDialog,
@@ -37,12 +38,16 @@ interface ApprovalTableProps {
   data: ApprovalTasks;
   approvalTab: "pending" | "reviewed";
   onTabChange: (tab: "pending" | "reviewed") => void;
+  currentWeek: string;
+  onWeekChange: (week: string) => void;
 }
 
 export function ApprovalTable({
   data,
   approvalTab,
   onTabChange,
+  currentWeek,
+  onWeekChange,
 }: ApprovalTableProps) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<{
@@ -132,25 +137,34 @@ export function ApprovalTable({
   return (
     <>
       <div className="flex min-h-[calc(100vh-9.5rem)] min-w-0 max-w-full flex-col overflow-hidden">
-        <div className="mb-3 flex shrink-0 items-center justify-between">
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
           <SegmentedPill
             value={approvalTab}
             items={approvalTabs}
             onChange={onTabChange}
             ariaLabel="审批状态"
           />
-          <span className="text-xs text-muted-foreground">
-            {approvalTab === "pending"
-              ? "处理待审批周表和加班 OT"
-              : "查看已处理的审批记录"}
-          </span>
+          {approvalTab === "reviewed" ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {currentWeek} 至 {getTimesheetPeriodEnd(currentWeek)}
+              </span>
+              <WeekNavigator currentWeek={currentWeek} onWeekChange={onWeekChange} />
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              处理待审批周表和加班 OT
+            </span>
+          )}
         </div>
 
         {/* Timesheet approval */}
         <div className="mb-4 flex min-h-[420px] flex-1 flex-col">
           <div className="mb-2 flex shrink-0 items-center gap-2">
             <strong className="text-sm">周表</strong>
-            <span className="text-xs text-muted-foreground">待处理节点 / 流转中可见</span>
+            <span className="text-xs text-muted-foreground">
+              {approvalTab === "pending" ? "待处理节点 / 流转中可见" : "按周聚合的已审核记录"}
+            </span>
           </div>
 
           {approvalTab === "pending" && (
@@ -195,7 +209,7 @@ export function ApprovalTable({
                                 {week} 至 {weekEnd}
                               </span>
                               <span className="text-xs text-muted-foreground ml-2">
-                                {pendingGroupMeta(items)}
+                                {taskGroupMeta(items, "待处理节点")}
                               </span>
                             </TableCell>
                           </TableRow>,
@@ -295,28 +309,45 @@ export function ApprovalTable({
                         </TableCell>
                       </TableRow>
                     )}
-                    {data.reviewed.map((item) => {
-                      const itemKey = `reviewed-${getTaskKey(item)}`;
-                      const isExpanded = expandedKey === itemKey;
+                    {groupByWeek(data.reviewed).map(([week, items]) => {
+                      const weekEnd = getTimesheetPeriodEnd(week);
                       return (
-                        <Fragment key={itemKey}>
-                          <ReviewedRow
-                            item={item}
-                            isExpanded={isExpanded}
-                            actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
-                            onToggle={() =>
-                              setExpandedKey(isExpanded ? null : itemKey)
-                            }
-                            onReopen={handleReopen}
-                          />
-                          {isExpanded && (
-                            <ExpandedReviewRow
-                              key={`detail-${itemKey}`}
-                              timesheetId={item.timesheet_id}
-                              projectId={item.project_id || null}
-                              colSpan={7}
-                            />
-                          )}
+                        <Fragment key={`reviewed-week-${week}`}>
+                          <TableRow className="bg-table-header hover:bg-table-header">
+                            <TableCell colSpan={7} className="py-1.5 px-3">
+                              <span className="text-xs font-bold text-muted-foreground">
+                                {week} 至 {weekEnd}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {taskGroupMeta(items, "审核节点")}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                          {items.map((item) => {
+                            const itemKey = `reviewed-${getTaskKey(item)}`;
+                            const isExpanded = expandedKey === itemKey;
+                            return (
+                              <Fragment key={itemKey}>
+                                <ReviewedRow
+                                  item={item}
+                                  isExpanded={isExpanded}
+                                  actionPending={reviewActionMatchesItem(pendingReviewAction, item)}
+                                  onToggle={() =>
+                                    setExpandedKey(isExpanded ? null : itemKey)
+                                  }
+                                  onReopen={handleReopen}
+                                />
+                                {isExpanded && (
+                                  <ExpandedReviewRow
+                                    key={`detail-${itemKey}`}
+                                    timesheetId={item.timesheet_id}
+                                    projectId={item.project_id || null}
+                                    colSpan={7}
+                                  />
+                                )}
+                              </Fragment>
+                            );
+                          })}
                         </Fragment>
                       );
                     })}
@@ -331,7 +362,9 @@ export function ApprovalTable({
         <div className="mt-auto shrink-0">
           <div className="mb-2 flex items-center gap-2">
             <strong className="text-sm">加班 OT</strong>
-            <span className="text-xs text-muted-foreground">待处理</span>
+            <span className="text-xs text-muted-foreground">
+              {approvalTab === "pending" ? "待处理" : "已审核"}
+            </span>
           </div>
 
           <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
@@ -343,18 +376,20 @@ export function ApprovalTable({
                     <TableHead className="text-xs font-bold">日期</TableHead>
                     <TableHead className="text-xs font-bold text-right">加班时数</TableHead>
                     <TableHead className="text-xs font-bold">原因</TableHead>
-                    <TableHead className="text-xs font-bold text-right">操作</TableHead>
+                    <TableHead className="text-xs font-bold text-right">
+                      {approvalTab === "pending" ? "操作" : "结果"}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.overtime.length === 0 && (
+                  {(approvalTab === "pending" ? data.overtime : data.overtimeReviewed).length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground text-sm py-6">
-                        暂无待审批加班
+                        {approvalTab === "pending" ? "暂无待审批加班" : "暂无已审核加班"}
                       </TableCell>
                     </TableRow>
                   )}
-                  {data.overtime.map((item) => (
+                  {(approvalTab === "pending" ? data.overtime : data.overtimeReviewed).map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="text-sm font-medium">
                         {item.user_name}
@@ -367,26 +402,41 @@ export function ApprovalTable({
                         {item.reason || "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-success"
-                            disabled={overtimeActionMatchesItem(pendingOvertimeAction, item.id)}
-                            onClick={() => handleOTApprove(item.id)}
+                        {approvalTab === "pending" ? (
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-success"
+                              disabled={overtimeActionMatchesItem(pendingOvertimeAction, item.id)}
+                              onClick={() => handleOTApprove(item.id)}
+                            >
+                              <Check className="size-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-destructive"
+                              disabled={overtimeActionMatchesItem(pendingOvertimeAction, item.id)}
+                              onClick={() => handleOTReject(item.id)}
+                            >
+                              <X className="size-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Badge
+                            variant={
+                              item.status === "approved"
+                                ? "success"
+                                : item.status === "rejected"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                            className="text-xs"
                           >
-                            <Check className="size-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-destructive"
-                            disabled={overtimeActionMatchesItem(pendingOvertimeAction, item.id)}
-                            onClick={() => handleOTReject(item.id)}
-                          >
-                            <X className="size-3" />
-                          </Button>
-                        </div>
+                            {statusText[item.status] || item.status}
+                          </Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -460,10 +510,19 @@ export function ApprovalTable({
   );
 }
 
-function pendingGroupMeta(items: ApprovalTaskItem[]) {
+function taskGroupMeta(items: Array<ApprovalTaskItem | ReviewedTaskItem>, nodeLabel: string) {
   const sheetCount = new Set(items.map((item) => item.timesheet_id)).size;
   if (items.length === sheetCount) return `${sheetCount} 份周表`;
-  return `${items.length} 个待处理节点 / ${sheetCount} 份周表`;
+  return `${items.length} 个${nodeLabel} / ${sheetCount} 份周表`;
+}
+
+function groupByWeek<T extends { week_start_date: string }>(items: T[]) {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    if (!grouped.has(item.week_start_date)) grouped.set(item.week_start_date, []);
+    grouped.get(item.week_start_date)!.push(item);
+  }
+  return Array.from(grouped.entries());
 }
 
 /** Pending row sub-component */
@@ -637,7 +696,7 @@ function ReviewedRow({
   const variant =
     status === "approved"
       ? ("success" as const)
-      : status === "rejected"
+      : status === "rejected" || status === "revision_required"
         ? ("destructive" as const)
         : ("secondary" as const);
 

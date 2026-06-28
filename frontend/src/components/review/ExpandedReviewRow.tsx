@@ -26,6 +26,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
     data &&
     (data.approval_chain_error || (data.status === "submitted" && !data.approval_chain?.length)),
   );
+  const displayStatus = data?.approval_status || data?.status || "";
 
   return (
     <tr className="hover:bg-transparent">
@@ -64,15 +65,15 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                 )}
                 <Badge
                   variant={
-                    data.status === "approved"
+                    displayStatus === "approved"
                       ? "success"
-                      : data.status === "rejected"
+                      : displayStatus === "rejected" || displayStatus === "revision_required"
                         ? "destructive"
                         : "secondary"
                   }
                   className="text-[10px] ml-auto"
                 >
-                  {statusText[data.status] || data.status}
+                  {statusText[displayStatus] || displayStatus}
                 </Badge>
               </div>
 

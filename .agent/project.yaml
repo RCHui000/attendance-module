@@ -17,5 +17,6 @@ targets:
     risk: medium
   cloud-prod:
     kind: cloud
+    binding: timesheet.cloud-prod
     risk: high
     require_confirm: true

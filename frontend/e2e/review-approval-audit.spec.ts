@@ -3,6 +3,7 @@ import {
   deriveApprovalDisplayStatus,
   formatApprovalAuditTime,
   getAssigneeAuditSummary,
+  isFinalReviewedTimesheetStatus,
 } from "../src/components/review/approvalAudit";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "../src/types/approval";
 
@@ -20,9 +21,9 @@ function node(status: string): ApprovalChainNode {
 }
 
 test.describe("review approval audit helpers", () => {
-  test("shows revision required when an approved sheet has a rejected graph node", () => {
+  test("keeps final reviewed status even when historical graph nodes include rejection", () => {
     expect(deriveApprovalDisplayStatus("approved", [node("approved"), node("rejected")])).toBe(
-      "revision_required",
+      "approved",
     );
   });
 
@@ -34,6 +35,20 @@ test.describe("review approval audit helpers", () => {
 
   test("keeps submitted when submitted sheet has an active graph node", () => {
     expect(deriveApprovalDisplayStatus("submitted", [node("active")])).toBe("submitted");
+  });
+
+  test("shows revision required only for non-final sheets with rejected graph nodes", () => {
+    expect(deriveApprovalDisplayStatus("submitted", [node("rejected"), node("waiting")])).toBe(
+      "revision_required",
+    );
+  });
+
+  test("identifies only final timesheet states as reviewed-list eligible", () => {
+    expect(isFinalReviewedTimesheetStatus("approved")).toBe(true);
+    expect(isFinalReviewedTimesheetStatus("locked")).toBe(true);
+    expect(isFinalReviewedTimesheetStatus("summarized")).toBe(true);
+    expect(isFinalReviewedTimesheetStatus("submitted")).toBe(false);
+    expect(isFinalReviewedTimesheetStatus("revision_required")).toBe(false);
   });
 
   test("formats assignee action, audit time, and comment without inventing missing time", () => {

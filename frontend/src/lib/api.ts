@@ -1,6 +1,6 @@
 import { getStoredToken, clearStoredToken } from "./supabase";
 import { accessRank, decodeJwt, payload, rest, type AnyRow } from "./restClient";
-import { deriveApprovalDisplayStatus } from "@/lib/approvalAudit";
+import { deriveApprovalDisplayStatus, isFinalReviewedTimesheetStatus } from "@/lib/approvalAudit";
 import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
 import { effectiveOrgColorToken } from "@/utils/orgTree";
 import type { Organization } from "@/types/employee";
@@ -8,8 +8,6 @@ import type { Organization } from "@/types/employee";
 const CLIENT_ID = crypto.randomUUID
   ? crypto.randomUUID()
   : `${Date.now()}-${Math.random()}`;
-
-const REPORTABLE_TIMESHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
 
 function todayMonday(): string {
   return timesheetPeriodStartOfDate(isoDate(new Date()));
@@ -146,7 +144,7 @@ async function approvalNodeStatusesBySheet(sheetIds: number[]) {
 }
 
 function isReportableTimesheet(sheet?: AnyRow | null): sheet is AnyRow {
-  return !!sheet && REPORTABLE_TIMESHEET_STATUSES.has(String(sheet.status || ""));
+  return !!sheet && isFinalReviewedTimesheetStatus(String(sheet.status || ""));
 }
 
 function inferProjectBusinessType(code?: string | null): "PM" | "CC" | "PMCC" | null {
@@ -993,7 +991,7 @@ async function approvalTasks(
     .map(({ task, sheet }) => toItem(sheet, task));
   const reviewed = latestReviewed
     .map((task) => ({ task, sheet: sheetMap.get(Number(task.target_id)) }))
-    .filter((item): item is { task: AnyRow; sheet: AnyRow } => !!item.sheet)
+    .filter((item): item is { task: AnyRow; sheet: AnyRow } => isReportableTimesheet(item.sheet))
     .sort((a, b) => (b.task.completed_at || "").localeCompare(a.task.completed_at || ""))
     .map(({ task, sheet }) => toItem(sheet, task));
   const pendingSheetSet = new Set(pending.map((item) => Number(item.timesheet_id)));

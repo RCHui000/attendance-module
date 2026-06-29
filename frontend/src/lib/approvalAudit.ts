@@ -7,7 +7,10 @@ type ApprovalNodeLike = {
 const FINAL_SHEET_STATUSES = new Set(["approved", "locked", "summarized"]);
 const SHEET_STATUS_PRIORITY = new Set(["draft", "rejected", "revision_required"]);
 const WAITING_GRAPH_STATUSES = new Set(["active", "waiting", "pending"]);
-const TERMINAL_GRAPH_STATUSES = new Set(["approved", "skipped", "cancelled"]);
+
+export function isFinalReviewedTimesheetStatus(status?: string | null) {
+  return FINAL_SHEET_STATUSES.has(String(status || ""));
+}
 
 const actionLabels: Record<string, string> = {
   approve: "已通过",
@@ -44,6 +47,7 @@ export function deriveApprovalDisplayStatus(
 ) {
   const normalizedSheetStatus = String(sheetStatus || "");
   if (SHEET_STATUS_PRIORITY.has(normalizedSheetStatus)) return normalizedSheetStatus;
+  if (isFinalReviewedTimesheetStatus(normalizedSheetStatus)) return normalizedSheetStatus;
 
   const statuses = nodes.map((node) => String(node.node_status || "")).filter(Boolean);
   if (statuses.includes("rejected")) return "revision_required";
@@ -53,13 +57,6 @@ export function deriveApprovalDisplayStatus(
     statuses.some((status) => WAITING_GRAPH_STATUSES.has(status))
   ) {
     return "submitted";
-  }
-  if (
-    FINAL_SHEET_STATUSES.has(normalizedSheetStatus) &&
-    statuses.length > 0 &&
-    statuses.every((status) => TERMINAL_GRAPH_STATUSES.has(status))
-  ) {
-    return normalizedSheetStatus;
   }
   return normalizedSheetStatus;
 }

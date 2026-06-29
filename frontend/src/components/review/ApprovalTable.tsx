@@ -10,7 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
-import { WeekNavigator } from "@/components/timesheet/WeekNavigator";
+import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import type { PeriodType } from "@/components/dashboard/periodUtils";
 import { getTimesheetPeriodEnd } from "@/utils/dates";
 import {
   AlertDialog,
@@ -40,14 +41,32 @@ interface ApprovalTableProps {
   onTabChange: (tab: "pending" | "reviewed") => void;
   currentWeek: string;
   onWeekChange: (week: string) => void;
+  reviewPeriodType: PeriodType;
+  onReviewPeriodTypeChange: (type: PeriodType) => void;
+  reviewYear: number;
+  onReviewYearChange: (year: number) => void;
+  reviewMonth: number;
+  onReviewMonthChange: (month: number) => void;
+  reviewQuarter: number;
+  onReviewQuarterChange: (quarter: number) => void;
+  reviewWeekStart: string;
+  onReviewWeekStartChange: (week: string) => void;
 }
 
 export function ApprovalTable({
   data,
   approvalTab,
   onTabChange,
-  currentWeek,
-  onWeekChange,
+  reviewPeriodType,
+  onReviewPeriodTypeChange,
+  reviewYear,
+  onReviewYearChange,
+  reviewMonth,
+  onReviewMonthChange,
+  reviewQuarter,
+  onReviewQuarterChange,
+  reviewWeekStart,
+  onReviewWeekStartChange,
 }: ApprovalTableProps) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<{
@@ -146,10 +165,18 @@ export function ApprovalTable({
           />
           {approvalTab === "reviewed" ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                {currentWeek} 至 {getTimesheetPeriodEnd(currentWeek)}
-              </span>
-              <WeekNavigator currentWeek={currentWeek} onWeekChange={onWeekChange} />
+              <PeriodFilter
+                periodType={reviewPeriodType}
+                year={reviewYear}
+                month={reviewMonth}
+                quarter={reviewQuarter}
+                weekStart={reviewWeekStart}
+                onPeriodTypeChange={onReviewPeriodTypeChange}
+                onYearChange={onReviewYearChange}
+                onMonthChange={onReviewMonthChange}
+                onQuarterChange={onReviewQuarterChange}
+                onWeekStartChange={onReviewWeekStartChange}
+              />
             </div>
           ) : (
             <span className="text-xs text-muted-foreground">

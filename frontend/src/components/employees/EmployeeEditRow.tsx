@@ -27,6 +27,7 @@ interface EmployeeEditData {
   contractMonths: string;
   managerUserId: string;
   status: "active" | "terminated";
+  auditScopeOrgIds: string[];
 }
 
 export type { EmployeeEditData };
@@ -155,6 +156,19 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
     [onChange],
   );
 
+  const toggleAuditScopeOrg = useCallback(
+    (orgId: string) => {
+      const selected = new Set(data.auditScopeOrgIds || []);
+      if (selected.has(orgId)) {
+        selected.delete(orgId);
+      } else {
+        selected.add(orgId);
+      }
+      onChange({ auditScopeOrgIds: Array.from(selected) });
+    },
+    [data.auditScopeOrgIds, onChange],
+  );
+
   const salaryField =
     data.contractType === "service" ? (
       <Input
@@ -212,7 +226,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent layer="modal">
             <SelectItem value="employee">员工</SelectItem>
             <SelectItem value="lead">基层负责人</SelectItem>
             <SelectItem value="manager">主管</SelectItem>
@@ -227,7 +241,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue placeholder="部门" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent layer="modal">
             {departmentOrgs.map((org) => (
               <SelectItem key={org.id} value={String(org.id)}>
                 {orgOptionLabel(org)}
@@ -253,7 +267,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
             <SelectTrigger className="h-9 w-full text-sm" aria-label="造价岗位">
               <SelectValue placeholder="岗位" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent layer="modal">
               <SelectItem value="none">未设</SelectItem>
               <SelectItem value="civil">土建</SelectItem>
               <SelectItem value="mep">机电</SelectItem>
@@ -276,7 +290,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent layer="modal">
             <SelectItem value="labor">劳动合同</SelectItem>
             <SelectItem value="service">劳务合同</SelectItem>
           </SelectContent>
@@ -313,7 +327,7 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
           <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent layer="modal">
             <SelectItem value="active">在职</SelectItem>
             <SelectItem value="terminated">离职</SelectItem>
           </SelectContent>
@@ -331,6 +345,31 @@ export const EmployeeEditRow = memo(function EmployeeEditRow({
               : "-"}
           </span>
         </div>
+
+        <Field label="审批审计可见范围" className="sm:col-span-2">
+          <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-card p-2">
+            {departmentOrgs.map((org) => {
+              const value = String(org.id);
+              return (
+                <label
+                  key={org.id}
+                  className="flex min-h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-muted/60"
+                >
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-input accent-primary"
+                    checked={(data.auditScopeOrgIds || []).includes(value)}
+                    onChange={() => toggleAuditScopeOrg(value)}
+                  />
+                  <span className="min-w-0 truncate">{orgOptionLabel(org)}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            仅增加已审核周表的只读可见范围，不产生待审批任务。
+          </p>
+        </Field>
       </div>
 
       <div className="-mx-4 -mb-4 flex justify-end gap-2 border-t bg-muted/40 px-4 py-3">

@@ -22,6 +22,7 @@ export interface Employee {
   is_active?: boolean;
   status: "active" | "terminated";
   standard_monthly_workdays: number;
+  audit_scope_org_ids?: number[];
 }
 
 export interface PermissionRole {

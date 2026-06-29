@@ -308,6 +308,17 @@ async function isAdmin(): Promise<boolean> {
   return user?.role === "admin";
 }
 
+function normalizeOrgIdList(value: unknown): number[] | null {
+  if (!Array.isArray(value)) return null;
+  return Array.from(
+    new Set(
+      value
+        .map((id) => Number(id || 0))
+        .filter(Boolean),
+    ),
+  );
+}
+
 async function currentUserCanAccessResource(resourceKey: string, minAccess = "read"): Promise<boolean> {
   const user = await currentUser();
   if (!user) return false;
@@ -315,14 +326,25 @@ async function currentUserCanAccessResource(resourceKey: string, minAccess = "re
 }
 
 async function listEmployees(): Promise<AnyRow[]> {
-  const [rows, rolesRows] = await Promise.all([
+  const [rows, rolesRows, auditScopeRows] = await Promise.all([
     rest<AnyRow[]>(
       "/hr_employee_current_view?select=*&order=employee_id.asc",
     ),
     rest<AnyRow[]>("/user_roles?select=employee_id,role"),
+    rest<AnyRow[]>("/approval_audit_scopes?select=employee_id,org_id&scope_type=eq.reviewed_timesheet&is_active=eq.true")
+      .catch(() => []),
   ]);
   const roleMap = new Map<number, string>();
   for (const r of rolesRows) roleMap.set(Number(r.employee_id), r.role);
+  const auditScopesByEmployee = new Map<number, number[]>();
+  for (const scope of auditScopeRows) {
+    const employeeId = Number(scope.employee_id);
+    const orgId = Number(scope.org_id);
+    if (!employeeId || !orgId) continue;
+    const ids = auditScopesByEmployee.get(employeeId) || [];
+    ids.push(orgId);
+    auditScopesByEmployee.set(employeeId, ids);
+  }
   return rows
     .map((row) => {
     const eid = Number(row.employee_id);
@@ -350,6 +372,7 @@ async function listEmployees(): Promise<AnyRow[]> {
       ? "terminated"
       : String(row.employment_status || "active").toLowerCase(),
     standard_monthly_workdays: Number(row.standard_monthly_workdays || 21.75),
+    audit_scope_org_ids: auditScopesByEmployee.get(eid) || [],
     };
   });
 }
@@ -815,29 +838,44 @@ async function timesheetAction(body: AnyRow): Promise<AnyRow> {
   });
 }
 
-async function approvalTasks(weekStart: string): Promise<AnyRow> {
+async function approvalTasks(
+  weekStart: string,
+  reviewStartDate?: string | null,
+  reviewEndDate?: string | null,
+): Promise<AnyRow> {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated");
   const admin = await isAdmin();
   const reviewedPeriodStart = timesheetPeriodStartOfDate(weekStart || todayMonday());
+  const reviewedStart = reviewStartDate || reviewedPeriodStart;
+  const reviewedEnd = reviewEndDate || reviewedPeriodStart;
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const reviewedTaskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const [reviewedPeriodSheets, graphPending, visibleRows, employees, employeeProfiles, organizations, entries] = await Promise.all([
-    rest<AnyRow[]>(`/timesheets?select=*&week_start_date=eq.${reviewedPeriodStart}`).catch(() => []),
+  const [reviewedPeriodSheets, graphPending, visibleRows, employees, employeeProfiles, organizations, entries, auditScopeRows] = await Promise.all([
+    rest<AnyRow[]>(`/timesheets?select=*&week_start_date=gte.${reviewedStart}&week_start_date=lte.${reviewedEnd}`).catch(() => []),
     rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
     rest<AnyRow[]>("/approval_visible_timesheets_view?select=*&order=submitted_at.asc").catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles?select=employee_id,org_id,organizations(org_name,color_token)"),
     rest<AnyRow[]>("/organizations?select=id,org_code,org_name,parent_id,org_type,color_token,status"),
     rest<AnyRow[]>("/timesheet_entries?select=timesheet_id,project_id,work_date,hours"),
+    admin
+      ? Promise.resolve([])
+      : rest<AnyRow[]>(`/approval_audit_scopes?select=org_id&employee_id=eq.${user.id}&scope_type=eq.reviewed_timesheet&is_active=eq.true`)
+        .catch(() => []),
   ]);
   const reviewedPeriodSheetIds = [...new Set(reviewedPeriodSheets.map((sheet: AnyRow) => Number(sheet.id)))].filter(Boolean);
   const reviewedTargetFilter = reviewedPeriodSheetIds.length
     ? `&target_id=in.(${reviewedPeriodSheetIds.join(",")})`
     : "&target_id=eq.-1";
-  const graphReviewed = await rest<AnyRow[]>(
-    `/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTaskFilter}${reviewedTargetFilter}`,
+  const reviewedOwnFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
+  const reviewedOwnPromise = rest<AnyRow[]>(
+    `/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedOwnFilter}${reviewedTargetFilter}`,
   ).catch(() => []);
+  const reviewedAuditPromise = !admin && auditScopeRows.length > 0
+    ? rest<AnyRow[]>(`/approval_reviewed_timesheets_view?select=*&target_type=eq.timesheet${reviewedTargetFilter}`).catch(() => [])
+    : Promise.resolve([]);
+  const [graphReviewedOwn, graphReviewedAudit] = await Promise.all([reviewedOwnPromise, reviewedAuditPromise]);
+  const graphReviewed = [...graphReviewedOwn, ...graphReviewedAudit];
   const tasks = graphPending.map(normalizedApprovalTask);
   const reviewedTasks = graphReviewed
     .map(normalizedApprovalTask)
@@ -1359,9 +1397,33 @@ async function saveOrganization(body: AnyRow): Promise<AnyRow> {
   return { ok: true, organizations: await organizations() };
 }
 
+async function saveEmployeeAuditScopes(employeeId: number, orgIds: number[] | null): Promise<void> {
+  if (!employeeId || orgIds == null) return;
+  await rest(`/approval_audit_scopes?employee_id=eq.${employeeId}&scope_type=eq.reviewed_timesheet`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  }).catch((error) => {
+    throw new Error(error instanceof Error ? error.message : "Failed to clear approval audit scopes");
+  });
+  if (!orgIds.length) return;
+  await rest("/approval_audit_scopes", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(
+      orgIds.map((orgId) => ({
+        employee_id: employeeId,
+        org_id: orgId,
+        scope_type: "reviewed_timesheet",
+        is_active: true,
+      })),
+    ),
+  });
+}
+
 async function saveEmployee(body: AnyRow): Promise<AnyRow> {
   const name = body.name || "";
   if (!name) throw new Error("Employee name is required");
+  const auditScopeOrgIds = normalizeOrgIdList(body.auditScopeOrgIds ?? body.audit_scope_org_ids);
 
   // New employee: single atomic endpoint
   if (!body.id) {
@@ -1375,9 +1437,13 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
     if (!resp.ok || !data.ok) {
       throw new Error(data.message || "Failed to create employee");
     }
+    const employeeId = Number(data.employee_id || data.employeeId || 0);
+    await saveEmployeeAuditScopes(employeeId, auditScopeOrgIds);
     // Return initial password to caller (UI can show it once)
     return {
       ok: true,
+      employeeId,
+      employee_id: employeeId,
       employees: await listEmployees(),
       loginName: data.login_name,
       initialPassword: data.initial_password,
@@ -1406,6 +1472,7 @@ async function saveEmployee(body: AnyRow): Promise<AnyRow> {
       },
     }),
   });
+  await saveEmployeeAuditScopes(id, auditScopeOrgIds);
   return { ok: true, employees: await listEmployees() };
 }
 
@@ -1459,7 +1526,13 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/timesheet-detail") return getTimesheetDetail(Number(url.searchParams.get("timesheetId") || 0)) as T;
   if (url.pathname === "/api/timesheet/save") return saveTimesheet(body) as T;
   if (url.pathname === "/api/timesheet/action") return timesheetAction(body) as T;
-  if (url.pathname === "/api/approvals/tasks") return approvalTasks(url.searchParams.get("weekStart") || todayMonday()) as T;
+  if (url.pathname === "/api/approvals/tasks") {
+    return approvalTasks(
+      url.searchParams.get("weekStart") || todayMonday(),
+      url.searchParams.get("reviewStartDate"),
+      url.searchParams.get("reviewEndDate"),
+    ) as T;
+  }
   if (url.pathname === "/api/reports/weekly") {
     const startDate = url.searchParams.get("startDate") || url.searchParams.get("weekStart") || todayMonday();
     const endDate = url.searchParams.get("endDate") || weekDays(startDate)[6];

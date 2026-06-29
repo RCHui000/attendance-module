@@ -1,7 +1,7 @@
 import { useMemo } from "react";
+import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { ReviewMobileCards } from "@/components/review/mobile/ReviewMobileCards";
-import { WeekNavigator } from "@/components/timesheet/WeekNavigator";
-import { getTimesheetPeriodEnd } from "@/utils/dates";
+import type { PeriodType } from "@/components/dashboard/periodUtils";
 import type { ApprovalTasks } from "@/types/approval";
 
 interface ReviewMobileProps {
@@ -12,6 +12,16 @@ interface ReviewMobileProps {
   onTabChange: (tab: "pending" | "reviewed") => void;
   currentWeek: string;
   onWeekChange: (week: string) => void;
+  reviewPeriodType: PeriodType;
+  onReviewPeriodTypeChange: (type: PeriodType) => void;
+  reviewYear: number;
+  onReviewYearChange: (year: number) => void;
+  reviewMonth: number;
+  onReviewMonthChange: (month: number) => void;
+  reviewQuarter: number;
+  onReviewQuarterChange: (quarter: number) => void;
+  reviewWeekStart: string;
+  onReviewWeekStartChange: (week: string) => void;
 }
 
 export function ReviewMobile({
@@ -20,8 +30,16 @@ export function ReviewMobile({
   isError,
   approvalTab,
   onTabChange,
-  currentWeek,
-  onWeekChange,
+  reviewPeriodType,
+  onReviewPeriodTypeChange,
+  reviewYear,
+  onReviewYearChange,
+  reviewMonth,
+  onReviewMonthChange,
+  reviewQuarter,
+  onReviewQuarterChange,
+  reviewWeekStart,
+  onReviewWeekStartChange,
 }: ReviewMobileProps) {
   const counts = useMemo(
     () => ({
@@ -52,11 +70,19 @@ export function ReviewMobile({
           ))}
         </div>
         {approvalTab === "reviewed" && (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              {currentWeek} 至 {getTimesheetPeriodEnd(currentWeek)}
-            </span>
-            <WeekNavigator currentWeek={currentWeek} onWeekChange={onWeekChange} />
+          <div className="mt-3 overflow-x-auto pb-1">
+            <PeriodFilter
+              periodType={reviewPeriodType}
+              year={reviewYear}
+              month={reviewMonth}
+              quarter={reviewQuarter}
+              weekStart={reviewWeekStart}
+              onPeriodTypeChange={onReviewPeriodTypeChange}
+              onYearChange={onReviewYearChange}
+              onMonthChange={onReviewMonthChange}
+              onQuarterChange={onReviewQuarterChange}
+              onWeekStartChange={onReviewWeekStartChange}
+            />
           </div>
         )}
       </div>

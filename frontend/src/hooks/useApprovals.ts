@@ -21,6 +21,11 @@ type OvertimeActionParams = {
   comment?: string;
 };
 
+type ApprovalTaskRangeParams = {
+  reviewStartDate?: string;
+  reviewEndDate?: string;
+};
+
 function invalidateLater(
   queryClient: ReturnType<typeof useQueryClient>,
   queryKeys: unknown[][],
@@ -31,11 +36,15 @@ function invalidateLater(
   }, delayMs);
 }
 
-export function useApprovalTasks(weekStart: string) {
+export function useApprovalTasks(weekStart: string, range: ApprovalTaskRangeParams = {}) {
+  const query = new URLSearchParams({ weekStart });
+  if (range.reviewStartDate) query.set("reviewStartDate", range.reviewStartDate);
+  if (range.reviewEndDate) query.set("reviewEndDate", range.reviewEndDate);
+
   return useQuery({
-    queryKey: ["approvals", weekStart],
+    queryKey: ["approvals", weekStart, range.reviewStartDate || "", range.reviewEndDate || ""],
     queryFn: () =>
-      api<ApprovalTasks>(`/api/approvals/tasks?weekStart=${weekStart}`),
+      api<ApprovalTasks>(`/api/approvals/tasks?${query.toString()}`),
     enabled: !!weekStart,
     staleTime: 10_000,
     select: (data) => ({

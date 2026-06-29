@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { PeriodType } from "@/components/dashboard/periodUtils";
 import { isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
 
 export type ViewType = "timesheet" | "leave" | "dashboard" | "review" | "report" | "employees" | "apps";
@@ -34,6 +35,16 @@ interface AppState {
   // Review state
   approvalTab: "pending" | "reviewed";
   setApprovalTab: (tab: "pending" | "reviewed") => void;
+  reviewPeriodType: PeriodType;
+  setReviewPeriodType: (type: PeriodType) => void;
+  reviewYear: number;
+  setReviewYear: (year: number) => void;
+  reviewMonth: number;
+  setReviewMonth: (month: number) => void;
+  reviewQuarter: number;
+  setReviewQuarter: (quarter: number) => void;
+  reviewWeekStart: string;
+  setReviewWeekStart: (week: string) => void;
 
   // Project editing
   editingProjectId: number | null;
@@ -71,6 +82,16 @@ export const useAppStore = create<AppState>((set) => ({
 
   approvalTab: "pending",
   setApprovalTab: (tab) => set({ approvalTab: tab }),
+  reviewPeriodType: "quarter",
+  setReviewPeriodType: (type) => set({ reviewPeriodType: type }),
+  reviewYear: new Date().getFullYear(),
+  setReviewYear: (year) => set({ reviewYear: year }),
+  reviewMonth: new Date().getMonth() + 1,
+  setReviewMonth: (month) => set({ reviewMonth: month }),
+  reviewQuarter: Math.floor(new Date().getMonth() / 3) + 1,
+  setReviewQuarter: (quarter) => set({ reviewQuarter: quarter }),
+  reviewWeekStart: timesheetPeriodStartOfDate(isoDate(new Date())),
+  setReviewWeekStart: (week) => set({ reviewWeekStart: week }),
 
   editingProjectId: null,
   setEditingProjectId: (id) => set({ editingProjectId: id }),

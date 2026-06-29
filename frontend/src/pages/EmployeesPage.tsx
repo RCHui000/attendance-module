@@ -70,6 +70,7 @@ const EMPTY_EDIT_DATA: EmployeeEditData = {
   contractMonths: "12",
   managerUserId: "",
   status: "active",
+  auditScopeOrgIds: [],
 };
 
 function inferCostSpecialty(positionName: string): string {
@@ -311,6 +312,7 @@ export default function EmployeesPage() {
         : "12",
       managerUserId: emp.manager_user_id ? String(emp.manager_user_id) : "",
       status: emp.status || "active",
+      auditScopeOrgIds: (emp.audit_scope_org_ids || []).map((orgId) => String(orgId)),
     }),
     [],
   );
@@ -455,6 +457,7 @@ export default function EmployeesPage() {
       status: editData.status,
       employmentType:
         editData.contractType === "service" ? "service" : "labor",
+      auditScopeOrgIds: editData.auditScopeOrgIds.map((orgId) => Number(orgId)).filter(Boolean),
     };
 
     try {

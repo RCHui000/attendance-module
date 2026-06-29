@@ -3,6 +3,7 @@ import { ApprovalFlowConfig } from "@/components/review/ApprovalFlowConfig";
 import { ApprovalTable } from "@/components/review/ApprovalTable";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { useAuthStore } from "@/stores/authStore";
+import type { PeriodType } from "@/components/dashboard/periodUtils";
 import type { ApprovalTasks } from "@/types/approval";
 
 interface ReviewDesktopProps {
@@ -13,6 +14,16 @@ interface ReviewDesktopProps {
   onTabChange: (tab: "pending" | "reviewed") => void;
   currentWeek: string;
   onWeekChange: (week: string) => void;
+  reviewPeriodType: PeriodType;
+  onReviewPeriodTypeChange: (type: PeriodType) => void;
+  reviewYear: number;
+  onReviewYearChange: (year: number) => void;
+  reviewMonth: number;
+  onReviewMonthChange: (month: number) => void;
+  reviewQuarter: number;
+  onReviewQuarterChange: (quarter: number) => void;
+  reviewWeekStart: string;
+  onReviewWeekStartChange: (week: string) => void;
 }
 
 export function ReviewDesktop({
@@ -23,6 +34,16 @@ export function ReviewDesktop({
   onTabChange,
   currentWeek,
   onWeekChange,
+  reviewPeriodType,
+  onReviewPeriodTypeChange,
+  reviewYear,
+  onReviewYearChange,
+  reviewMonth,
+  onReviewMonthChange,
+  reviewQuarter,
+  onReviewQuarterChange,
+  reviewWeekStart,
+  onReviewWeekStartChange,
 }: ReviewDesktopProps) {
   const { canAccess } = useAuthStore();
   const [pageTab, setPageTab] = useState<"tasks" | "templates">("tasks");
@@ -66,6 +87,16 @@ export function ReviewDesktop({
           onTabChange={onTabChange}
           currentWeek={currentWeek}
           onWeekChange={onWeekChange}
+          reviewPeriodType={reviewPeriodType}
+          onReviewPeriodTypeChange={onReviewPeriodTypeChange}
+          reviewYear={reviewYear}
+          onReviewYearChange={onReviewYearChange}
+          reviewMonth={reviewMonth}
+          onReviewMonthChange={onReviewMonthChange}
+          reviewQuarter={reviewQuarter}
+          onReviewQuarterChange={onReviewQuarterChange}
+          reviewWeekStart={reviewWeekStart}
+          onReviewWeekStartChange={onReviewWeekStartChange}
         />
       )}
     </div>

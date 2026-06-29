@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { ReviewMobileCards } from "@/components/review/mobile/ReviewMobileCards";
+import { ErrorState, RefreshBadge, SkeletonBlock } from "@/components/ui/feedback";
 import type { PeriodType } from "@/components/dashboard/periodUtils";
 import type { ApprovalTasks } from "@/types/approval";
 
 interface ReviewMobileProps {
   data?: ApprovalTasks;
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   approvalTab: "pending" | "reviewed";
   onTabChange: (tab: "pending" | "reviewed") => void;
@@ -27,6 +29,7 @@ interface ReviewMobileProps {
 export function ReviewMobile({
   data,
   isLoading,
+  isFetching,
   isError,
   approvalTab,
   onTabChange,
@@ -48,6 +51,8 @@ export function ReviewMobile({
     }),
     [data],
   );
+  const showInitialLoading = isLoading && !data;
+  const showRefreshError = isError && !!data;
 
   return (
     <div className="min-h-[calc(100vh-5rem)] bg-background pb-24">
@@ -69,6 +74,7 @@ export function ReviewMobile({
             </button>
           ))}
         </div>
+        <RefreshBadge show={isFetching && !!data} />
         {approvalTab === "reviewed" && (
           <div className="mt-3 overflow-x-auto pb-1">
             <PeriodFilter
@@ -87,22 +93,46 @@ export function ReviewMobile({
         )}
       </div>
 
-      {isLoading && (
-        <div className="py-16 text-center text-sm text-muted-foreground">加载中...</div>
+      {showInitialLoading && (
+        <ReviewMobileSkeleton />
       )}
 
-      {isError && (
-        <div className="py-16 text-center text-sm text-destructive">
-          数据加载失败，请稍后重试
-        </div>
+      {isError && !data && (
+        <ErrorState title="审批数据加载失败" description="请稍后重试，或检查网络连接。" />
       )}
 
-      {data && !isLoading && !isError && (
-        <ReviewMobileCards
-          data={data}
-          approvalTab={approvalTab}
-        />
+      {data && (
+        <>
+          {showRefreshError && (
+            <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              数据刷新失败，当前显示的是上一次可用数据。
+            </div>
+          )}
+          <ReviewMobileCards
+            data={data}
+            approvalTab={approvalTab}
+          />
+        </>
       )}
     </div>
+  );
+}
+
+function ReviewMobileSkeleton() {
+  return (
+    <section aria-label="审批中心加载中" className="space-y-3 pt-4">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="rounded-lg border border-border bg-card p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <SkeletonBlock className="h-4 w-32" />
+              <SkeletonBlock className="h-3 w-44" />
+            </div>
+            <SkeletonBlock className="h-5 w-14 rounded-full" />
+          </div>
+          <SkeletonBlock className="mt-4 h-8 w-full rounded-full" />
+        </div>
+      ))}
+    </section>
   );
 }

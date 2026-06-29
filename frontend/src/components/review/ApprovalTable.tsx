@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import { RefreshBadge } from "@/components/ui/feedback";
 import type { PeriodType } from "@/components/dashboard/periodUtils";
 import { getTimesheetPeriodEnd } from "@/utils/dates";
 import {
@@ -37,6 +38,7 @@ import { Check, X, Undo2, ChevronDown, ChevronRight } from "lucide-react";
 
 interface ApprovalTableProps {
   data: ApprovalTasks;
+  isFetching?: boolean;
   approvalTab: "pending" | "reviewed";
   onTabChange: (tab: "pending" | "reviewed") => void;
   currentWeek: string;
@@ -55,6 +57,7 @@ interface ApprovalTableProps {
 
 export function ApprovalTable({
   data,
+  isFetching = false,
   approvalTab,
   onTabChange,
   reviewPeriodType,
@@ -192,6 +195,7 @@ export function ApprovalTable({
             <span className="text-xs text-muted-foreground">
               {approvalTab === "pending" ? "待处理节点 / 流转中可见" : "按周聚合的已审核记录"}
             </span>
+            <RefreshBadge show={isFetching} />
           </div>
 
           {approvalTab === "pending" && (

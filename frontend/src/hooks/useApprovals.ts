@@ -47,6 +47,7 @@ export function useApprovalTasks(weekStart: string, range: ApprovalTaskRangePara
       api<ApprovalTasks>(`/api/approvals/tasks?${query.toString()}`),
     enabled: !!weekStart,
     staleTime: 10_000,
+    placeholderData: (previousData) => previousData,
     select: (data) => ({
       ...data,
       inProgress: data.inProgress || [],

@@ -30,7 +30,7 @@ export default function ReviewPage() {
     reviewQuarter,
     reviewWeekStart,
   );
-  const { data, isLoading, isError } = useApprovalTasks(currentWeek, {
+  const { data, isLoading, isFetching, isError } = useApprovalTasks(currentWeek, {
     reviewStartDate: reviewedPeriod.startDate,
     reviewEndDate: reviewedPeriod.endDate,
   });
@@ -52,6 +52,7 @@ export default function ReviewPage() {
       <ReviewMobile
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         isError={isError}
         approvalTab={approvalTab}
         onTabChange={setApprovalTab}
@@ -66,6 +67,7 @@ export default function ReviewPage() {
     <ReviewDesktop
       data={data}
       isLoading={isLoading}
+      isFetching={isFetching}
       isError={isError}
       approvalTab={approvalTab}
       onTabChange={setApprovalTab}

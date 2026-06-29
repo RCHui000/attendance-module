@@ -138,6 +138,12 @@ BEGIN
     EXECUTE 'ALTER FUNCTION public.current_user_can_audit_reviewed_timesheet(BIGINT) OWNER TO psa_admin';
   END IF;
 END $$;
+
+REVOKE ALL ON FUNCTION public.current_user_approval_audit_org_ids() FROM public, anon, authenticated;
+REVOKE ALL ON FUNCTION public.current_user_can_audit_employee(BIGINT) FROM public, anon, authenticated;
+REVOKE ALL ON FUNCTION public.current_user_can_audit_reviewed_timesheet(BIGINT) FROM public, anon, authenticated;
+REVOKE ALL ON FUNCTION public.psa_touch_approval_audit_scopes() FROM public, anon, authenticated;
+
 GRANT EXECUTE ON FUNCTION public.current_user_approval_audit_org_ids() TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.current_user_can_audit_employee(BIGINT) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.current_user_can_audit_reviewed_timesheet(BIGINT) TO authenticated, anon;

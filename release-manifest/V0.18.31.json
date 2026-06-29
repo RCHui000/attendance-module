@@ -1,0 +1,43 @@
+{
+  "version": "V0.18.31",
+  "released_at": "2026-06-29",
+  "base_version": "V0.18.30",
+  "commit": "tag:V0.18.31",
+  "summary": "Restrict approval audit scope configuration to admins and repair stale reviewed-timesheet revision node states.",
+  "database": {
+    "new_migrations": [
+      "129_restrict_approval_audit_scope_admin_write.sql",
+      "130_repair_final_timesheet_stale_revision_nodes.sql"
+    ],
+    "notes": [
+      "Approval audit scope writes are now restricted to platform admin role checks at the RLS layer.",
+      "Employee/system-management writers can no longer insert, update, or delete approval audit scopes.",
+      "Final approved, locked, or summarized timesheets with stale rejected/revision runtime nodes are repaired by cancelling only those stale node states while preserving assignee action history.",
+      "V0.18.30's manifest omitted migration 129 even though the tag includes it; this manifest records the complete migration set in the current release line."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.31",
+    "notes": [
+      "Non-admin employee editors no longer see approval audit scope controls.",
+      "Employee saves from non-admin users no longer send auditScopeOrgIds.",
+      "The frontend API rejects audit scope payloads from non-admin users as a defense-in-depth guard.",
+      "Approval-center reviewed-period refreshes keep previous data visible while showing refresh/loading feedback."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.31 and production VITE variables.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.31.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.31.",
+    "Run scripts/smoke-timesheet-withdraw.sql on the cloud host after deployment.",
+    "Run production RLS probes confirming manager audit-scope writes are rejected and admin writes are allowed in a rollback transaction."
+  ],
+  "known_warnings": [
+    "Vite may still warn that some chunks are larger than 500 kB.",
+    "Migration 130 is a one-time data repair and should be reviewed through its metadata marker if audit history needs inspection."
+  ]
+}

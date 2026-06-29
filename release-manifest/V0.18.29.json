@@ -1,0 +1,36 @@
+{
+  "version": "V0.18.29",
+  "released_at": "2026-06-29",
+  "base_version": "V0.18.28",
+  "commit": "tag:V0.18.29",
+  "summary": "Remove the out-of-scope NAS sync changes from the cloud release.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "Removes the NAS sync migration from the release stream.",
+      "Keeps approval audit scope migrations 127 and 128.",
+      "Production already applied 127 and 128; this release removes the app and assertion surface that referenced NAS sync."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.29",
+    "notes": [
+      "No additional frontend behavior changes beyond the approval audit visibility, reviewed period filter, and employee edit modal fixes.",
+      "The production bundle is rebuilt with VITE_APP_VERSION=V0.18.29."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.29.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.29.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.29.",
+    "Run scripts/smoke-timesheet-withdraw.sql on the cloud host after deployment."
+  ],
+  "known_warnings": [
+    "V0.18.28 deployed successfully at the app/container level but post-deploy checks failed on NAS sync grants.",
+    "Unit test command currently exits successfully with no matching test files."
+  ]
+}

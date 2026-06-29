@@ -1,0 +1,36 @@
+{
+  "version": "V0.18.32",
+  "released_at": "2026-06-29",
+  "base_version": "V0.18.31",
+  "commit": "tag:V0.18.32",
+  "summary": "Keep in-progress or returned timesheets out of the reviewed approvals list.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema, RLS, RPC, or data repair migrations are included.",
+      "Production diagnosis found 酒波 2026-06-08 was still submitted/running, so it should not appear as a final reviewed timesheet."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.32",
+    "notes": [
+      "Reviewed weekly timesheets now include only final statuses: approved, locked, or summarized.",
+      "Submitted, draft, rejected, or revision-required sheets with reviewer action history no longer appear in the reviewed tab.",
+      "Final timesheet statuses are trusted over historical graph-node rejection states when deriving display status."
+    ]
+  },
+  "verification": [
+    "Run npm --prefix frontend run test:e2e:prod -- --grep \"review approval audit helpers\".",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.32 and production VITE variables.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.32.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.32.",
+    "Verify 酒波 2026-06-08 remains submitted/running in the database but is no longer eligible for reviewed-list display."
+  ],
+  "known_warnings": [
+    "Returned or still-running approval chains remain visible through pending/in-progress flows where applicable.",
+    "Vite may still warn that some chunks are larger than 500 kB."
+  ]
+}

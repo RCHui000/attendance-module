@@ -1423,7 +1423,11 @@ async function saveEmployeeAuditScopes(employeeId: number, orgIds: number[] | nu
 async function saveEmployee(body: AnyRow): Promise<AnyRow> {
   const name = body.name || "";
   if (!name) throw new Error("Employee name is required");
+  const hasAuditScopeInput = body.auditScopeOrgIds != null || body.audit_scope_org_ids != null;
   const auditScopeOrgIds = normalizeOrgIdList(body.auditScopeOrgIds ?? body.audit_scope_org_ids);
+  if (hasAuditScopeInput && !(await isAdmin())) {
+    throw new Error("Only admin can configure approval audit scopes");
+  }
 
   // New employee: single atomic endpoint
   if (!body.id) {

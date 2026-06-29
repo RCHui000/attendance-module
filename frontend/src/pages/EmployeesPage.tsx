@@ -151,6 +151,7 @@ export default function EmployeesPage() {
   const canWriteSystem = canAccess("system_management", "write");
   const canReadPermissions = canAccess("permission_config", "read");
   const canWritePermissions = canAccess("permission_config", "write");
+  const canEditAuditScopes = currentUser?.role === "admin";
 
   useEffect(() => {
     if (!canReadSystem && !canReadPermissions) navigate("/timesheet", { replace: true });
@@ -457,8 +458,10 @@ export default function EmployeesPage() {
       status: editData.status,
       employmentType:
         editData.contractType === "service" ? "service" : "labor",
-      auditScopeOrgIds: editData.auditScopeOrgIds.map((orgId) => Number(orgId)).filter(Boolean),
     };
+    if (canEditAuditScopes) {
+      payload.auditScopeOrgIds = editData.auditScopeOrgIds.map((orgId) => Number(orgId)).filter(Boolean);
+    }
 
     try {
       const result = await saveEmployee.mutateAsync(payload) as {
@@ -484,7 +487,7 @@ export default function EmployeesPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存失败");
     }
-  }, [editData, editingId, employees, orgs, saveEmployee]);
+  }, [canEditAuditScopes, editData, editingId, employees, orgs, saveEmployee]);
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;
@@ -653,6 +656,7 @@ export default function EmployeesPage() {
               employees={employees}
               isNew={editingId === 0}
               canEditRole={canWritePermissions}
+              canEditAuditScopes={canEditAuditScopes}
               onChange={(update) =>
                 setEditData((prev) => {
                   if (!prev) return prev;

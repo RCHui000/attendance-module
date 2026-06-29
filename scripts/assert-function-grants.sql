@@ -57,6 +57,8 @@ DECLARE
   v_unexpected_authenticated text[];
   v_missing_authenticated text[];
   v_missing_anon text[];
+  v_bad_nas_sync_rpc_grants text[];
+  v_missing_service_role text[];
 BEGIN
   SELECT ARRAY(
     SELECT regprocedure::text
@@ -85,7 +87,11 @@ BEGIN
         'psa_resolve_graph_assignees',
         'psa_resolve_role_candidates',
         'psa_select_approval_template',
-        'psa_timesheet_business_type'
+        'psa_timesheet_business_type',
+        'psa_enqueue_nas_sync_employee_created',
+        'psa_nas_sync_claim_event',
+        'psa_nas_sync_complete_event',
+        'psa_nas_sync_fail_event'
       ])
     ORDER BY d.regprocedure::text
   ) INTO v_unexpected_authenticated;
@@ -146,6 +152,46 @@ BEGIN
     RAISE EXCEPTION
       'anon must execute public login/RLS helper functions: %',
       array_to_string(v_missing_anon, ', ');
+  END IF;
+
+  SELECT ARRAY(
+    SELECT DISTINCT d.regprocedure::text
+    FROM function_grant_assertion_details d
+    WHERE d.function_name = ANY (ARRAY[
+        'psa_nas_sync_claim_event',
+        'psa_nas_sync_complete_event',
+        'psa_nas_sync_fail_event'
+      ])
+      AND (d.has_anon_execute OR d.has_authenticated_execute)
+    ORDER BY d.regprocedure::text
+  ) INTO v_bad_nas_sync_rpc_grants;
+
+  IF cardinality(v_bad_nas_sync_rpc_grants) > 0 THEN
+    RAISE EXCEPTION
+      'NAS sync RPCs must not be executable by anon/authenticated: %',
+      array_to_string(v_bad_nas_sync_rpc_grants, ', ');
+  END IF;
+
+  SELECT ARRAY(
+    SELECT expected.function_name
+    FROM unnest(ARRAY[
+      'psa_nas_sync_claim_event',
+      'psa_nas_sync_complete_event',
+      'psa_nas_sync_fail_event'
+    ]) AS expected(function_name)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM function_grant_assertion_details d
+      WHERE d.function_name = expected.function_name
+        AND d.has_service_role_execute
+    )
+    ORDER BY expected.function_name
+  ) INTO v_missing_service_role;
+
+  IF cardinality(v_missing_service_role) > 0 THEN
+    RAISE EXCEPTION
+      'NAS sync RPCs must be service_role-only: %',
+      array_to_string(v_missing_service_role, ', ');
   END IF;
 END $$;
 

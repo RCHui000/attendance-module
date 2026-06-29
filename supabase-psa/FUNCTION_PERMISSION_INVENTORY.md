@@ -1,9 +1,9 @@
 # Public Function Permission Inventory
 
-Updated: 2026-06-20
-Baseline: production after `V0.16.46` / migration `089_function_execute_grants_hardening.sql`
+Updated: 2026-06-29
+Baseline: production after `V0.16.46` / migration `126_nas_sync_events.sql`
 
-This inventory tracks the 44 functions in the PostgreSQL `public` schema. They
+This inventory tracks the 49 functions in the PostgreSQL `public` schema. They
 are not all public-facing RPC APIs. Most are internal database helpers used by
 RLS policies, triggers, or SECURITY DEFINER domain RPCs.
 
@@ -22,7 +22,7 @@ PostgreSQL role `PUBLIC` execute grants must remain `0`.
 
 | Metric | Expected after V0.16.46 |
 | --- | ---: |
-| `public` schema functions | 44 |
+| `public` schema functions | 49 |
 | PostgreSQL `PUBLIC` execute grants | 0 |
 | `anon` executable functions | 3 |
 | `authenticated` executable functions | 16 |
@@ -45,6 +45,10 @@ PostgreSQL role `PUBLIC` execute grants must remain `0`.
 | `psa_activate_ready_nodes(bigint)` | `INTERNAL` | no | none | Approval graph scheduler helper. |
 | `psa_approval_instance_status(text)` | `INTERNAL` | no | none | Status mapping helper. Keep internal. |
 | `psa_ensure_timesheet_approval_round(bigint,bigint,text,text)` | `SYSTEM` | no | none | Legacy adaptive-graph helper. Review before reuse or removal. |
+| `psa_enqueue_nas_sync_employee_created()` | `INTERNAL` | trigger | none | Inserts durable NAS sync events after active employee creation. |
+| `psa_nas_sync_claim_event(uuid,text)` | `INTERNAL` | app server RPC | `service_role` | App-layer NAS sync endpoint claims a pending event atomically; never expose to `anon` or `authenticated`. |
+| `psa_nas_sync_complete_event(uuid,text,text)` | `INTERNAL` | app server RPC | `service_role` | App-layer NAS sync endpoint completes a claimed event with claim-token verification. |
+| `psa_nas_sync_fail_event(uuid,text,text)` | `INTERNAL` | app server RPC | `service_role` | App-layer NAS sync endpoint records failure and retry state with claim-token verification. |
 | `psa_overtime_action(bigint,text,text)` | `AUTH` | frontend RPC | `authenticated` | Overtime action endpoint; UI is currently mostly reserved/locked. |
 | `psa_primary_org_manager(bigint)` | `INTERNAL` | no | none | Route resolver helper. |
 | `psa_refresh_pending_project_review_routes(bigint,text)` | `AUTH` | frontend RPC | `authenticated` | Admin route-refresh endpoint for pending project reviews. |
@@ -64,6 +68,7 @@ PostgreSQL role `PUBLIC` execute grants must remain `0`.
 | `psa_template_snapshot(bigint)` | `INTERNAL` | no | none | Approval template snapshot helper. |
 | `psa_timesheet_action(bigint,text,text,bigint)` | `AUTH` | frontend RPC | `authenticated` | Timesheet submit/approve/reject/reopen/withdraw domain endpoint. |
 | `psa_timesheet_project_approval_chain(bigint)` | `INTERNAL` | no | none | Project approval chain builder. |
+| `psa_touch_nas_sync_events_updated_at()` | `INTERNAL` | trigger | none | `updated_at` trigger function. |
 | `psa_touch_organization_managers()` | `INTERNAL` | trigger | none | `updated_at` trigger function. |
 | `psa_touch_project_department_owners()` | `INTERNAL` | trigger | none | `updated_at` trigger function. |
 | `psa_touch_timesheet_project_reviews()` | `INTERNAL` | trigger | none | `updated_at` trigger function. |
@@ -97,5 +102,5 @@ frontend code:
 3. `PUBLIC` tier additions require an explicit reason because they are reachable before login.
 4. Run `scripts/audit-public-function-grants.sql` after every migration that creates, replaces, or grants functions.
 5. Any function in `SYSTEM` tier should be reviewed before it is reused; prefer a new domain RPC wrapper over exposing it directly.
-6. The `44` count is the inventory of PostgreSQL functions in the `public` schema, not an RPC exposure target; only functions listed in the frontend RPC allowlist should be treated as direct app RPC contracts.
+6. The `49` count is the inventory of PostgreSQL functions in the `public` schema, not an RPC exposure target; only functions listed in the frontend RPC allowlist should be treated as direct app RPC contracts.
 7. T6 local Docker development setup is deferred and does not block T1-T5 cloud/pre-production validation scripts or this inventory maintenance.

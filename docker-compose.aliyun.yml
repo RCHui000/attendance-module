@@ -116,6 +116,7 @@ services:
       GOTRUE_URL: http://gotrue:9999
       JWT_SECRET: ${JWT_SECRET}
       DEFAULT_INITIAL_PASSWORD: ${DEFAULT_INITIAL_PASSWORD}
+      NAS_SYNC_TOKEN_SHA256: ${NAS_SYNC_TOKEN_SHA256:-}
     depends_on:
       gotrue:
         condition: service_started

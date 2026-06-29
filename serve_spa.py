@@ -1,9 +1,10 @@
 ﻿import hashlib, hmac, json, os, re, time, base64
 import urllib.error
 import urllib.request
+import secrets
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 
 ROOT = Path("/app")
@@ -12,8 +13,12 @@ SUPABASE_REST_URL = os.environ.get("SUPABASE_REST_URL", "http://192.168.2.100:87
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
 GOTRUE_URL = os.environ.get("GOTRUE_URL", "http://192.168.2.100:8777").rstrip("/")
 DEFAULT_INITIAL_PASSWORD = os.environ["DEFAULT_INITIAL_PASSWORD"]  # must be set in env, no default
+NAS_SYNC_TOKEN_SHA256 = os.environ.get("NAS_SYNC_TOKEN_SHA256", "").strip().lower()
 SUPERUSER_NAMES = {"admin", "鞠松松"}
 SUPERUSER_IDS = {18}
+NAS_SYNC_EVENT_PATH = re.compile(
+    r"^/api/nas-sync/events/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/(claim|complete|fail)$"
+)
 HOP_BY_HOP_HEADERS = {
     "connection", "keep-alive", "proxy-authenticate",
     "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade",
@@ -21,11 +26,16 @@ HOP_BY_HOP_HEADERS = {
 
 
 def make_service_role_token():
+    return make_role_token("service_role", 30)
+
+
+def make_role_token(role: str, ttl_seconds: int = 3600):
     header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).rstrip(b"=").decode()
+    now = int(time.time())
     payload = base64.urlsafe_b64encode(json.dumps({
-        "role": "service_role", "iss": "supabase",
+        "role": role, "iss": "supabase",
         "aud": "authenticated",
-        "iat": int(time.time()), "exp": int(time.time()) + 30,
+        "iat": now, "exp": now + ttl_seconds,
     }).encode()).rstrip(b"=").decode()
     sig = base64.urlsafe_b64encode(
         hmac.new(JWT_SECRET.encode(), f"{header}.{payload}".encode(), hashlib.sha256).digest()
@@ -33,14 +43,56 @@ def make_service_role_token():
     return f"{header}.{payload}.{sig}"
 
 
+def sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def nas_sync_token_valid(authorization_header: str) -> bool:
+    if not NAS_SYNC_TOKEN_SHA256:
+        return False
+    if not authorization_header.startswith("Bearer "):
+        return False
+    token_hash = sha256_hex(authorization_header[7:].strip())
+    return hmac.compare_digest(token_hash, NAS_SYNC_TOKEN_SHA256)
+
+
+def parse_nas_sync_event_path(path: str):
+    match = NAS_SYNC_EVENT_PATH.match(urlparse(path).path)
+    if not match:
+        return None
+    return match.group(1).lower(), match.group(2)
+
+
+def nas_sync_public_event(row: dict) -> dict:
+    return {
+        "eventId": row.get("id"),
+        "employeeId": row.get("employee_id"),
+        "name": row.get("employee_name"),
+        "type": row.get("event_type"),
+        "status": row.get("status"),
+        "attempts": row.get("attempts"),
+        "createdAt": row.get("created_at"),
+    }
+
+
 class SpaHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
+        if self.path.startswith("/api/nas-sync/events/pending"):
+            self._handle_nas_sync_pending()
+            return
+        if self.path.startswith("/api/nas-sync/realtime-token"):
+            self._handle_nas_sync_realtime_token()
+            return
         if self._proxy_supabase(): return
         super().do_GET()
     def do_HEAD(self) -> None:
         if self._proxy_supabase(): return
         super().do_HEAD()
     def do_POST(self) -> None:
+        nas_sync_event = parse_nas_sync_event_path(self.path)
+        if nas_sync_event:
+            self._handle_nas_sync_event_action(nas_sync_event[0], nas_sync_event[1])
+            return
         if self.path == "/api/create-employee-with-login":
             self._handle_create_employee()
             return
@@ -144,7 +196,95 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._json_error(500, str(e))
 
+    def _handle_nas_sync_pending(self) -> None:
+        if not self._require_nas_sync_token():
+            return
+        try:
+            query = parse_qs(urlparse(self.path).query)
+            limit = int((query.get("limit") or ["10"])[0])
+            limit = max(1, min(limit, 100))
+            rows = self._rest_get(
+                "/nas_sync_events"
+                "?select=id,employee_id,employee_name,event_type,status,attempts,created_at"
+                "&status=eq.pending"
+                "&attempts=lt.5"
+                "&order=created_at.asc"
+                f"&limit={limit}"
+            )
+            self._json_ok({"events": [nas_sync_public_event(row) for row in rows]})
+        except Exception as error:
+            self._json_error(500, str(error))
+
+    def _handle_nas_sync_realtime_token(self) -> None:
+        if not self._require_nas_sync_token():
+            return
+        host = self.headers.get("Host", "xpjs.asia")
+        self._json_ok({
+            "token": make_role_token("nas_sync", 3600),
+            "expiresIn": 3600,
+            "realtimeUrl": f"wss://{host}/realtime/socket",
+            "table": "public.nas_sync_events",
+        })
+
+    def _handle_nas_sync_event_action(self, event_id: str, action: str) -> None:
+        if not self._require_nas_sync_token():
+            return
+        try:
+            if action == "claim":
+                raw_claim_token = secrets.token_urlsafe(32)
+                rows = self._rest_rpc("psa_nas_sync_claim_event", {
+                    "p_event_id": event_id,
+                    "p_claim_token": sha256_hex(raw_claim_token),
+                })
+                if not rows:
+                    self._json_error(409, "Event is not claimable")
+                    return
+                event = nas_sync_public_event(rows[0] if isinstance(rows, list) else rows)
+                self._json_ok({"event": event, "claimToken": raw_claim_token})
+                return
+
+            body = self._read_json_body()
+            raw_claim_token = (body.get("claimToken") or "").strip()
+            if not raw_claim_token:
+                self._json_error(400, "claimToken is required")
+                return
+
+            if action == "complete":
+                ok = self._rest_rpc("psa_nas_sync_complete_event", {
+                    "p_event_id": event_id,
+                    "p_claim_token": sha256_hex(raw_claim_token),
+                    "p_nas_username": body.get("nasUsername") or "",
+                })
+            else:
+                ok = self._rest_rpc("psa_nas_sync_fail_event", {
+                    "p_event_id": event_id,
+                    "p_claim_token": sha256_hex(raw_claim_token),
+                    "p_error": body.get("error") or "",
+                })
+
+            if ok is not True:
+                self._json_error(409, "Event claim token is invalid or expired")
+                return
+            self._json_ok({})
+        except json.JSONDecodeError:
+            self._json_error(400, "Invalid JSON body")
+        except urllib.error.HTTPError as error:
+            self._json_error(error.code, error.read().decode()[:300])
+        except Exception as error:
+            self._json_error(500, str(error))
+
     # ── helpers ──
+
+    def _require_nas_sync_token(self) -> bool:
+        if nas_sync_token_valid(self.headers.get("Authorization", "")):
+            return True
+        self._json_error(401, "Invalid NAS sync token")
+        return False
+
+    def _read_json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length) if length else b"{}"
+        return json.loads(raw.decode() if raw else "{}")
 
     def _login_name_for_new_employee(self, body: dict, name: str) -> str:
         candidates = [
@@ -480,6 +620,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
         req = urllib.request.Request(f"{SUPABASE_REST_URL}{path}", data=json.dumps(data).encode(),
             headers={"Content-Type": "application/json", "Prefer": "return=minimal", "Authorization": f"Bearer {make_service_role_token()}"}, method="PATCH")
         urllib.request.urlopen(req, timeout=10)
+
+    def _json_ok(self, data: dict) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        payload = {"ok": True}
+        payload.update(data)
+        self.wfile.write(json.dumps(payload).encode())
 
     def _json_error(self, code: int, msg: str) -> None:
         self.send_response(code)

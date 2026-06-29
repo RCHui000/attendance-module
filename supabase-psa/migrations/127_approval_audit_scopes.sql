@@ -126,9 +126,18 @@ AS $$
     );
 $$;
 
-ALTER FUNCTION public.current_user_approval_audit_org_ids() OWNER TO postgres;
-ALTER FUNCTION public.current_user_can_audit_employee(BIGINT) OWNER TO postgres;
-ALTER FUNCTION public.current_user_can_audit_reviewed_timesheet(BIGINT) OWNER TO postgres;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+    EXECUTE 'ALTER FUNCTION public.current_user_approval_audit_org_ids() OWNER TO postgres';
+    EXECUTE 'ALTER FUNCTION public.current_user_can_audit_employee(BIGINT) OWNER TO postgres';
+    EXECUTE 'ALTER FUNCTION public.current_user_can_audit_reviewed_timesheet(BIGINT) OWNER TO postgres';
+  ELSIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'psa_admin') THEN
+    EXECUTE 'ALTER FUNCTION public.current_user_approval_audit_org_ids() OWNER TO psa_admin';
+    EXECUTE 'ALTER FUNCTION public.current_user_can_audit_employee(BIGINT) OWNER TO psa_admin';
+    EXECUTE 'ALTER FUNCTION public.current_user_can_audit_reviewed_timesheet(BIGINT) OWNER TO psa_admin';
+  END IF;
+END $$;
 GRANT EXECUTE ON FUNCTION public.current_user_approval_audit_org_ids() TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.current_user_can_audit_employee(BIGINT) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.current_user_can_audit_reviewed_timesheet(BIGINT) TO authenticated, anon;

@@ -1,0 +1,38 @@
+{
+  "version": "V0.18.27",
+  "released_at": "2026-06-29",
+  "base_version": "V0.18.26",
+  "commit": "tag:V0.18.27",
+  "summary": "Repair approval audit scope migration owner handling for cloud production.",
+  "database": {
+    "new_migrations": [
+      "supabase-psa/migrations/127_approval_audit_scopes.sql"
+    ],
+    "notes": [
+      "Keeps the V0.18.26 approval audit scope feature set.",
+      "Updates function owner assignment to support production databases without a postgres role.",
+      "The migration uses postgres when available and falls back to psa_admin."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.27",
+    "notes": [
+      "No additional frontend behavior changes beyond V0.18.26.",
+      "The production bundle is rebuilt with VITE_APP_VERSION=V0.18.27."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.27.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.27.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.27.",
+    "Run scripts/smoke-timesheet-withdraw.sql on the cloud host after deployment."
+  ],
+  "known_warnings": [
+    "V0.18.26 reached the cloud app container but its 127 migration failed before commit because production has no postgres role.",
+    "Unit test command currently exits successfully with no matching test files."
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "version": "V0.18.36",
+  "released_at": "2026-07-01",
+  "base_version": "V0.18.35",
+  "commit": "tag:V0.18.36",
+  "summary": "Restore function grant hardening after pgcrypto installation.",
+  "database": {
+    "new_migrations": [
+      "supabase-psa/migrations/134_revoke_pgcrypto_public_execute_grants.sql"
+    ],
+    "notes": [
+      "Revokes PostgreSQL PUBLIC EXECUTE from public schema functions after pgcrypto is installed by the NAS sync queue migration.",
+      "Restores compatibility with scripts/assert-function-grants.sql."
+    ]
+  },
+  "verification": [
+    "Apply migration 134 through deploy/scripts/apply-migrations.sh.",
+    "Run scripts/assert-function-grants.sql.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.36.",
+    "Run scripts/assert-nas-sync-events.sql.",
+    "Run scripts/smoke-nas-sync-api.sh with NAS_SYNC_TOKEN set.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.36."
+  ],
+  "known_warnings": [
+    "V0.18.35 applied the app and migration 133 but post-deploy function grant assertions failed before final verification."
+  ]
+}

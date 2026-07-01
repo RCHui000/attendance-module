@@ -17,6 +17,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { statusText } from "@/lib/constants";
 import {
+  formatTimesheetError,
+  validateTimesheetPayload,
+} from "@/lib/timesheetErrors";
+import {
   getTimesheetDisplayWeekDays,
   getTimesheetPeriodDays,
   getTimesheetPeriodEnd,
@@ -31,6 +35,17 @@ import {
 import type { ProjectBrief } from "@/types/auth";
 import type { SaveTimesheetPayload, TimesheetRow } from "@/types/timesheet";
 import { toast } from "sonner";
+
+function showTimesheetError(message: string) {
+  toast.error(message, {
+    action: {
+      label: "复制详情",
+      onClick: () => {
+        void navigator.clipboard?.writeText(message);
+      },
+    },
+  });
+}
 
 function isRowWriteLocked(row: TimesheetRow): boolean {
   return (
@@ -199,14 +214,18 @@ export default function TimesheetPage() {
         toast.error("请先修正每日或每周普通工日超额");
         return;
       }
-      await saveMutation.mutateAsync(buildPayload());
+      const payload = buildPayload();
+      const payloadError = validateTimesheetPayload(payload);
+      if (payloadError) {
+        showTimesheetError(payloadError);
+        return;
+      }
+      await saveMutation.mutateAsync(payload);
       store.markClean();
       toast.success("保存成功");
       refetch();
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "保存失败",
-      );
+      showTimesheetError(formatTimesheetError(e, "save"));
     }
   }, [blocking, buildPayload, refetch, saveMutation, store]);
 
@@ -218,7 +237,13 @@ export default function TimesheetPage() {
       }
       let id = timesheetId;
       if (store.isDirty || !id) {
-        const result = await saveMutation.mutateAsync(buildPayload());
+        const payload = buildPayload();
+        const payloadError = validateTimesheetPayload(payload);
+        if (payloadError) {
+          showTimesheetError(payloadError);
+          return;
+        }
+        const result = await saveMutation.mutateAsync(payload);
         id = (result as { timesheet?: { id: number } })?.timesheet?.id || id;
       }
       if (!id) throw new Error("Timesheet id is required");
@@ -230,9 +255,7 @@ export default function TimesheetPage() {
       toast.success("已提交审核");
       refetch();
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "提交失败",
-      );
+      showTimesheetError(formatTimesheetError(e, "submit"));
     }
   }, [blocking, buildPayload, refetch, saveMutation, store, submitMutation, timesheetId]);
 
@@ -250,9 +273,7 @@ export default function TimesheetPage() {
       toast.success("周表已撤回，可继续编辑");
       refetch();
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "撤回失败",
-      );
+      showTimesheetError(formatTimesheetError(e, "withdraw"));
     }
   }, [timesheetId, withdrawMutation, store, refetch]);
 

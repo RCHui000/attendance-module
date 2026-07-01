@@ -58,7 +58,7 @@ BEGIN
   SELECT count(*) INTO v_missing_routes
   FROM (VALUES
     ('timesheet', 'PM', 'contract_approval_pm_v1'),
-    ('timesheet', 'CC', 'contract_approval_cc_v1'),
+    ('timesheet', 'CONSULTING', 'contract_approval_cc_v1'),
     ('timesheet', 'PMCC', 'contract_approval_pmcc_v1'),
     ('timesheet', 'LEAVE', 'timesheet_special_department_owner_v1')
   ) AS expected(source_document_type, business_type, template_key)

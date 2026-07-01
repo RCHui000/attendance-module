@@ -1,4 +1,4 @@
--- Verify timesheet approval routing uses submitter department for PMCC projects.
+-- Verify consulting and PMCC timesheet approval routing keeps the longest applicable chain.
 -- Usage:
 --   docker exec -i approval-postgres psql -U psa_admin -d psa \
 --     < scripts/assert-timesheet-submitter-org-routing.sql
@@ -30,8 +30,8 @@ BEGIN
     RAISE NOTICE 'No PM_DESIGN + PMCC timesheet fixture found; skipping PM-side assertion.';
   ELSE
     SELECT public.psa_timesheet_business_type(v_pm_design_timesheet_id) INTO v_route_type;
-    IF v_route_type IS DISTINCT FROM 'PM' THEN
-      RAISE EXCEPTION 'Expected PM_DESIGN + PMCC timesheet % to route as PM, got %',
+    IF v_route_type IS DISTINCT FROM 'PMCC' THEN
+      RAISE EXCEPTION 'Expected PM_DESIGN + PMCC timesheet % to route as PMCC, got %',
         v_pm_design_timesheet_id,
         v_route_type;
     END IF;

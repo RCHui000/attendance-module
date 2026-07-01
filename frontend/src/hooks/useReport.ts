@@ -18,7 +18,7 @@ type SaveProjectParams = {
   receivedAmount?: number;
   plannedLaborDays?: number;
   laborBudgetAmount?: number;
-  businessType?: "PM" | "CC" | "PMCC";
+  businessType?: "PM" | "CONSULTING" | "PMCC";
   workKind?: "project" | "leave";
   projectOwnerId?: number;
   departmentOwners?: {
@@ -100,7 +100,7 @@ export function useProjectBase() {
   });
 }
 
-export function useProjectRoleRequirements(businessType?: "PM" | "CC" | "PMCC" | null) {
+export function useProjectRoleRequirements(businessType?: "PM" | "CONSULTING" | "PMCC" | null) {
   return useQuery({
     queryKey: ["project-role-requirements", businessType || "all"],
     queryFn: () =>

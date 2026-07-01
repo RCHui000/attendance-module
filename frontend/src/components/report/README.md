@@ -32,7 +32,7 @@ The report module is the project list, project editor, and project labor/finance
 Key fields used by the UI:
 
 - `code`: contract/project code, for example `PM26001`.
-- `business_type`: `PM`, `CC`, or `PMCC`; inferred from code when empty and editable manually.
+- `business_type`: `PM`, `CONSULTING`, or `PMCC`; inferred from code when empty and editable manually. `CONSULTING` is displayed as “咨询合同”.
 - `name`: project name.
 - `contract_amount`, `received_amount`, `receivable_amount`: financial status.
 - `total_labor_hours`: approved/locked/summarized regular workdays.
@@ -46,7 +46,7 @@ Project service type is contract approval master data, not only a display label.
 | Service type | Required route |
 | --- | --- |
 | `PM` | PM employee -> PM project owner -> PM department owner |
-| `CC` | CC employee -> CC project owner -> CC department owner |
+| `CONSULTING` | Consulting employee -> consulting project owner -> consulting department owner |
 | `PMCC` | CC employee -> CC project owner -> PM cost department owner -> PM project owner -> PM department owner |
 
 Role keys currently used by the project list:
@@ -66,4 +66,4 @@ The project page exposes separate CC civil and MEP project owners. Saving either
 - Deleted projects are marked with `status = deleted`; they are not hard-deleted.
 - Labor totals only count reportable timesheet statuses.
 - Saving a project can refresh pending approval routes so unresolved reviews follow the latest owner configuration.
-- On mobile, the default view is the project directory only. Selecting a project opens the configuration form as a modal card so dense PM/CC/PMCC owner fields are not squeezed into a narrow two-column layout.
+- On mobile, the default view is the project directory only. Selecting a project opens the configuration form as a modal card so dense PM/CONSULTING/PMCC owner fields are not squeezed into a narrow two-column layout.

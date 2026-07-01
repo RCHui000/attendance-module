@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { getAssigneeAuditSummary } from "@/lib/approvalAudit";
+import { getAssigneeAuditSummary, isNonApplicableProjectSkip } from "@/lib/approvalAudit";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval";
 
 interface ApprovalChainProps {
@@ -60,7 +60,7 @@ function fallbackAssignees(node: ApprovalChainNode): ApprovalChainAssignee[] {
       assignee_name: "",
       status: node.node_status === "active" ? "pending" : node.node_status,
       action: null,
-      comment: null,
+      comment: node.comment || null,
       acted_at: null,
     },
   ];
@@ -114,10 +114,16 @@ function projectLabel(assignee: ApprovalChainAssignee) {
 }
 
 function projectDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
+  if (isNonApplicableProjectSkip(assignee.comment) || isNonApplicableProjectSkip(node.comment)) return "approved";
   const nodeStatus = textValue(assignee.node_status || node.node_status);
   const assigneeStatus = textValue(assignee.status);
   if (nodeStatus && nodeStatus !== "active") return nodeStatus;
   return assigneeStatus || nodeStatus || "waiting";
+}
+
+function nodeDisplayStatus(node: ApprovalChainNode) {
+  if (isNonApplicableProjectSkip(node.comment)) return "approved";
+  return textValue(node.node_status) || "waiting";
 }
 
 function blockingLabel(node: ApprovalChainNode) {
@@ -146,6 +152,7 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
   const blockingNodes = blockingLabel(node);
   const hint = nodeHint(node, nodeNumber, blockingNodes);
   const projects = projectRows(node);
+  const displayStatus = nodeDisplayStatus(node);
   const showSummaryRow = isDepartmentSummaryNode(node) && projects.length === 0;
   const auditAssignees = fallbackAssignees(node).filter((assignee) => {
     const name = assigneeKey(assignee);
@@ -167,10 +174,10 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
           {nodeNumber}：{displayNodeName(node)}
         </strong>
         <Badge
-          variant={statusVariant[node.node_status] || "secondary"}
+          variant={statusVariant[displayStatus] || "secondary"}
           className="max-w-20 shrink-0 whitespace-normal text-center text-[10px] leading-4"
         >
-          {readableStatus(node.node_status)}
+          {readableStatus(displayStatus)}
         </Badge>
       </div>
 
@@ -189,10 +196,10 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
                 <div className="grid grid-cols-[minmax(0,1fr)_3.75rem] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5">
                   <span className="min-w-0 break-words leading-5 text-foreground">部门汇总确认（全部项目块）</span>
                   <Badge
-                    variant={statusVariant[node.node_status] || "secondary"}
+                    variant={statusVariant[displayStatus] || "secondary"}
                     className="justify-center whitespace-normal text-center text-[10px] leading-4"
                   >
-                    {readableStatus(node.node_status)}
+                    {readableStatus(displayStatus)}
                   </Badge>
                 </div>
               ) : null}

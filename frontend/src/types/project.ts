@@ -168,7 +168,7 @@ export interface ProjectDepartmentOwner {
   is_active?: boolean;
 }
 
-export type ProjectBusinessType = "PM" | "CC" | "PMCC";
+export type ProjectBusinessType = "PM" | "CONSULTING" | "PMCC";
 export type ProjectWorkKind = "project" | "leave";
 
 export interface ProjectRoleAssignment {

@@ -184,7 +184,7 @@ export interface ApprovalTemplate {
   id: number;
   template_key: string;
   document_type: string;
-  business_type: "PM" | "CC" | "PMCC" | "LEAVE" | null;
+  business_type: "PM" | "CONSULTING" | "PMCC" | "LEAVE" | null;
   name: string;
   version: number;
   status: string;

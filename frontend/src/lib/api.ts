@@ -147,11 +147,11 @@ function isReportableTimesheet(sheet?: AnyRow | null): sheet is AnyRow {
   return !!sheet && isFinalReviewedTimesheetStatus(String(sheet.status || ""));
 }
 
-function inferProjectBusinessType(code?: string | null): "PM" | "CC" | "PMCC" | null {
+function inferProjectBusinessType(code?: string | null): "PM" | "CONSULTING" | "PMCC" | null {
   const normalized = String(code || "").trim().toUpperCase();
   if (normalized.startsWith("PMCC")) return "PMCC";
   if (normalized.startsWith("PM")) return "PM";
-  if (normalized.startsWith("CC")) return "CC";
+  if (normalized.startsWith("CC")) return "CONSULTING";
   return null;
 }
 

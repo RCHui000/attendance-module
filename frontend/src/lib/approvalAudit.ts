@@ -41,6 +41,10 @@ const statusLabels: Record<string, string> = {
   revision_required: "待重新提交",
 };
 
+export function isNonApplicableProjectSkip(value?: string | null) {
+  return String(value || "").trim() === "Not applicable for project business type";
+}
+
 export function deriveApprovalDisplayStatus(
   sheetStatus: string,
   nodes: ApprovalNodeLike[] = [],
@@ -77,6 +81,14 @@ export function formatApprovalAuditTime(value?: string | null) {
 export function getAssigneeAuditSummary(assignee: ApprovalChainAssignee) {
   const rawAction = String(assignee.action || assignee.status || "").trim();
   const rawStatus = String(assignee.status || "").trim();
+  if (isNonApplicableProjectSkip(assignee.comment)) {
+    return {
+      actionLabel: "已通过",
+      timeLabel: formatApprovalAuditTime(assignee.acted_at),
+      commentLabel: "",
+      statusLabel: "已通过",
+    };
+  }
   return {
     actionLabel: actionLabels[rawAction] || statusLabels[rawStatus] || rawAction || "待审核",
     timeLabel: formatApprovalAuditTime(assignee.acted_at),

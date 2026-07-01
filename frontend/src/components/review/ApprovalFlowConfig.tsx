@@ -74,8 +74,8 @@ const templateMeta: Record<string, { label: string; description: string; tone: s
     tone: "border-sky-300 bg-sky-50/70 text-sky-950 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-100",
   },
   contract_approval_cc_v1: {
-    label: "QS/设计侧审批",
-    description: "总工办侧项目块审批",
+    label: "咨询合同审批",
+    description: "提交人所在部门项目负责人到部门负责人",
     tone: "border-emerald-300 bg-emerald-50/70 text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100",
   },
   contract_approval_pmcc_v1: {

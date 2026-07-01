@@ -1,5 +1,5 @@
 -- Smoke-test that a draft weekly timesheet submit is bound to the
--- configured PM/CC/PMCC contract_approval template.
+-- configured PM/CONSULTING/PMCC contract_approval template.
 --
 -- Usage:
 --   docker exec -i approval-postgres psql -U psa_admin -d psa \
@@ -50,7 +50,7 @@ project_candidate AS (
       CASE
         WHEN upper(p.code) LIKE 'PMCC%' THEN 'PMCC'
         WHEN upper(p.code) LIKE 'PM%' THEN 'PM'
-        WHEN upper(p.code) LIKE 'CC%' THEN 'CC'
+        WHEN upper(p.code) LIKE 'CC%' THEN 'CONSULTING'
         ELSE NULL
       END
     ) AS business_type
@@ -61,10 +61,10 @@ project_candidate AS (
       CASE
         WHEN upper(p.code) LIKE 'PMCC%' THEN 'PMCC'
         WHEN upper(p.code) LIKE 'PM%' THEN 'PM'
-        WHEN upper(p.code) LIKE 'CC%' THEN 'CC'
+        WHEN upper(p.code) LIKE 'CC%' THEN 'CONSULTING'
         ELSE NULL
       END
-    ) IN ('PM', 'CC', 'PMCC')
+    ) IN ('PM', 'CONSULTING', 'PMCC')
     AND EXISTS (
       SELECT 1
       FROM public.approval_templates tpl
@@ -74,7 +74,7 @@ project_candidate AS (
           CASE
             WHEN upper(p.code) LIKE 'PMCC%' THEN 'PMCC'
             WHEN upper(p.code) LIKE 'PM%' THEN 'PM'
-            WHEN upper(p.code) LIKE 'CC%' THEN 'CC'
+            WHEN upper(p.code) LIKE 'CC%' THEN 'CONSULTING'
             ELSE NULL
           END
         )
@@ -140,7 +140,7 @@ DO $$
 BEGIN
   IF (SELECT count(*) FROM pg_temp.smoke_timesheet_submit_contract_target) <> 1 THEN
     RAISE EXCEPTION
-      'No submit smoke-test target found. Need an active authenticated employee with timesheet write permission, an active PM/CC/PMCC project, an active matching contract_approval template, and a free future week.';
+      'No submit smoke-test target found. Need an active authenticated employee with timesheet write permission, an active PM/CONSULTING/PMCC project, an active matching contract_approval template, and a free future week.';
   END IF;
 END $$;
 

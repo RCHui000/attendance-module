@@ -31,7 +31,7 @@ import type { ProjectBase, ProjectBusinessType, ProjectRoleKey, ProjectRoleRequi
 import { toast } from "sonner";
 
 const NONE = "none";
-const serviceTypes: ProjectBusinessType[] = ["PM", "CC", "PMCC"];
+const serviceTypes: ProjectBusinessType[] = ["PM", "CONSULTING", "PMCC"];
 
 const roleGroups: Array<{
   key: "teo" | "pm";
@@ -130,8 +130,15 @@ function inferBusinessType(code: string): ProjectBusinessType | "" {
   const normalized = code.trim().toUpperCase();
   if (normalized.startsWith("PMCC")) return "PMCC";
   if (normalized.startsWith("PM")) return "PM";
-  if (normalized.startsWith("CC")) return "CC";
+  if (normalized.startsWith("CC")) return "CONSULTING";
   return "";
+}
+
+function serviceTypeLabel(type: ProjectBusinessType | "") {
+  if (type === "PM") return "项目管理";
+  if (type === "CONSULTING") return "咨询合同";
+  if (type === "PMCC") return "协作合同";
+  return "-";
 }
 
 function projectRoleRequirementsFor(
@@ -159,7 +166,7 @@ function roleValues(
 
 function serviceBadgeClass(type: ProjectBusinessType | "") {
   if (type === "PM") return "border-sky-200 bg-sky-50 text-sky-700";
-  if (type === "CC") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (type === "CONSULTING") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (type === "PMCC") return "border-amber-200 bg-amber-50 text-amber-700";
   return "border-border bg-muted text-muted-foreground";
 }
@@ -238,6 +245,7 @@ export function ProjectList() {
           project.code,
           project.name,
           type,
+          serviceTypeLabel(type),
           project.work_kind === "leave" ? "请假 非项目工时" : "",
           projectSummary(project, allRoleRequirements),
         ].join(" ").toLowerCase();
@@ -465,7 +473,7 @@ export function ProjectList() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold">{project.code}</span>
                   <span className={cn("rounded border px-2 py-0.5 text-xs", isLeave ? "border-slate-200 bg-slate-50 text-slate-600" : serviceBadgeClass(type))}>
-                    {isLeave ? "请假" : type || "-"}
+                    {isLeave ? "请假" : serviceTypeLabel(type)}
                   </span>
                 </div>
                 <div className="mt-1 truncate text-sm">{project.name}</div>
@@ -562,7 +570,7 @@ export function ProjectList() {
                     <SelectItem value={NONE}>未识别</SelectItem>
                     {serviceTypes.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {type}
+                        {serviceTypeLabel(type)}
                       </SelectItem>
                     ))}
                   </SelectContent>

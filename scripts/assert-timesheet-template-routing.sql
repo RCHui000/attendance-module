@@ -1,5 +1,5 @@
 -- Assert that timesheet approvals are routed through the configured
--- PM/CC/PMCC contract_approval templates, not the legacy timesheet template.
+-- PM/CONSULTING/PMCC contract_approval templates, not the legacy timesheet template.
 --
 -- Usage:
 --   docker exec -i approval-postgres psql -U psa_admin -d psa \
@@ -18,7 +18,7 @@ BEGIN
   SELECT count(*) INTO v_contract_templates
   FROM public.approval_templates
   WHERE document_type = 'contract_approval'
-    AND business_type IN ('PM', 'CC', 'PMCC')
+    AND business_type IN ('PM', 'CONSULTING', 'PMCC')
     AND status = 'active';
 
   IF v_contract_templates <> 3 THEN
@@ -34,7 +34,7 @@ BEGIN
     AND t.status = 'submitted'
     AND (
       tpl.document_type IS DISTINCT FROM 'contract_approval'
-      OR tpl.business_type NOT IN ('PM', 'CC', 'PMCC')
+      OR tpl.business_type NOT IN ('PM', 'CONSULTING', 'PMCC')
     );
 
   IF v_bad_instances <> 0 THEN
@@ -50,7 +50,7 @@ BEGIN
   WHERE p.target_type = 'timesheet'
     AND (
       tpl.document_type IS DISTINCT FROM 'contract_approval'
-      OR tpl.business_type NOT IN ('PM', 'CC', 'PMCC')
+      OR tpl.business_type NOT IN ('PM', 'CONSULTING', 'PMCC')
     );
 
   IF v_bad_pending <> 0 THEN
@@ -80,7 +80,7 @@ $$;
 SELECT
   'PASS' AS result,
   count(*) FILTER (WHERE tpl.business_type = 'PM') AS pm_instances,
-  count(*) FILTER (WHERE tpl.business_type = 'CC') AS cc_instances,
+  count(*) FILTER (WHERE tpl.business_type = 'CONSULTING') AS consulting_instances,
   count(*) FILTER (WHERE tpl.business_type = 'PMCC') AS pmcc_instances
 FROM public.approval_instances i
 JOIN public.timesheets t ON t.id = i.target_id

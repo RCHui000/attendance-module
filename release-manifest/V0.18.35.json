@@ -1,0 +1,42 @@
+{
+  "version": "V0.18.35",
+  "released_at": "2026-07-01",
+  "base_version": "V0.18.34",
+  "commit": "tag:V0.18.35",
+  "summary": "Add cloud NAS sync event queue and machine API.",
+  "database": {
+    "new_migrations": [
+      "supabase-psa/migrations/133_nas_sync_events.sql"
+    ],
+    "notes": [
+      "Creates the durable nas_sync_events queue for employee.created events.",
+      "Enqueues one pending event when a new active employee with a name is inserted.",
+      "Publishes nas_sync_events through Supabase Realtime table changes for NAS worker wakeups.",
+      "Adds atomic claim, complete, and fail RPCs with hashed one-time claim tokens."
+    ]
+  },
+  "backend": {
+    "notes": [
+      "Adds /api/nas-sync/* JSON machine endpoints in serve_spa.py.",
+      "Requires Authorization: Bearer <NAS_SYNC_TOKEN> and validates it against NAS_SYNC_TOKEN_SHA256.",
+      "Returns only the event fields required by the NAS worker.",
+      "Issues short-lived Realtime JWTs for NAS sync subscriptions."
+    ]
+  },
+  "verification": [
+    "Run python -m py_compile serve_spa.py scripts/test_nas_sync_api.py.",
+    "Run python -m unittest scripts.test_nas_sync_api.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build.",
+    "Apply migration 133 through deploy/scripts/apply-migrations.sh.",
+    "Run scripts/assert-nas-sync-events.sql after migration 133.",
+    "Run scripts/smoke-nas-sync-api.sh with NAS_SYNC_TOKEN set.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.35.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.35."
+  ],
+  "known_warnings": [
+    "The NAS_SYNC_TOKEN plaintext is not stored in git or cloud env; only NAS_SYNC_TOKEN_SHA256 is configured on the cloud host.",
+    "The NAS worker must receive the generated NAS_SYNC_TOKEN through the local secret handoff file before enabling NAS_SYNC_ENABLED=true."
+  ]
+}

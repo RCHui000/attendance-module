@@ -848,10 +848,9 @@ async function approvalTasks(
   const reviewedStart = reviewStartDate || reviewedPeriodStart;
   const reviewedEnd = reviewEndDate || reviewedPeriodStart;
   const taskFilter = admin ? "" : `&assignee_user_id=eq.${user.id}`;
-  const [reviewedPeriodSheets, graphPending, visibleRows, employees, employeeProfiles, organizations, entries, auditScopeRows] = await Promise.all([
+  const [reviewedPeriodSheets, graphPending, employees, employeeProfiles, organizations, entries, auditScopeRows] = await Promise.all([
     rest<AnyRow[]>(`/timesheets?select=*&week_start_date=gte.${reviewedStart}&week_start_date=lte.${reviewedEnd}`).catch(() => []),
     rest<AnyRow[]>(`/approval_pending_tasks_view?select=*&target_type=eq.timesheet${taskFilter}`).catch(() => []),
-    rest<AnyRow[]>("/approval_visible_timesheets_view?select=*&order=submitted_at.asc").catch(() => []),
     rest<AnyRow[]>("/employees?select=id,name"),
     rest<AnyRow[]>("/employee_profiles?select=employee_id,org_id,organizations(org_name,color_token)"),
     rest<AnyRow[]>("/organizations?select=id,org_code,org_name,parent_id,org_type,color_token,status"),
@@ -884,8 +883,7 @@ async function approvalTasks(
   // Fetch ALL timesheets referenced by tasks (not filtered by week)
   const pendingSheetIds = [...new Set(latestPending.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
   const reviewedSheetIds = [...new Set(latestReviewed.map((t: AnyRow) => Number(t.target_id)))].filter(Boolean);
-  const visibleSheetIds = [...new Set(visibleRows.map((row: AnyRow) => Number(row.timesheet_id)))].filter(Boolean);
-  const allSheetIds = [...new Set([...pendingSheetIds, ...reviewedSheetIds, ...visibleSheetIds])];
+  const allSheetIds = [...new Set([...pendingSheetIds, ...reviewedSheetIds])];
   const sheets = allSheetIds.length > 0
     ? await rest<AnyRow[]>(`/timesheets?select=*&id=in.(${allSheetIds.join(",")})`)
     : [];
@@ -950,12 +948,6 @@ async function approvalTasks(
     const profile = employeeProfileMap.get(Number(sheet.user_id));
     const projectId = source.scope_type === "project" ? Number(source.scope_id) : null;
     const project = projectId ? projectMap.get(projectId) : null;
-    const assigneeNames = Array.isArray(source.assignee_user_ids)
-      ? source.assignee_user_ids
-          .map((id: number) => employeeMap.get(Number(id))?.name || `Employee ${id}`)
-          .filter(Boolean)
-          .join("、")
-      : "";
     const reviewStatus = deriveApprovalDisplayStatus(
       String(sheet.status || ""),
       approvalNodesBySheet.get(Number(sheet.id)) || [],
@@ -980,8 +972,6 @@ async function approvalTasks(
       total_hours: projectId ? projectHours.get(`${Number(sheet.id)}:${projectId}`) || 0 : hours.get(Number(sheet.id)) || 0,
       submitted_at: sheet.submitted_at,
       review_comment: source.comment || sheet.review_comment || "",
-      current_assignee_names: source.current_assignee_names || assigneeNames,
-      current_nodes: Array.isArray(source.current_nodes) ? source.current_nodes : [],
     };
   };
   const pending = latestPending
@@ -994,31 +984,6 @@ async function approvalTasks(
     .filter((item): item is { task: AnyRow; sheet: AnyRow } => isReportableTimesheet(item.sheet))
     .sort((a, b) => (b.task.completed_at || "").localeCompare(a.task.completed_at || ""))
     .map(({ task, sheet }) => toItem(sheet, task));
-  const pendingSheetSet = new Set(pending.map((item) => Number(item.timesheet_id)));
-  const inProgress = visibleRows
-    .map((row) => ({ row, sheet: sheetMap.get(Number(row.timesheet_id)) }))
-    .filter((item): item is { row: AnyRow; sheet: AnyRow } =>
-      !!item.sheet &&
-      item.sheet.status === "submitted" &&
-      !pendingSheetSet.has(Number(item.sheet.id)),
-    )
-    .sort((a, b) => (a.row.submitted_at || "").localeCompare(b.row.submitted_at || ""))
-    .map(({ row, sheet }) => {
-      const currentAssignees = Array.isArray(row.current_assignees) ? row.current_assignees : [];
-      const names = currentAssignees
-        .map((assignee: AnyRow) => assignee.assignee_name || (assignee.assignee_user_id ? `员工 ${assignee.assignee_user_id}` : ""))
-        .filter(Boolean)
-        .join("、");
-      return toItem(sheet, {
-        target_id: row.timesheet_id,
-        scope_type: "timesheet",
-        scope_id: null,
-        created_at: row.submitted_at,
-        comment: names ? `当前待审批：${names}` : "尚未轮到你审批",
-        current_assignee_names: names,
-        current_nodes: row.current_nodes,
-      });
-    });
   const overtime = overtimeRows
     .filter((o) => o.status === "pending" && Number(o.overtime_hours || 0) > 0)
     .map((o) => ({
@@ -1041,7 +1006,7 @@ async function approvalTasks(
       status: o.status,
       reject_comment: o.reject_comment || "",
     }));
-  return { timesheets: pending, inProgress, reviewed, overtime, overtimeReviewed };
+  return { timesheets: pending, reviewed, overtime, overtimeReviewed };
 }
 
 async function weeklyReport(startDate: string, endDate: string): Promise<AnyRow> {

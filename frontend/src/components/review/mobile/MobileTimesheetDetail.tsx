@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ApprovalChain } from "@/components/review/ApprovalChain";
+import { ApprovalChain, ApprovalRecords } from "@/components/review/ApprovalChain";
 import { useTimesheetDetail } from "@/hooks/useApprovals";
 import { statusText } from "@/lib/constants";
 
@@ -15,12 +15,6 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
     ? (data?.entries || []).filter((entry) => Number(entry.project_id) === Number(projectId))
     : data?.entries || [];
   const showFullSheet = !projectId;
-  const activeNode = data?.approval_chain?.find((node) => node.node_status === "active");
-  const canAct = Boolean(data?.approval_chain?.some((node) => node.can_current_user_act));
-  const activeAssignees = activeNode?.assignees
-    .filter((assignee) => assignee.status === "pending")
-    .map((assignee) => assignee.assignee_name || `员工 ${assignee.assignee_user_id}`)
-    .join("、");
   const chainMissing = Boolean(
     data &&
     (data.approval_chain_error || (data.status === "submitted" && !data.approval_chain?.length)),
@@ -181,11 +175,7 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
         ) : (
           <ApprovalChain nodes={data.approval_chain} />
         )}
-        {activeNode && !canAct && (
-          <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            {activeAssignees ? `当前待审批：${activeAssignees}` : "尚未轮到你审批"}
-          </div>
-        )}
+        <ApprovalRecords nodes={data.approval_chain} projectId={projectId} />
       </div>
     </div>
   );

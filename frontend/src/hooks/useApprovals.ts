@@ -48,10 +48,6 @@ export function useApprovalTasks(weekStart: string, range: ApprovalTaskRangePara
     enabled: !!weekStart,
     staleTime: 10_000,
     placeholderData: (previousData) => previousData,
-    select: (data) => ({
-      ...data,
-      inProgress: data.inProgress || [],
-    }),
   });
 }
 

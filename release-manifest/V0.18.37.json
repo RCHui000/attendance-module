@@ -1,0 +1,39 @@
+{
+  "version": "V0.18.37",
+  "released_at": "2026-07-07",
+  "base_version": "V0.18.36",
+  "commit": "tag:V0.18.37",
+  "summary": "Remove non-actionable in-progress approval visibility and move approval records into project-block detail cards.",
+  "database": {
+    "new_migrations": [
+      "supabase-psa/migrations/135_drop_approval_visible_timesheets_view.sql"
+    ],
+    "notes": [
+      "Drops public.approval_visible_timesheets_view because the approval center no longer shows non-actionable in-progress timesheets.",
+      "Keeps approval_audit_scopes and reviewed-timesheet audit visibility unchanged."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.37",
+    "notes": [
+      "Removes the 流转中（未轮到我） group from desktop and mobile approval centers.",
+      "Approval task counts now include only actionable timesheet project blocks and OT items.",
+      "Approval chain cards show process stages and project-block statuses without making approvers the main node content.",
+      "Expanded timesheet detail now shows full approval records grouped by project block, with action, status, actor, source, time, and comments."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npx tsc -b from frontend.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npx vite build from frontend with VITE_APP_VERSION=V0.18.37.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Apply migration 135 through deploy/scripts/apply-migrations.sh.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.37.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.37."
+  ],
+  "known_warnings": [
+    "Vite still reports large production chunks for existing application bundles."
+  ]
+}

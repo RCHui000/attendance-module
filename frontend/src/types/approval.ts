@@ -1,6 +1,5 @@
 export interface ApprovalTasks {
   timesheets: ApprovalTaskItem[];
-  inProgress: ApprovalTaskItem[];
   reviewed: ReviewedTaskItem[];
   overtime: ApprovalOvertimeItem[];
   overtimeReviewed: ApprovalOvertimeItem[];
@@ -23,14 +22,6 @@ export interface ApprovalTaskItem {
   total_hours: number;
   submitted_at: string;
   week_start_date: string;
-  current_assignee_names?: string;
-  current_nodes?: Array<{
-    node_id: number;
-    node_name: string;
-    scope_type?: string | null;
-    scope_id?: number | null;
-    node_status: string;
-  }>;
 }
 
 export interface ReviewedTaskItem {
@@ -91,8 +82,10 @@ export type ApprovalChainStatus =
   | "rejected"
   | "cancelled"
   | "skipped"
+  | "delegated"
   | "waiting_revision"
   | "needs_revision"
+  | "revision_required"
   | "needs_reapproval";
 
 export type ApprovalChainAction =
@@ -119,6 +112,7 @@ export interface ApprovalChainAssignee {
   project_name?: string | null;
   assignee_user_id: number;
   assignee_name?: string | null;
+  assignee_route_source?: string | null;
   status: ApprovalChainStatus | string;
   action?: ApprovalChainAction | string | null;
   comment?: string | null;

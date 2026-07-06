@@ -7,20 +7,36 @@ interface ApprovalChainProps {
   nodes?: ApprovalChainNode[];
 }
 
+interface ApprovalRecordsProps {
+  nodes?: ApprovalChainNode[];
+  projectId?: number | null;
+}
+
+type Variant = "default" | "secondary" | "success" | "destructive" | "outline";
+
+type StageProjectRow = {
+  key: string;
+  label: string;
+  status: string;
+  kind: "项目块" | "汇总" | "范围";
+};
+
 const statusLabel: Record<string, string> = {
   waiting: "待审核",
   active: "审核中",
   pending: "待审核",
   approved: "已通过",
   rejected: "已退回",
-  cancelled: "已回退",
+  cancelled: "已取消",
   skipped: "已跳过",
+  delegated: "已转交",
   waiting_revision: "待提交",
   needs_revision: "待提交",
+  revision_required: "待提交",
   needs_reapproval: "待审核",
 };
 
-const statusVariant: Record<string, "default" | "secondary" | "success" | "destructive" | "outline"> = {
+const statusVariant: Record<string, Variant> = {
   waiting: "outline",
   active: "default",
   pending: "outline",
@@ -28,13 +44,39 @@ const statusVariant: Record<string, "default" | "secondary" | "success" | "destr
   rejected: "destructive",
   cancelled: "secondary",
   skipped: "secondary",
+  delegated: "secondary",
   waiting_revision: "outline",
   needs_revision: "destructive",
+  revision_required: "destructive",
   needs_reapproval: "outline",
 };
 
-const chainCardClass =
+const stageCardClass =
   "relative w-56 max-w-[calc(100vw-3.5rem)] shrink-0 rounded-md border bg-background p-2.5 text-xs sm:w-64";
+
+const historicalStatuses = new Set([
+  "approved",
+  "rejected",
+  "skipped",
+  "cancelled",
+  "delegated",
+  "needs_revision",
+  "revision_required",
+]);
+
+const statusPriority: Record<string, number> = {
+  rejected: 90,
+  needs_revision: 85,
+  revision_required: 85,
+  active: 80,
+  pending: 75,
+  waiting: 70,
+  needs_reapproval: 65,
+  approved: 50,
+  skipped: 45,
+  cancelled: 40,
+  delegated: 35,
+};
 
 function textValue(value?: number | string | null) {
   return String(value ?? "").trim();
@@ -48,51 +90,50 @@ function readableStatus(value?: string | null) {
 
 function fallbackAssignees(node: ApprovalChainNode): ApprovalChainAssignee[] {
   if (Array.isArray(node.assignees) && node.assignees.length) return node.assignees;
+  const hasNodeLevelRecord = Boolean(
+    node.result_action ||
+      node.comment ||
+      ["approved", "rejected", "cancelled", "skipped", "needs_revision", "revision_required"].includes(
+        String(node.node_status || ""),
+      ),
+  );
+  if (!hasNodeLevelRecord) return [];
   return [
     {
-      node_id: null,
+      node_id: node.node_id,
       node_name: node.node_name,
       node_status: node.node_status,
-      project_id: null,
+      project_id: node.scope_type === "project" ? node.scope_id || null : null,
       project_code: node.project_code || "",
       project_name: node.project_name || "",
       assignee_user_id: 0,
-      assignee_name: "",
-      status: node.node_status === "active" ? "pending" : node.node_status,
-      action: null,
+      assignee_name: "系统/自动处理",
+      status: node.node_status,
+      action: node.result_action,
       comment: node.comment || null,
-      acted_at: null,
+      acted_at: node.completed_at || node.activated_at || null,
     },
   ];
+}
+
+function hasHistoricalAssigneeRecord(assignee: ApprovalChainAssignee) {
+  const status = textValue(assignee.status);
+  return Boolean(
+    assignee.action ||
+      assignee.acted_at ||
+      assignee.comment ||
+      isNonApplicableProjectSkip(assignee.comment) ||
+      historicalStatuses.has(status),
+  );
+}
+
+function recordAssignees(node: ApprovalChainNode) {
+  return fallbackAssignees(node).filter(hasHistoricalAssigneeRecord);
 }
 
 function assigneeKey(assignee: ApprovalChainAssignee) {
   const name = textValue(assignee.assignee_name);
   return name || (assignee.assignee_user_id ? `员工 ${assignee.assignee_user_id}` : "");
-}
-
-function uniqueAssigneeNames(node: ApprovalChainNode) {
-  const names = new Map<string, string>();
-  fallbackAssignees(node).forEach((assignee) => {
-    const name = assigneeKey(assignee);
-    if (!name || name === "员工 0") return;
-    names.set(name, name);
-  });
-  return Array.from(names.values());
-}
-
-function projectRows(node: ApprovalChainNode) {
-  const projects = new Map<string, ApprovalChainAssignee>();
-  fallbackAssignees(node).forEach((assignee) => {
-    const projectId = assignee.project_id ? String(assignee.project_id) : "";
-    const code = textValue(assignee.project_code);
-    const name = textValue(assignee.project_name);
-    if (!projectId && !code && !name) return;
-    if (!projectId && code === "未关联" && name === "未关联") return;
-    const label = [code, name].filter(Boolean).join(" ");
-    if (!projects.has(projectId || label)) projects.set(projectId || label, assignee);
-  });
-  return Array.from(projects.values());
 }
 
 function isDepartmentSummaryNode(node: ApprovalChainNode) {
@@ -106,14 +147,19 @@ function displayNodeName(node: ApprovalChainNode) {
   return node.node_name;
 }
 
-function projectLabel(assignee: ApprovalChainAssignee) {
-  const projectId = assignee.project_id ? String(assignee.project_id) : "";
-  const code = textValue(assignee.project_code);
-  const name = textValue(assignee.project_name);
-  return [code, name].filter(Boolean).join(" ") || `项目 ${projectId}`;
+function nodeDisplayStatus(node: ApprovalChainNode) {
+  if (isNonApplicableProjectSkip(node.comment)) return "approved";
+  return textValue(node.node_status) || "waiting";
 }
 
-function projectDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
+function assigneeProjectLabel(assignee: ApprovalChainAssignee) {
+  const projectId = textValue(assignee.project_id);
+  const code = textValue(assignee.project_code);
+  const name = textValue(assignee.project_name);
+  return [code, name].filter(Boolean).join(" ") || (projectId ? `项目 #${projectId}` : "");
+}
+
+function assigneeDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
   if (isNonApplicableProjectSkip(assignee.comment) || isNonApplicableProjectSkip(node.comment)) return "approved";
   const nodeStatus = textValue(assignee.node_status || node.node_status);
   const assigneeStatus = textValue(assignee.status);
@@ -121,9 +167,37 @@ function projectDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalCha
   return assigneeStatus || nodeStatus || "waiting";
 }
 
-function nodeDisplayStatus(node: ApprovalChainNode) {
-  if (isNonApplicableProjectSkip(node.comment)) return "approved";
-  return textValue(node.node_status) || "waiting";
+function chooseStageStatus(current: string, next: string) {
+  return (statusPriority[next] || 0) > (statusPriority[current] || 0) ? next : current;
+}
+
+function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
+  const rows = new Map<string, StageProjectRow>();
+  for (const assignee of fallbackAssignees(node)) {
+    const label = assigneeProjectLabel(assignee);
+    if (!label || label === "未关联") continue;
+    const key = textValue(assignee.project_id) || label;
+    const status = assigneeDisplayStatus(assignee, node);
+    const existing = rows.get(key);
+    rows.set(key, {
+      key,
+      label,
+      status: existing ? chooseStageStatus(existing.status, status) : status,
+      kind: "项目块",
+    });
+  }
+  if (rows.size) return Array.from(rows.values());
+
+  const displayStatus = nodeDisplayStatus(node);
+  if (isDepartmentSummaryNode(node)) {
+    return [{ key: `summary-${node.node_id}`, label: "汇总确认", status: displayStatus, kind: "汇总" }];
+  }
+  return [{
+    key: `scope-${node.node_id}`,
+    label: projectLabelFromNode(node),
+    status: displayStatus,
+    kind: node.scope_type === "project" ? "项目块" : "范围",
+  }];
 }
 
 function blockingLabel(node: ApprovalChainNode) {
@@ -131,11 +205,49 @@ function blockingLabel(node: ApprovalChainNode) {
 }
 
 function nodeHint(node: ApprovalChainNode, nodeNumber: string, blockingNodes: string) {
-  if (node.node_status === "rejected") return `已退回到节点1：待提交`;
-  if (node.node_status === "cancelled") return `${nodeNumber} 已回退，不参与当前待办`;
-  if (node.node_status === "waiting" && blockingNodes) return "前序未完成，暂不进入待办";
-  if (node.node_status === "active") return "当前审批步骤";
+  if (node.node_status === "rejected") return "已退回到提交人";
+  if (node.node_status === "cancelled") return `${nodeNumber} 已取消，不参与当前审批`;
+  if (node.node_status === "waiting" && blockingNodes) return `等待前序完成：${blockingNodes}`;
+  if (node.node_status === "active") return "当前审批阶段";
+  if (node.node_status === "skipped") return "该阶段已跳过";
   return "";
+}
+
+function projectLabelFromNode(node: ApprovalChainNode) {
+  const code = textValue(node.project_code);
+  const name = textValue(node.project_name);
+  if (code || name) return [code, name].filter(Boolean).join(" ");
+  if (node.scope_type === "project" && node.scope_id) return `项目 #${node.scope_id}`;
+  if (isDepartmentSummaryNode(node)) return "汇总确认";
+  return "周表";
+}
+
+function recordProjectId(node: ApprovalChainNode, assignee?: ApprovalChainAssignee) {
+  return assignee?.project_id || (node.scope_type === "project" ? node.scope_id : null) || null;
+}
+
+function recordProjectLabel(node: ApprovalChainNode, assignee?: ApprovalChainAssignee) {
+  const code = textValue(assignee?.project_code) || textValue(node.project_code);
+  const name = textValue(assignee?.project_name) || textValue(node.project_name);
+  if (code || name) return [code, name].filter(Boolean).join(" ");
+  if (isDepartmentSummaryNode(node)) return "汇总确认";
+  const projectId = recordProjectId(node, assignee);
+  return projectId ? `项目 #${projectId}` : "周表";
+}
+
+function recordKey(node: ApprovalChainNode, assignee: ApprovalChainAssignee, index: number) {
+  return [
+    node.node_id,
+    assignee.assignee_user_id || "system",
+    assignee.status || "status",
+    assignee.action || "action",
+    assignee.acted_at || "no-time",
+    index,
+  ].join(":");
+}
+
+function recordSource(node: ApprovalChainNode, assignee: ApprovalChainAssignee) {
+  return textValue(assignee.assignee_route_source) || textValue(node.assignee_role) || textValue(node.resolver_role);
 }
 
 function Connector({ show }: { show: boolean }) {
@@ -147,22 +259,16 @@ function Connector({ show }: { show: boolean }) {
   );
 }
 
-function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: string }) {
-  const assigneeNames = uniqueAssigneeNames(node);
+function StageCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: string }) {
   const blockingNodes = blockingLabel(node);
   const hint = nodeHint(node, nodeNumber, blockingNodes);
-  const projects = projectRows(node);
   const displayStatus = nodeDisplayStatus(node);
-  const showSummaryRow = isDepartmentSummaryNode(node) && projects.length === 0;
-  const auditAssignees = fallbackAssignees(node).filter((assignee) => {
-    const name = assigneeKey(assignee);
-    return Boolean(name && name !== "员工 0");
-  });
+  const projectRows = stageProjectRows(node);
 
   return (
     <div
       className={cn(
-        chainCardClass,
+        stageCardClass,
         node.node_status === "active" && "border-primary/70 shadow-sm ring-2 ring-primary/10",
         node.node_status === "rejected" && "border-destructive/50",
         node.node_status === "cancelled" && "bg-muted/20 text-muted-foreground",
@@ -180,86 +286,26 @@ function ChainCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
           {readableStatus(displayStatus)}
         </Badge>
       </div>
-
       <div className="mt-2 space-y-1.5 leading-5">
-        <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2">
-          <span className="text-muted-foreground">审批人</span>
-          <span className={cn("min-w-0 break-words", assigneeNames.length ? "text-foreground" : "text-muted-foreground")}>
-            {assigneeNames.length ? assigneeNames.join("、") : "未配置"}
-          </span>
+        <div className="space-y-1">
+          {projectRows.map((row) => (
+            <div
+              key={row.key}
+              className="grid grid-cols-[minmax(0,1fr)_3.75rem] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5"
+            >
+              <div className="min-w-0">
+                <div className="text-[11px] text-muted-foreground">{row.kind}</div>
+                <div className="mt-0.5 break-words text-foreground">{row.label}</div>
+              </div>
+              <Badge
+                variant={statusVariant[row.status] || "secondary"}
+                className="justify-center whitespace-normal text-center text-[10px] leading-4"
+              >
+                {readableStatus(row.status)}
+              </Badge>
+            </div>
+          ))}
         </div>
-        {projects.length || showSummaryRow ? (
-          <div className="space-y-1">
-            <div className="text-muted-foreground">{showSummaryRow ? "汇总" : "项目块"}</div>
-            <div className="space-y-1">
-              {showSummaryRow ? (
-                <div className="grid grid-cols-[minmax(0,1fr)_3.75rem] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5">
-                  <span className="min-w-0 break-words leading-5 text-foreground">部门汇总确认（全部项目块）</span>
-                  <Badge
-                    variant={statusVariant[displayStatus] || "secondary"}
-                    className="justify-center whitespace-normal text-center text-[10px] leading-4"
-                  >
-                    {readableStatus(displayStatus)}
-                  </Badge>
-                </div>
-              ) : null}
-              {projects.map((project) => {
-                const rowStatus = projectDisplayStatus(project, node);
-                return (
-                  <div
-                    key={`${project.project_id || projectLabel(project)}-${rowStatus}`}
-                    className="grid grid-cols-[minmax(0,1fr)_3.75rem] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5"
-                  >
-                    <span className="min-w-0 break-words leading-5 text-foreground">{projectLabel(project)}</span>
-                    <Badge
-                      variant={statusVariant[rowStatus] || "secondary"}
-                      className="justify-center whitespace-normal text-center text-[10px] leading-4"
-                    >
-                      {readableStatus(rowStatus)}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-        {auditAssignees.length ? (
-          <div className="space-y-1">
-            <div className="text-muted-foreground">审批记录</div>
-            <div className="space-y-1">
-              {auditAssignees.map((assignee) => {
-                const name = assigneeKey(assignee);
-                const summary = getAssigneeAuditSummary(assignee);
-                return (
-                  <div
-                    key={`${name}-${assignee.action || assignee.status || "pending"}-${assignee.acted_at || "no-time"}`}
-                    className="rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5"
-                  >
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="min-w-0 break-words text-foreground">{name}</span>
-                      <Badge
-                        variant={statusVariant[assignee.status] || "secondary"}
-                        className="whitespace-normal text-center text-[10px] leading-4"
-                      >
-                        {summary.actionLabel}
-                      </Badge>
-                      {summary.timeLabel ? (
-                        <span className="text-[11px] tabular-nums text-muted-foreground">
-                          {summary.timeLabel}
-                        </span>
-                      ) : null}
-                    </div>
-                    {summary.commentLabel ? (
-                      <p className="mt-1 break-words text-[11px] leading-4 text-muted-foreground">
-                        {summary.commentLabel}
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
         {hint ? (
           <p className="rounded-sm bg-muted/40 px-2 py-1 text-muted-foreground">{hint}</p>
         ) : null}
@@ -275,7 +321,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
   const hasActive = nodes.some((node) => node.node_status === "active");
   const submitStatus = hasRejected ? "待提交" : "已提交";
   const submitHint = hasRejected
-    ? "有节点退回，流程回到提交人。重新提交后继续按模板流转。"
+    ? "有项目块退回，流程回到提交人。"
     : hasActive
       ? "已提交，正在按审批模板流转。"
       : "已提交，等待审批模板节点处理。";
@@ -289,16 +335,16 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <strong className="text-xs text-foreground">审批链路</strong>
         <span className="text-[11px] text-muted-foreground">
-          按当前周表绑定模板显示，共 {nodes.length + 1} 个节点（含提交节点）
+          仅显示流程阶段和项目块状态，审批记录见下方项目块卡片
         </span>
       </div>
       <div className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1">
         <ol className="inline-flex min-w-max max-w-none items-stretch">
           <li className="flex items-stretch">
-            <div className={cn(chainCardClass, hasRejected && "border-destructive/50")}>
+            <div className={cn(stageCardClass, hasRejected && "border-destructive/50")}>
               <div className="absolute -left-1 top-3 size-2 rounded-full bg-border" />
               <div className="flex items-start justify-between gap-2">
-                <strong className="min-w-0 break-words text-sm leading-5 text-foreground">节点1：待提交</strong>
+                <strong className="min-w-0 break-words text-sm leading-5 text-foreground">提交</strong>
                 <Badge
                   variant={hasRejected ? "destructive" : "secondary"}
                   className="max-w-20 shrink-0 whitespace-normal text-center text-[10px] leading-4"
@@ -314,12 +360,98 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
           </li>
           {nodes.map((node, index) => (
             <li className="flex items-stretch" key={`${node.node_key}-${node.scope_id || node.node_id}`}>
-              <ChainCard node={node} nodeNumber={`节点${index + 2}`} />
+              <StageCard node={node} nodeNumber={`阶段${index + 1}`} />
               <Connector show={index < nodes.length - 1} />
             </li>
           ))}
         </ol>
       </div>
+    </section>
+  );
+}
+
+export function ApprovalRecords({ nodes = [], projectId }: ApprovalRecordsProps) {
+  const records = nodes
+    .flatMap((node) =>
+      recordAssignees(node).map((assignee, index) => {
+        const summary = getAssigneeAuditSummary(assignee);
+        const resolvedProjectId = recordProjectId(node, assignee);
+        const status = assignee.status || node.node_status;
+        return {
+          key: recordKey(node, assignee, index),
+          projectId: resolvedProjectId,
+          projectLabel: recordProjectLabel(node, assignee),
+          nodeName: displayNodeName(node),
+          source: recordSource(node, assignee),
+          actor: assigneeKey(assignee),
+          status,
+          statusLabel: readableStatus(status),
+          actionLabel: summary.actionLabel,
+          timeLabel: summary.timeLabel,
+          commentLabel: summary.commentLabel,
+          orderTime: assignee.acted_at ? Date.parse(assignee.acted_at) || 0 : 0,
+        };
+      }),
+    )
+    .filter((record) => record.actor)
+    .filter((record) => projectId == null || Number(record.projectId) === Number(projectId))
+    .sort((a, b) => a.orderTime - b.orderTime || a.nodeName.localeCompare(b.nodeName));
+
+  if (!records.length) {
+    return (
+      <section className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+        暂无审批记录
+      </section>
+    );
+  }
+
+  const groups = new Map<string, typeof records>();
+  for (const record of records) {
+    const key = `${record.projectId || "summary"}:${record.projectLabel}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(record);
+  }
+
+  return (
+    <section aria-label="审批记录" className="space-y-2">
+      <div className="flex items-center gap-2">
+        <strong className="text-xs text-foreground">审批记录</strong>
+        <span className="text-[11px] text-muted-foreground">按项目块归集完整处理记录</span>
+      </div>
+      {[...groups.entries()].map(([key, items]) => (
+        <div key={key} className="rounded-md border border-border bg-card p-3">
+          <div className="mb-2 text-sm font-semibold text-foreground">{items[0]?.projectLabel || "周表"}</div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {items.map((item) => (
+              <article key={item.key} className="rounded-md border border-border/70 bg-muted/20 p-2.5 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={statusVariant[item.status] || "secondary"} className="text-[10px] leading-4">
+                    {item.actionLabel}
+                  </Badge>
+                  {item.timeLabel ? (
+                    <span className="tabular-nums text-muted-foreground">{item.timeLabel}</span>
+                  ) : null}
+                </div>
+                <div className="mt-2 space-y-1 leading-5">
+                  <div className="break-words text-foreground">{item.nodeName}</div>
+                  <div className="break-words text-muted-foreground">
+                    {item.actor}
+                  </div>
+                  <div className="break-words text-muted-foreground">状态：{item.statusLabel}</div>
+                  {item.source ? (
+                    <div className="break-words text-muted-foreground">来源：{item.source}</div>
+                  ) : null}
+                  {item.commentLabel ? (
+                    <p className="break-words rounded-sm bg-background/70 px-2 py-1 text-muted-foreground">
+                      {item.commentLabel}
+                    </p>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      ))}
     </section>
   );
 }

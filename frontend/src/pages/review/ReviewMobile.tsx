@@ -46,7 +46,7 @@ export function ReviewMobile({
 }: ReviewMobileProps) {
   const counts = useMemo(
     () => ({
-      pending: (data?.timesheets.length || 0) + (data?.inProgress.length || 0) + (data?.overtime.length || 0),
+      pending: (data?.timesheets.length || 0) + (data?.overtime.length || 0),
       reviewed: (data?.reviewed.length || 0) + (data?.overtimeReviewed.length || 0),
     }),
     [data],

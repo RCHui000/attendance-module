@@ -27,7 +27,6 @@ import {
 import { statusText } from "@/lib/constants";
 import { DepartmentChip } from "@/components/ui/DepartmentChip";
 import { useReviewAction, useOvertimeAction } from "@/hooks/useApprovals";
-import { useAuthStore } from "@/stores/authStore";
 import type {
   ApprovalTasks,
   ApprovalTaskItem,
@@ -87,9 +86,6 @@ export function ApprovalTable({
   const overtimeAction = useOvertimeAction();
   const pendingReviewAction = reviewAction.isPending ? reviewAction.variables : null;
   const pendingOvertimeAction = overtimeAction.isPending ? overtimeAction.variables : null;
-  const isAdmin = useAuthStore((state) => state.isAdmin);
-  const inProgress = data.inProgress || [];
-  const inProgressLabel = isAdmin ? "流转中可见（无需处理）" : "流转中（未轮到我）";
   const approvalTabs = [
     { value: "pending" as const, label: "待审批" },
     { value: "reviewed" as const, label: "已审核" },
@@ -193,7 +189,7 @@ export function ApprovalTable({
           <div className="mb-2 flex shrink-0 items-center gap-2">
             <strong className="text-sm">周表</strong>
             <span className="text-xs text-muted-foreground">
-              {approvalTab === "pending" ? "待处理节点 / 流转中可见" : "按周聚合的已审核记录"}
+              {approvalTab === "pending" ? "待处理节点" : "按周聚合的已审核记录"}
             </span>
             <RefreshBadge show={isFetching} />
           </div>
@@ -214,7 +210,7 @@ export function ApprovalTable({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.timesheets.length === 0 && inProgress.length === 0 && (
+                    {data.timesheets.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center text-muted-foreground text-sm py-6">
                           暂无待审批周表
@@ -275,42 +271,6 @@ export function ApprovalTable({
                       }
                       return rows;
                     })()}
-                    {inProgress.length > 0 && (
-                      <TableRow className="bg-table-header hover:bg-table-header">
-                        <TableCell colSpan={7} className="py-1.5 px-3">
-                          <span className="text-xs font-bold text-muted-foreground">
-                            {inProgressLabel}
-                          </span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            {inProgress.length} 份周表
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {inProgress.map((item) => {
-                      const itemKey = `visible-${getTaskKey(item)}`;
-                      const isExpanded = expandedKey === itemKey;
-                      return (
-                        <Fragment key={itemKey}>
-                          <InProgressRow
-                            item={item}
-                            isExpanded={isExpanded}
-                            isAdmin={isAdmin}
-                            onToggle={() =>
-                              setExpandedKey(isExpanded ? null : itemKey)
-                            }
-                          />
-                          {isExpanded && (
-                            <ExpandedReviewRow
-                              key={`detail-${itemKey}`}
-                              timesheetId={item.timesheet_id}
-                              projectId={item.project_id || null}
-                              colSpan={7}
-                            />
-                          )}
-                        </Fragment>
-                      );
-                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -645,65 +605,6 @@ function ApprovalRow({
             <X className="size-3" />
           </Button>
         </div>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function InProgressRow({
-  item,
-  isExpanded,
-  isAdmin,
-  onToggle,
-}: {
-  item: ApprovalTaskItem;
-  isExpanded: boolean;
-  isAdmin: boolean;
-  onToggle: () => void;
-}) {
-  const currentText = item.current_assignee_names
-    ? `${isAdmin ? "当前处理人" : "当前待审批"}：${item.current_assignee_names}`
-    : isAdmin
-      ? "流转中可见"
-      : "尚未轮到你";
-  return (
-    <TableRow
-      className="hover:bg-row-hover cursor-pointer"
-      onClick={onToggle}
-    >
-      <TableCell className="w-7 p-0">
-        <div className="flex items-center justify-center">
-          {isExpanded ? (
-            <ChevronDown className="size-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="size-4 text-muted-foreground" />
-          )}
-        </div>
-      </TableCell>
-      <TableCell className="text-sm font-medium">{item.name}</TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        <DepartmentChip department={item.department} colorToken={item.department_color_token} />
-      </TableCell>
-      <TableCell className="whitespace-normal">
-        <Badge variant="outline" className="max-w-full whitespace-normal break-words text-xs leading-4">
-          {currentText}
-        </Badge>
-      </TableCell>
-      <TableCell className="text-sm text-right tabular-nums">
-        {item.total_hours?.toFixed(1)}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {item.submitted_at
-          ? new Date(item.submitted_at).toLocaleDateString("zh-CN", {
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "—"}
-      </TableCell>
-      <TableCell className="text-right text-xs text-muted-foreground">
-        {isAdmin ? "无需处理" : "仅查看"}
       </TableCell>
     </TableRow>
   );

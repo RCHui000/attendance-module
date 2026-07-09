@@ -52,6 +52,9 @@ Use a "white workbench on soft gray" direction:
 | `hairline-soft` | `#e8eaee` | Large containers and low emphasis borders |
 | `primary` | `#181d26` | Main action buttons, active nav |
 | `primary-hover` | `#0d1117` | Primary hover/pressed state |
+| `brand-accent` | `#f44214` | Xinpin logo red; sparse emphasis, brand moments, important non-status calls |
+| `brand-accent-soft` | `#fff1ed` | Soft accent background for subtle emphasis |
+| `brand-accent-text` | `#9f2a10` | Readable text/icon color on `brand-accent-soft` |
 | `row-hover` | `#f6f8fb` | Table/list hover |
 | `row-selected` | `#eef4ff` | Selected table/list rows |
 
@@ -63,6 +66,13 @@ Status tokens:
 | `warning` | `#d97706` | Pending attention, partial warning |
 | `danger` | `#dc2626` | Rejected, destructive, invalid |
 | `info` | `#2f80ed` | Progress, neutral link-like signal |
+
+Brand accent guidance:
+
+- `brand-accent` is the Xinpin logo red and is not a replacement for `danger`.
+- Use it sparingly for brand emphasis, onboarding highlights, or a single high-priority non-destructive callout.
+- Do not use `brand-accent` for approval rejection, validation errors, destructive actions, or overdue warnings; those remain status colors.
+- On soft accent surfaces, pair `brand-accent-soft` with `brand-accent-text`. Do not put low-contrast gray text on the soft red background.
 
 ### Typography
 
@@ -177,6 +187,9 @@ Elevation should be subtle:
 ### Loading, Empty, and Error States
 
 - First load uses skeletons shaped like the real content.
+- Skeleton text, pills, and badges must keep visible contrast between placeholder fill and foreground. Never render temporary pill text in the same color family and lightness as the pill background.
+- Loading pills should either omit text entirely and use a shimmer/block placeholder, or use muted text on a clearly lighter/darker neutral surface. Target at least WCAG AA contrast for any readable loading label.
+- When a skeleton copies a final colored chip shape, desaturate the placeholder surface and keep the temporary label neutral; do not reuse the final chip foreground/background pair until real data is loaded.
 - Refresh after data exists keeps the existing content and adds a low-emphasis `更新中` indicator near the title.
 - Empty states should name what is empty and, where useful, the next action.
 - Error states must preserve page structure when possible and explain whether cached data is still visible.

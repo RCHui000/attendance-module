@@ -14,6 +14,9 @@
   --color-primary: hsl(220 23% 12%);         /* #181d26 */
   --color-primary-foreground: hsl(0 0% 100%);
   --color-primary-dark: #0d1117;             /* primary hover */
+  --color-brand-accent: #f44214;             /* Xinpin logo red */
+  --color-brand-accent-soft: #fff1ed;
+  --color-brand-accent-text: #9f2a10;
   --color-secondary: hsl(220 14% 97%);       /* #f6f7f9 */
   --color-secondary-foreground: hsl(220 23% 12%);
   --color-muted: hsl(217 9% 41%);            /* #5f6672 */
@@ -111,6 +114,9 @@ body {
   --color-primary: hsl(218 14% 92%);
   --color-primary-foreground: hsl(220 9% 10%);
   --color-primary-dark: hsl(218 12% 80%);
+  --color-brand-accent: #ff6a3d;
+  --color-brand-accent-soft: rgba(244, 66, 20, 0.16);
+  --color-brand-accent-text: #ffb199;
   --color-secondary: hsl(220 7% 18%);
   --color-secondary-foreground: hsl(218 14% 91%);
   --color-muted: hsl(220 6% 23%);

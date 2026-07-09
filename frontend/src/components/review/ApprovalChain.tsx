@@ -64,6 +64,8 @@ const historicalStatuses = new Set([
   "revision_required",
 ]);
 
+const currentAssigneeStatuses = new Set(["active", "pending", "waiting", "needs_reapproval"]);
+
 const statusPriority: Record<string, number> = {
   rejected: 90,
   needs_revision: 85,
@@ -204,11 +206,27 @@ function blockingLabel(node: ApprovalChainNode) {
   return node.blocking_nodes.map((item) => `${item.node_name}（${readableStatus(item.status)}）`).join("、");
 }
 
+function currentStageAssigneeNames(node: ApprovalChainNode) {
+  const names = new Set<string>();
+  for (const assignee of fallbackAssignees(node)) {
+    const status = textValue(assignee.status) || textValue(assignee.node_status) || textValue(node.node_status);
+    if (!currentAssigneeStatuses.has(status)) continue;
+    if (assignee.action || assignee.acted_at || isNonApplicableProjectSkip(assignee.comment)) continue;
+
+    const name = assigneeKey(assignee);
+    if (name && name !== "系统/自动处理") names.add(name);
+  }
+  return Array.from(names);
+}
+
 function nodeHint(node: ApprovalChainNode, nodeNumber: string, blockingNodes: string) {
   if (node.node_status === "rejected") return "已退回到提交人";
   if (node.node_status === "cancelled") return `${nodeNumber} 已取消，不参与当前审批`;
   if (node.node_status === "waiting" && blockingNodes) return `等待前序完成：${blockingNodes}`;
-  if (node.node_status === "active") return "当前审批阶段";
+  if (node.node_status === "active") {
+    const names = currentStageAssigneeNames(node);
+    return names.length ? `当前审批阶段：${names.join("、")}` : "当前审批阶段";
+  }
   if (node.node_status === "skipped") return "该阶段已跳过";
   return "";
 }

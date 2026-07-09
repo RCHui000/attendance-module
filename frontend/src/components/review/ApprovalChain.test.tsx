@@ -26,7 +26,7 @@ function baseNode(overrides: Partial<ApprovalChainNode>): ApprovalChainNode {
 }
 
 describe("ApprovalChain", () => {
-  it("shows project block statuses from assignees without exposing approvers as node fields", () => {
+  it("shows pending approvers in the current stage hint without exposing completed assignees", () => {
     const node = baseNode({
       scope_type: "timesheet",
       scope_id: null,
@@ -63,6 +63,7 @@ describe("ApprovalChain", () => {
     expect(screen.getByText("P001 一号项目")).toBeInTheDocument();
     expect(screen.getByText("P002 二号项目")).toBeInTheDocument();
     expect(screen.queryByText("审批人")).not.toBeInTheDocument();
+    expect(screen.getByText("当前审批阶段：李四")).toBeInTheDocument();
     expect(screen.queryByText("张三")).not.toBeInTheDocument();
   });
 });

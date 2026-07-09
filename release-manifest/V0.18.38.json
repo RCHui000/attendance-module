@@ -1,0 +1,35 @@
+{
+  "version": "V0.18.38",
+  "released_at": "2026-07-09",
+  "base_version": "V0.18.37",
+  "commit": "tag:V0.18.38",
+  "summary": "Show current approval-stage assignees in the approval chain and document loading-pill contrast plus Xinpin red accent tokens.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database schema or approval routing changes."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.38",
+    "notes": [
+      "Active approval-chain stage hints now show pending node approver names, for example 当前审批阶段：张三、李四.",
+      "Completed assignees in the same node are not shown in the current-stage hint.",
+      "Design tokens now include the Xinpin logo red accent and soft/text pair.",
+      "Design guidance now forbids low-contrast loading pills where temporary text and pill fill have nearly identical color."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npx tsc -b from frontend.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npx vite build from frontend with production VITE_* variables and VITE_APP_VERSION=V0.18.38.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.38.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.38."
+  ],
+  "known_warnings": [
+    "Vite still reports large production chunks for existing application bundles."
+  ]
+}

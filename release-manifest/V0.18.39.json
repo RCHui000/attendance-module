@@ -1,0 +1,41 @@
+{
+  "version": "V0.18.39",
+  "released_at": "2026-07-14",
+  "base_version": "V0.18.38",
+  "commit": "tag:V0.18.39",
+  "summary": "Repair cross-department collaboration approver routing and show every project-block approver beside the correct status.",
+  "database": {
+    "new_migrations": [
+      "supabase-psa/migrations/136_fix_teo_collaboration_role_aliases.sql"
+    ],
+    "notes": [
+      "Disables broad TEO parent aliases that incorrectly routed CC submitters to Design Consulting owners.",
+      "Disables unscoped civil and MEP aliases while retaining explicit cost_specialty rules.",
+      "Refreshes only affected running, uncompleted collaboration nodes; historical approval actions remain unchanged."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.39",
+    "notes": [
+      "Each project block now shows all resolved approver names immediately before its status badge.",
+      "Approver names are no longer repeated in the stage footer.",
+      "A non-applicable skipped project can no longer make waiting projects in the same stage appear approved.",
+      "Non-applicable project blocks show 无需审批 instead of a fabricated approver name."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npx tsc -b from frontend.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npx vite build from frontend with production VITE_* variables and VITE_APP_VERSION=V0.18.39.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Dry-run migration 136 in a production transaction and roll it back after checking CC and MEP routing probes.",
+    "Apply migration 136 through deploy/scripts/apply-migrations.sh.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.39.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.39."
+  ],
+  "known_warnings": [
+    "Vite still reports large production chunks for existing application bundles."
+  ]
+}

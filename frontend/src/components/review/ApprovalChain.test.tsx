@@ -26,7 +26,7 @@ function baseNode(overrides: Partial<ApprovalChainNode>): ApprovalChainNode {
 }
 
 describe("ApprovalChain", () => {
-  it("shows pending approvers in the current stage hint without exposing completed assignees", () => {
+  it("shows every project approver beside its status without repeating names in the stage hint", () => {
     const node = baseNode({
       scope_type: "timesheet",
       scope_id: null,
@@ -63,8 +63,52 @@ describe("ApprovalChain", () => {
     expect(screen.getByText("P001 一号项目")).toBeInTheDocument();
     expect(screen.getByText("P002 二号项目")).toBeInTheDocument();
     expect(screen.queryByText("审批人")).not.toBeInTheDocument();
-    expect(screen.getByText("当前审批阶段：李四")).toBeInTheDocument();
-    expect(screen.queryByText("张三")).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("P001 一号项目审批状态")).getByText("张三")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("P002 二号项目审批状态")).getByText("李四")).toBeInTheDocument();
+    expect(screen.getByText("当前审批阶段")).toBeInTheDocument();
+    expect(screen.queryByText("当前审批阶段：李四")).not.toBeInTheDocument();
+  });
+
+  it("does not let a non-applicable project mark waiting projects as approved", () => {
+    const node = baseNode({
+      node_name: "PM部门负责人",
+      node_status: "waiting",
+      result_action: "skipped",
+      comment: "Not applicable for project business type",
+      assignees: [
+        {
+          node_id: 1,
+          node_status: "waiting",
+          project_id: 101,
+          project_code: "PMCC26002",
+          project_name: "海昌项目",
+          assignee_user_id: 20,
+          assignee_name: "那钦",
+          status: "waiting",
+        },
+        {
+          node_id: 2,
+          node_status: "skipped",
+          project_id: 102,
+          project_code: "P010",
+          project_name: "北运河项目",
+          assignee_user_id: 0,
+          assignee_name: null,
+          status: "skipped",
+          action: "skipped",
+          comment: "Not applicable for project business type",
+        },
+      ],
+    });
+
+    render(<ApprovalChain nodes={[node]} />);
+
+    const waitingRow = screen.getByLabelText("PMCC26002 海昌项目审批状态");
+    const skippedRow = screen.getByLabelText("P010 北运河项目审批状态");
+    expect(within(waitingRow).getByText("那钦")).toBeInTheDocument();
+    expect(within(waitingRow).getByText("待审核")).toBeInTheDocument();
+    expect(within(skippedRow).getByText("无需审批")).toBeInTheDocument();
+    expect(within(skippedRow).getByText("已通过")).toBeInTheDocument();
   });
 });
 

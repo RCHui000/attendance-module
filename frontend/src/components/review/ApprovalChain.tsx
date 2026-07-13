@@ -19,6 +19,8 @@ type StageProjectRow = {
   label: string;
   status: string;
   kind: "项目块" | "汇总" | "范围";
+  approverNames: string[];
+  nonApplicable: boolean;
 };
 
 const statusLabel: Record<string, string> = {
@@ -63,8 +65,6 @@ const historicalStatuses = new Set([
   "needs_revision",
   "revision_required",
 ]);
-
-const currentAssigneeStatuses = new Set(["active", "pending", "waiting", "needs_reapproval"]);
 
 const statusPriority: Record<string, number> = {
   rejected: 90,
@@ -150,7 +150,6 @@ function displayNodeName(node: ApprovalChainNode) {
 }
 
 function nodeDisplayStatus(node: ApprovalChainNode) {
-  if (isNonApplicableProjectSkip(node.comment)) return "approved";
   return textValue(node.node_status) || "waiting";
 }
 
@@ -162,7 +161,7 @@ function assigneeProjectLabel(assignee: ApprovalChainAssignee) {
 }
 
 function assigneeDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
-  if (isNonApplicableProjectSkip(assignee.comment) || isNonApplicableProjectSkip(node.comment)) return "approved";
+  if (isNonApplicableProjectSkip(assignee.comment)) return "approved";
   const nodeStatus = textValue(assignee.node_status || node.node_status);
   const assigneeStatus = textValue(assignee.status);
   if (nodeStatus && nodeStatus !== "active") return nodeStatus;
@@ -181,52 +180,55 @@ function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
     const key = textValue(assignee.project_id) || label;
     const status = assigneeDisplayStatus(assignee, node);
     const existing = rows.get(key);
+    const approverName = assigneeKey(assignee);
+    const approverNames = new Set(existing?.approverNames || []);
+    if (approverName && approverName !== "系统/自动处理") approverNames.add(approverName);
     rows.set(key, {
       key,
       label,
       status: existing ? chooseStageStatus(existing.status, status) : status,
       kind: "项目块",
+      approverNames: Array.from(approverNames),
+      nonApplicable: Boolean(existing?.nonApplicable || isNonApplicableProjectSkip(assignee.comment)),
     });
   }
   if (rows.size) return Array.from(rows.values());
 
   const displayStatus = nodeDisplayStatus(node);
   if (isDepartmentSummaryNode(node)) {
-    return [{ key: `summary-${node.node_id}`, label: "汇总确认", status: displayStatus, kind: "汇总" }];
+    return [{
+      key: `summary-${node.node_id}`,
+      label: "汇总确认",
+      status: displayStatus,
+      kind: "汇总",
+      approverNames: [],
+      nonApplicable: isNonApplicableProjectSkip(node.comment),
+    }];
   }
   return [{
     key: `scope-${node.node_id}`,
     label: projectLabelFromNode(node),
     status: displayStatus,
     kind: node.scope_type === "project" ? "项目块" : "范围",
+    approverNames: [],
+    nonApplicable: isNonApplicableProjectSkip(node.comment),
   }];
+}
+
+function stageApproverLabel(row: StageProjectRow) {
+  if (row.approverNames.length) return row.approverNames.join("、");
+  return row.nonApplicable ? "无需审批" : "未配置";
 }
 
 function blockingLabel(node: ApprovalChainNode) {
   return node.blocking_nodes.map((item) => `${item.node_name}（${readableStatus(item.status)}）`).join("、");
 }
 
-function currentStageAssigneeNames(node: ApprovalChainNode) {
-  const names = new Set<string>();
-  for (const assignee of fallbackAssignees(node)) {
-    const status = textValue(assignee.status) || textValue(assignee.node_status) || textValue(node.node_status);
-    if (!currentAssigneeStatuses.has(status)) continue;
-    if (assignee.action || assignee.acted_at || isNonApplicableProjectSkip(assignee.comment)) continue;
-
-    const name = assigneeKey(assignee);
-    if (name && name !== "系统/自动处理") names.add(name);
-  }
-  return Array.from(names);
-}
-
 function nodeHint(node: ApprovalChainNode, nodeNumber: string, blockingNodes: string) {
   if (node.node_status === "rejected") return "已退回到提交人";
   if (node.node_status === "cancelled") return `${nodeNumber} 已取消，不参与当前审批`;
   if (node.node_status === "waiting" && blockingNodes) return `等待前序完成：${blockingNodes}`;
-  if (node.node_status === "active") {
-    const names = currentStageAssigneeNames(node);
-    return names.length ? `当前审批阶段：${names.join("、")}` : "当前审批阶段";
-  }
+  if (node.node_status === "active") return "当前审批阶段";
   if (node.node_status === "skipped") return "该阶段已跳过";
   return "";
 }
@@ -309,18 +311,24 @@ function StageCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
           {projectRows.map((row) => (
             <div
               key={row.key}
-              className="grid grid-cols-[minmax(0,1fr)_3.75rem] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5"
+              aria-label={`${row.label}审批状态`}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5"
             >
               <div className="min-w-0">
                 <div className="text-[11px] text-muted-foreground">{row.kind}</div>
                 <div className="mt-0.5 break-words text-foreground">{row.label}</div>
               </div>
-              <Badge
-                variant={statusVariant[row.status] || "secondary"}
-                className="justify-center whitespace-normal text-center text-[10px] leading-4"
-              >
-                {readableStatus(row.status)}
-              </Badge>
+              <div className="flex max-w-32 flex-wrap items-center justify-end gap-1">
+                <span className="break-words text-right text-[11px] text-foreground">
+                  {stageApproverLabel(row)}
+                </span>
+                <Badge
+                  variant={statusVariant[row.status] || "secondary"}
+                  className="justify-center whitespace-normal text-center text-[10px] leading-4"
+                >
+                  {readableStatus(row.status)}
+                </Badge>
+              </div>
             </div>
           ))}
         </div>
@@ -353,7 +361,7 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <strong className="text-xs text-foreground">审批链路</strong>
         <span className="text-[11px] text-muted-foreground">
-          仅显示流程阶段和项目块状态，审批记录见下方项目块卡片
+          流程阶段、项目块审批人与状态
         </span>
       </div>
       <div className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1">

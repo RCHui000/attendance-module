@@ -2,6 +2,8 @@ DO $$
 DECLARE
   v_bad_edges integer;
   v_bad_department_resolver integer;
+  v_broad_teo_aliases integer;
+  v_unscoped_specialty_aliases integer;
   v_doc_id bigint;
   v_assignee bigint;
   v_route_source text;
@@ -46,6 +48,40 @@ BEGIN
 
   IF v_bad_department_resolver <> 0 THEN
     RAISE EXCEPTION 'Collaboration source department owner must use org_manager/department_owner';
+  END IF;
+
+  SELECT count(*) INTO v_broad_teo_aliases
+  FROM public.approval_role_aliases a
+  WHERE a.is_active = true
+    AND a.document_type = 'timesheet'
+    AND a.resolver_type = 'project_role'
+    AND a.org_code IS NULL
+    AND a.parent_org_code = 'TEO'
+    AND a.cost_specialty IS NULL
+    AND (
+      (a.requested_role_key = 'cc_project_owner' AND a.candidate_role_key = 'cc_design_project_owner')
+      OR
+      (a.requested_role_key = 'pm_cost_department_owner' AND a.candidate_role_key = 'pm_design_project_owner')
+    );
+
+  IF v_broad_teo_aliases <> 0 THEN
+    RAISE EXCEPTION 'Broad TEO aliases must not override child department collaboration routes';
+  END IF;
+
+  SELECT count(*) INTO v_unscoped_specialty_aliases
+  FROM public.approval_role_aliases a
+  WHERE a.is_active = true
+    AND a.document_type IS NULL
+    AND a.resolver_type = 'project_role'
+    AND a.requested_role_key = 'cc_project_owner'
+    AND a.candidate_role_key IN ('cc_civil_project_owner', 'cc_mep_project_owner')
+    AND a.business_type IS NULL
+    AND a.org_code IS NULL
+    AND a.parent_org_code IS NULL
+    AND a.cost_specialty IS NULL;
+
+  IF v_unscoped_specialty_aliases <> 0 THEN
+    RAISE EXCEPTION 'CC specialty aliases must require an explicit specialty';
   END IF;
 
   SELECT bd.id INTO v_doc_id

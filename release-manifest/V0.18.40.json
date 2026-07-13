@@ -1,0 +1,42 @@
+{
+  "version": "V0.18.40",
+  "released_at": "2026-07-14",
+  "base_version": "V0.18.39",
+  "commit": "tag:V0.18.40",
+  "summary": "Audit every running timesheet approval chain, hide stale candidates from the chain view, and show real approval timestamps per project block.",
+  "database": {
+    "new_migrations": [
+      "supabase-psa/migrations/137_repair_running_timesheet_chain_integrity.sql"
+    ],
+    "notes": [
+      "Repairs six legacy PMCC-template nodes that should have been skipped for consulting projects.",
+      "Removes an active stale unresolved candidate and lets the existing serial activation logic continue the affected chain.",
+      "Preserves cancelled assignee rows as audit history.",
+      "Adds a reusable running-timesheet chain integrity assertion covering pending-assignee cardinality, serial order, real approval actions, applicability, and current route resolution."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.40",
+    "notes": [
+      "Approval-chain project rows show only effective or actual approvers; cancelled and delegated candidates remain in approval records only.",
+      "Approved project rows show the real acted_at timestamp beside the project name.",
+      "The current-stage footer is removed and the active stage is indicated with the Xinpin brand-red border and focus ring."
+    ]
+  },
+  "verification": [
+    "Audit all 73 submitted/running timesheets and 847 runtime approval nodes on production.",
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npx tsc -b from frontend.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npx vite build from frontend with production VITE_* variables and VITE_APP_VERSION=V0.18.40.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Dry-run migration 137 and scripts/assert-running-timesheet-approval-chain-integrity.sql in a production transaction, then roll back.",
+    "Apply migration 137 through deploy/scripts/apply-migrations.sh.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.40.",
+    "Run a production SPA root-render smoke check and verify V0.18.40 is visible."
+  ],
+  "known_warnings": [
+    "PMCC26008, PMCC26012, and PMCC26013 currently lack configured PM cost owners for 19 future waiting nodes; no approver is fabricated, and the configured missing-assignee policy will skip those nodes only when reached."
+  ]
+}

@@ -1,6 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { getAssigneeAuditSummary, isNonApplicableProjectSkip } from "@/lib/approvalAudit";
+import {
+  formatApprovalAuditTime,
+  getAssigneeAuditSummary,
+  isNonApplicableProjectSkip,
+} from "@/lib/approvalAudit";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval";
 
 interface ApprovalChainProps {
@@ -21,6 +25,7 @@ type StageProjectRow = {
   kind: "项目块" | "汇总" | "范围";
   approverNames: string[];
   nonApplicable: boolean;
+  approvedAt: string | null;
 };
 
 const statusLabel: Record<string, string> = {
@@ -65,6 +70,8 @@ const historicalStatuses = new Set([
   "needs_revision",
   "revision_required",
 ]);
+
+const openStatuses = new Set(["active", "pending", "waiting", "needs_reapproval"]);
 
 const statusPriority: Record<string, number> = {
   rejected: 90,
@@ -164,8 +171,30 @@ function assigneeDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalCh
   if (isNonApplicableProjectSkip(assignee.comment)) return "approved";
   const nodeStatus = textValue(assignee.node_status || node.node_status);
   const assigneeStatus = textValue(assignee.status);
+  if (openStatuses.has(nodeStatus) && ["cancelled", "delegated"].includes(assigneeStatus)) return nodeStatus;
   if (nodeStatus && nodeStatus !== "active") return nodeStatus;
   return assigneeStatus || nodeStatus || "waiting";
+}
+
+function isEffectiveStageAssignee(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
+  if (isNonApplicableProjectSkip(assignee.comment)) return false;
+  const nodeStatus = textValue(assignee.node_status || node.node_status);
+  const assigneeStatus = textValue(assignee.status) || nodeStatus;
+  const action = textValue(assignee.action);
+
+  if (openStatuses.has(nodeStatus)) {
+    return openStatuses.has(assigneeStatus) && !action && !assignee.acted_at;
+  }
+  if (nodeStatus === "approved") return assigneeStatus === "approved" || ["approve", "approved"].includes(action);
+  if (nodeStatus === "rejected") return assigneeStatus === "rejected" || ["reject", "rejected"].includes(action);
+  return !["cancelled", "delegated", "skipped"].includes(assigneeStatus);
+}
+
+function assigneeApprovedAt(assignee: ApprovalChainAssignee) {
+  const status = textValue(assignee.status);
+  const action = textValue(assignee.action);
+  if (status !== "approved" && !["approve", "approved"].includes(action)) return null;
+  return textValue(assignee.acted_at) || null;
 }
 
 function chooseStageStatus(current: string, next: string) {
@@ -182,7 +211,14 @@ function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
     const existing = rows.get(key);
     const approverName = assigneeKey(assignee);
     const approverNames = new Set(existing?.approverNames || []);
-    if (approverName && approverName !== "系统/自动处理") approverNames.add(approverName);
+    if (
+      approverName &&
+      approverName !== "系统/自动处理" &&
+      isEffectiveStageAssignee(assignee, node)
+    ) {
+      approverNames.add(approverName);
+    }
+    const approvedAt = assigneeApprovedAt(assignee);
     rows.set(key, {
       key,
       label,
@@ -190,6 +226,7 @@ function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
       kind: "项目块",
       approverNames: Array.from(approverNames),
       nonApplicable: Boolean(existing?.nonApplicable || isNonApplicableProjectSkip(assignee.comment)),
+      approvedAt: [existing?.approvedAt, approvedAt].filter(Boolean).sort().at(-1) || null,
     });
   }
   if (rows.size) return Array.from(rows.values());
@@ -203,6 +240,7 @@ function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
       kind: "汇总",
       approverNames: [],
       nonApplicable: isNonApplicableProjectSkip(node.comment),
+      approvedAt: displayStatus === "approved" ? textValue(node.completed_at) || null : null,
     }];
   }
   return [{
@@ -212,6 +250,7 @@ function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
     kind: node.scope_type === "project" ? "项目块" : "范围",
     approverNames: [],
     nonApplicable: isNonApplicableProjectSkip(node.comment),
+    approvedAt: displayStatus === "approved" ? textValue(node.completed_at) || null : null,
   }];
 }
 
@@ -228,7 +267,7 @@ function nodeHint(node: ApprovalChainNode, nodeNumber: string, blockingNodes: st
   if (node.node_status === "rejected") return "已退回到提交人";
   if (node.node_status === "cancelled") return `${nodeNumber} 已取消，不参与当前审批`;
   if (node.node_status === "waiting" && blockingNodes) return `等待前序完成：${blockingNodes}`;
-  if (node.node_status === "active") return "当前审批阶段";
+  if (node.node_status === "active") return "";
   if (node.node_status === "skipped") return "该阶段已跳过";
   return "";
 }
@@ -287,9 +326,10 @@ function StageCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
 
   return (
     <div
+      aria-current={node.node_status === "active" ? "step" : undefined}
       className={cn(
         stageCardClass,
-        node.node_status === "active" && "border-primary/70 shadow-sm ring-2 ring-primary/10",
+        node.node_status === "active" && "border-brand-accent shadow-sm ring-2 ring-brand-accent/20",
         node.node_status === "rejected" && "border-destructive/50",
         node.node_status === "cancelled" && "bg-muted/20 text-muted-foreground",
       )}
@@ -316,7 +356,17 @@ function StageCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
             >
               <div className="min-w-0">
                 <div className="text-[11px] text-muted-foreground">{row.kind}</div>
-                <div className="mt-0.5 break-words text-foreground">{row.label}</div>
+                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <div className="min-w-0 break-words text-foreground">{row.label}</div>
+                  {row.approvedAt ? (
+                    <time
+                      dateTime={row.approvedAt}
+                      className="ml-auto shrink-0 tabular-nums text-[10px] text-muted-foreground"
+                    >
+                      {formatApprovalAuditTime(row.approvedAt)}
+                    </time>
+                  ) : null}
+                </div>
               </div>
               <div className="flex max-w-32 flex-wrap items-center justify-end gap-1">
                 <span className="break-words text-right text-[11px] text-foreground">

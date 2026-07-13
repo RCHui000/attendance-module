@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ApprovalChain, ApprovalRecords } from "./ApprovalChain";
 import type { ApprovalChainNode } from "@/types/approval";
+import { formatApprovalAuditTime } from "@/lib/approvalAudit";
 
 afterEach(() => {
   cleanup();
@@ -35,7 +36,7 @@ describe("ApprovalChain", () => {
       assignees: [
         {
           node_id: 1,
-          node_status: "active",
+          node_status: "approved",
           project_id: 101,
           project_code: "P001",
           project_name: "一号项目",
@@ -55,6 +56,19 @@ describe("ApprovalChain", () => {
           assignee_name: "李四",
           status: "pending",
         },
+        {
+          node_id: 1,
+          node_status: "active",
+          project_id: 102,
+          project_code: "P002",
+          project_name: "二号项目",
+          assignee_user_id: 41,
+          assignee_name: "庞红照",
+          status: "cancelled",
+          action: "cancelled",
+          acted_at: "2026-06-30T08:00:00Z",
+          comment: "route repair",
+        },
       ],
     });
 
@@ -64,9 +78,14 @@ describe("ApprovalChain", () => {
     expect(screen.getByText("P002 二号项目")).toBeInTheDocument();
     expect(screen.queryByText("审批人")).not.toBeInTheDocument();
     expect(within(screen.getByLabelText("P001 一号项目审批状态")).getByText("张三")).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("P001 一号项目审批状态")).getByText(
+        formatApprovalAuditTime("2026-07-01T08:00:00Z"),
+      ),
+    ).toBeInTheDocument();
     expect(within(screen.getByLabelText("P002 二号项目审批状态")).getByText("李四")).toBeInTheDocument();
-    expect(screen.getByText("当前审批阶段")).toBeInTheDocument();
-    expect(screen.queryByText("当前审批阶段：李四")).not.toBeInTheDocument();
+    expect(screen.queryByText("庞红照")).not.toBeInTheDocument();
+    expect(screen.queryByText(/当前审批阶段/)).not.toBeInTheDocument();
   });
 
   it("does not let a non-applicable project mark waiting projects as approved", () => {
@@ -113,6 +132,31 @@ describe("ApprovalChain", () => {
 });
 
 describe("ApprovalRecords", () => {
+  it("keeps cancelled route candidates in audit records while the chain hides them", () => {
+    const node = baseNode({
+      assignees: [
+        {
+          node_id: 1,
+          node_status: "active",
+          project_id: 101,
+          project_code: "P001",
+          project_name: "一号项目",
+          assignee_user_id: 41,
+          assignee_name: "庞红照",
+          status: "cancelled",
+          action: "cancelled",
+          acted_at: "2026-06-30T08:00:00Z",
+          comment: "route repair",
+        },
+      ],
+    });
+
+    render(<ApprovalRecords nodes={[node]} projectId={101} />);
+
+    expect(screen.getByText("庞红照")).toBeInTheDocument();
+    expect(screen.getByText("route repair")).toBeInTheDocument();
+  });
+
   it("excludes future assignees and keeps real historical records", () => {
     const nodes = [
       baseNode({

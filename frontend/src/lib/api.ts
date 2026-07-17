@@ -276,6 +276,62 @@ async function currentUser(): Promise<AnyRow | null> {
   };
 }
 
+async function currentUsageActor(): Promise<{ id: number; name: string } | null> {
+  const sub = decodeJwt()?.sub;
+  if (!sub) return null;
+  const rows = await rest<AnyRow[]>(
+    `/employees?select=id,name,is_active&auth_user_id=eq.${encodeURIComponent(sub)}&limit=1`,
+  );
+  const row = rows[0];
+  if (!row || row.is_active === false) return null;
+  return { id: Number(row.id), name: String(row.name || "") };
+}
+
+async function recordUsageEvent(
+  eventType: "department_owner_login" | "app_center_open",
+  details: { app_center_item_id?: number | null; app_name?: string; metadata?: AnyRow } = {},
+): Promise<void> {
+  try {
+    const actor = await currentUsageActor();
+    if (!actor) return;
+    await rest("/usage_event_logs", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      keepalive: true,
+      body: JSON.stringify({
+        event_type: eventType,
+        actor_employee_id: actor.id,
+        actor_name: actor.name,
+        app_center_item_id: details.app_center_item_id ?? null,
+        app_name: details.app_name || "",
+        metadata: details.metadata || {},
+      }),
+    });
+  } catch {
+    // Usage logs are observational only and must never block login or navigation.
+  }
+}
+
+export async function recordDepartmentOwnerLogin(): Promise<void> {
+  await recordUsageEvent("department_owner_login");
+}
+
+export async function recordAppCenterOpen(app: {
+  id: number;
+  app_key?: string;
+  name: string;
+  is_internal?: boolean;
+}): Promise<void> {
+  await recordUsageEvent("app_center_open", {
+    app_center_item_id: Number(app.id),
+    app_name: String(app.name || ""),
+    metadata: {
+      app_key: app.app_key || "",
+      is_internal: app.is_internal === true,
+    },
+  });
+}
+
 async function currentUserPermissions(role: string): Promise<Record<string, string>> {
   const rows = await rest<AnyRow[]>(
     `/role_permissions?select=resource_key,access_level&role_key=eq.${encodeURIComponent(role)}`,

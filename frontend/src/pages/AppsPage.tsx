@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppCenterItems, useDeleteAppCenterItem, useSaveAppCenterItem } from "@/hooks/useAppCenter";
 import { useAuthStore } from "@/stores/authStore";
+import { recordAppCenterOpen } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { AppCenterItem, SaveAppCenterItemInput } from "@/types/appCenter";
 import {
@@ -72,6 +73,7 @@ function AppCard({ app }: { app: AppCenterItem }) {
       href={app.url}
       target="_blank"
       rel="noreferrer"
+      onClick={() => void recordAppCenterOpen(app)}
       className="group relative flex h-[116px] w-[104px] flex-col items-center justify-center gap-3 overflow-hidden rounded-lg bg-card px-2 py-3 text-card-foreground shadow-app ring-1 ring-foreground/10 transition duration-150 ease-out hover:-translate-y-1 hover:shadow-float hover:ring-primary/25 active:translate-y-0 active:scale-[0.96] active:shadow-app focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none sm:h-[124px] sm:w-[112px]"
       aria-label={`打开${app.name}`}
       title={app.description || app.name}

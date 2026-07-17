@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "@/lib/api";
+import { api, recordDepartmentOwnerLogin } from "@/lib/api";
 import { useAppStore } from "@/stores/appStore";
 import { clearStoredToken, signInWithLogin, signOutFromSupabase } from "@/lib/supabase";
 import type { CurrentUser, BootstrapData, PermissionAccess, PermissionMap, SidebarOrderMap } from "@/types/auth";
@@ -59,6 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (login: string, password: string) => {
     await signInWithLogin(login, password);
+    await recordDepartmentOwnerLogin();
     window.location.reload();
   },
 

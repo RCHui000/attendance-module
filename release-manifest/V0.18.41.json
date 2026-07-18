@@ -1,0 +1,32 @@
+{
+  "version": "V0.18.41",
+  "released_at": "2026-07-18",
+  "base_version": "V0.18.40",
+  "commit": "tag:V0.18.41",
+  "summary": "Allow Sunday to be recorded as the seventh regular workday without weakening full-attendance reminders.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database changes; the existing database guard already allows up to 7.0 regular workdays per weekly timesheet."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.18.41",
+    "notes": [
+      "Separates the full-attendance reference from the hard regular-workday limit.",
+      "A complete Monday-to-Sunday period now allows up to 7.0 regular workdays.",
+      "Month-clipped periods remain limited to their active dates, and the per-day 1.0 workday limit remains unchanged.",
+      "Sunday and statutory-rest-day entries no longer show a false weekly-overage error when the total is within the hard limit."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.18.41.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.18.41.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.18.41."
+  ],
+  "known_warnings": []
+}

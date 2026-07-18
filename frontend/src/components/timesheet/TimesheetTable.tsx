@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { dayNames, holidayInfo } from "@/lib/constants";
 import { parseLocalDate } from "@/utils/dates";
-import { formatWorkdays, regularWorkdayCapacity } from "@/utils/validation";
+import { formatWorkdays, regularWorkdayLimit } from "@/utils/validation";
 import type { TimesheetRow, OvertimeStore, TimesheetStatus } from "@/types/timesheet";
 import type { ProjectBrief } from "@/types/auth";
 import {
@@ -436,7 +436,7 @@ export const TimesheetTable = memo(function TimesheetTable({
 }: TimesheetTableProps) {
   const canAddRow = !isLocked && status !== "submitted";
   const activeDaySet = useMemo(() => new Set(activeDays), [activeDays]);
-  const maxRegularWorkdays = useMemo(() => regularWorkdayCapacity(activeDays), [activeDays]);
+  const maxRegularWorkdays = useMemo(() => regularWorkdayLimit(activeDays), [activeDays]);
   return (
     <div className="rounded-lg border border-border shadow-app overflow-hidden">
       <div className="overflow-auto">

@@ -56,11 +56,15 @@ export function regularWorkdayCapacity(days: string[]): number {
   }, 0);
 }
 
+export function regularWorkdayLimit(days: string[]): number {
+  return Math.min(days.length, MAX_REGULAR_WEEK_WORKDAYS);
+}
+
 export function hasBlockingError(
   rows: TimesheetRow[],
   days: string[],
 ): boolean {
-  const maxRegularWorkdays = regularWorkdayCapacity(days);
+  const maxRegularWorkdays = regularWorkdayLimit(days);
   return (
     days.some((d) => dayPercent(rows, d) > MAX_DAILY_PERCENT) ||
     weekWorkdays(rows, days) > maxRegularWorkdays + EPSILON
@@ -97,15 +101,16 @@ export function buildWarnings(
   }
 
   const workdays = weekWorkdays(rows, days);
-  const maxRegularWorkdays = regularWorkdayCapacity(days);
+  const fullAttendanceWorkdays = regularWorkdayCapacity(days);
+  const maxRegularWorkdays = regularWorkdayLimit(days);
   if (workdays > maxRegularWorkdays + EPSILON) {
     warnings.push({
       text: `本周普通工日合计 ${formatWorkdays(workdays)}，超过 ${formatWorkdays(maxRegularWorkdays)} 工日`,
       type: "error",
     });
-  } else if (workdays < maxRegularWorkdays && rows.length > 0) {
+  } else if (workdays < fullAttendanceWorkdays && rows.length > 0) {
     warnings.push({
-      text: `本周合计 ${formatWorkdays(workdays)} 工日，未满勤 ${formatWorkdays(maxRegularWorkdays)} 工日`,
+      text: `本周合计 ${formatWorkdays(workdays)} 工日，未满勤 ${formatWorkdays(fullAttendanceWorkdays)} 工日`,
       type: "warning",
     });
   }

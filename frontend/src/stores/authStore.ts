@@ -24,6 +24,26 @@ interface AuthState {
   ) => Promise<void>;
 }
 
+const PENDING_LOGIN_USAGE_EVENT = "psa_pending_login_usage_event";
+
+function markLoginUsageEvent(): void {
+  try {
+    sessionStorage.setItem(PENDING_LOGIN_USAGE_EVENT, "1");
+  } catch {
+    // Session storage is optional; login must remain unaffected when unavailable.
+  }
+}
+
+function consumeLoginUsageEvent(): boolean {
+  try {
+    if (sessionStorage.getItem(PENDING_LOGIN_USAGE_EVENT) !== "1") return false;
+    sessionStorage.removeItem(PENDING_LOGIN_USAGE_EVENT);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function computePermissions(user: CurrentUser | null) {
   if (!user)
     return { isAdmin: false, canReview: false };
@@ -59,7 +79,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (login: string, password: string) => {
     await signInWithLogin(login, password);
-    await recordDepartmentOwnerLogin();
+    markLoginUsageEvent();
     window.location.reload();
   },
 
@@ -81,6 +101,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = data.currentUser ? { ...data.currentUser, permissions: data.permissions || {}, sidebarOrder } : null;
       const { isAdmin, canReview } = computePermissions(user);
       set({ user, isAuthenticated: !!user, isAdmin, canReview, permissions: data.permissions || {}, sidebarOrder, isLoading: false });
+
+      if (user && consumeLoginUsageEvent()) {
+        void recordDepartmentOwnerLogin();
+      }
 
       // Set the correct Monday from the server
       if (data.currentWeek) {

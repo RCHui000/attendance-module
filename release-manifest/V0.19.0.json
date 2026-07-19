@@ -1,0 +1,40 @@
+{
+  "version": "V0.19.0",
+  "released_at": "2026-07-19",
+  "base_version": "V0.18.41",
+  "commit": "tag:V0.19.0",
+  "summary": "Fix the mobile project editor backdrop layering and add write-only operational usage events without affecting user workflows.",
+  "database": {
+    "new_migrations": [
+      "138_usage_event_logs.sql",
+      "139_lock_down_usage_event_log_reads.sql",
+      "140_usage_event_logs_insert_only_for_app.sql",
+      "141_harden_usage_event_log_integrity.sql"
+    ],
+    "notes": [
+      "Stores only department-owner login and app-center open events required for delivery operations.",
+      "Authenticated application users can insert validated events but cannot select, update, or delete usage logs.",
+      "Actor and application labels are bound to server-side employee and app-center records, and metadata is restricted to the expected minimum fields."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.19.0",
+    "notes": [
+      "Keeps the mobile project configuration editor above its blur backdrop and assigns its portaled selects to the modal layer.",
+      "Adds dialog semantics to the mobile project editor.",
+      "Records operational usage events silently; failures never render a message or block navigation.",
+      "Defers the one-time login event until normal application bootstrap completes so telemetry cannot delay login."
+    ]
+  },
+  "verification": [
+    "Run git diff --check against V0.18.41.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.19.0.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run scripts/assert-usage-event-log-access.sql against production after migration 141.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.19.0.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.19.0."
+  ],
+  "known_warnings": []
+}

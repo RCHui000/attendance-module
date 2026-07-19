@@ -490,16 +490,19 @@ export function ProjectList() {
       {isMobile && selectedId && editorOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+          className="fixed inset-0 z-modal bg-black/20 backdrop-blur-[1px]"
           aria-label="关闭项目配置"
           onClick={() => setEditorOpen(false)}
         />
       )}
 
       <div
+        role={isMobile && selectedId && editorOpen ? "dialog" : undefined}
+        aria-modal={isMobile && selectedId && editorOpen ? true : undefined}
+        aria-label={isMobile && selectedId && editorOpen ? "项目配置" : undefined}
         className={cn(
-          "rounded-lg border border-border bg-white p-4",
-          "max-[767px]:fixed max-[767px]:inset-x-3 max-[767px]:top-6 max-[767px]:bottom-6 max-[767px]:z-modal max-[767px]:overflow-y-auto max-[767px]:shadow-xl",
+          "z-modal rounded-lg border border-border bg-white p-4",
+          "max-[767px]:fixed max-[767px]:inset-x-3 max-[767px]:top-6 max-[767px]:bottom-6 max-[767px]:overflow-y-auto max-[767px]:shadow-xl",
           (!isMobile || (selectedId && editorOpen)) ? "" : "max-[767px]:hidden",
         )}
       >
@@ -554,7 +557,7 @@ export function ProjectList() {
                   <SelectTrigger>
                     <SelectValue placeholder="选择工时分类" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent layer={isMobile ? "modal" : "dropdown"}>
                     <SelectItem value="project">普通项目</SelectItem>
                     <SelectItem value="leave">请假</SelectItem>
                   </SelectContent>
@@ -566,7 +569,7 @@ export function ProjectList() {
                   <SelectTrigger disabled={isLeaveWork}>
                     <SelectValue placeholder="选择服务类型" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent layer={isMobile ? "modal" : "dropdown"}>
                     <SelectItem value={NONE}>未识别</SelectItem>
                     {serviceTypes.map((type) => (
                       <SelectItem key={type} value={type}>
@@ -611,7 +614,7 @@ export function ProjectList() {
                               <SelectTrigger className="min-w-0">
                                 {userId ? employeeLabel(employeeById.get(userId)) : <SelectValue placeholder={roleLabels[role]} />}
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent layer={isMobile ? "modal" : "dropdown"}>
                                 <SelectItem value={NONE}>未配置</SelectItem>
                                 {roleCandidates(role).map((employee) => (
                                   <SelectItem key={employee.id} value={String(employee.id)}>

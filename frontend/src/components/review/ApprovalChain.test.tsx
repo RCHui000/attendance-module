@@ -27,6 +27,110 @@ function baseNode(overrides: Partial<ApprovalChainNode>): ApprovalChainNode {
 }
 
 describe("ApprovalChain", () => {
+  it("shows only the selected project's applicable route and omits the submit card", () => {
+    const nodes = [
+      baseNode({
+        node_id: 1,
+        node_key: "cc_project_owner",
+        node_name: "发起部门项目负责人",
+        node_status: "active",
+        assignees: [
+          {
+            node_id: 1,
+            node_status: "approved",
+            project_id: 101,
+            project_code: "CC26001",
+            project_name: "咨询项目",
+            assignee_user_id: 10,
+            assignee_name: "王岳峰",
+            status: "approved",
+            action: "approve",
+          },
+          {
+            node_id: 2,
+            node_status: "active",
+            project_id: 102,
+            project_code: "PMCC26002",
+            project_name: "协作项目",
+            assignee_user_id: 20,
+            assignee_name: "闫磊",
+            status: "pending",
+          },
+        ],
+      }),
+      baseNode({
+        node_id: 3,
+        node_key: "cc_department_owner",
+        node_name: "发起部门负责人",
+        node_status: "waiting",
+        assignees: [
+          {
+            node_id: 3,
+            node_status: "waiting",
+            project_id: 101,
+            project_code: "CC26001",
+            project_name: "咨询项目",
+            assignee_user_id: 11,
+            assignee_name: "常雪松",
+            status: "waiting",
+          },
+          {
+            node_id: 4,
+            node_status: "waiting",
+            project_id: 102,
+            project_code: "PMCC26002",
+            project_name: "协作项目",
+            assignee_user_id: 21,
+            assignee_name: "鞠松松",
+            status: "waiting",
+          },
+        ],
+      }),
+      baseNode({
+        node_id: 5,
+        node_key: "pm_cost_design_owner",
+        node_name: "PM成本/设计负责人",
+        node_status: "waiting",
+        assignees: [
+          {
+            node_id: 5,
+            node_status: "skipped",
+            project_id: 101,
+            project_code: "CC26001",
+            project_name: "咨询项目",
+            assignee_user_id: 0,
+            assignee_name: null,
+            status: "skipped",
+            action: "skipped",
+            comment: "Not applicable for project business type",
+          },
+          {
+            node_id: 6,
+            node_status: "waiting",
+            project_id: 102,
+            project_code: "PMCC26002",
+            project_name: "协作项目",
+            assignee_user_id: 22,
+            assignee_name: "李达",
+            status: "waiting",
+          },
+        ],
+      }),
+    ];
+
+    render(<ApprovalChain nodes={nodes} projectId={101} />);
+
+    const firstStageTitle = screen.getByText("阶段1：发起部门项目负责人");
+    expect(firstStageTitle).toBeInTheDocument();
+    expect(
+      within(firstStageTitle.closest(".relative") as HTMLElement).getAllByText("已通过").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("阶段2：发起部门负责人")).toBeInTheDocument();
+    expect(screen.queryByText(/PM成本\/设计负责人/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PMCC26002/)).not.toBeInTheDocument();
+    expect(screen.queryByText("提交")).not.toBeInTheDocument();
+  });
+
   it("shows every project approver beside its status without repeating names in the stage hint", () => {
     const node = baseNode({
       scope_type: "timesheet",

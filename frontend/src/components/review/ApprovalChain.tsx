@@ -9,6 +9,7 @@ import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval"
 
 interface ApprovalChainProps {
   nodes?: ApprovalChainNode[];
+  projectId?: number | null;
 }
 
 interface ApprovalRecordsProps {
@@ -201,6 +202,47 @@ function chooseStageStatus(current: string, next: string) {
   return (statusPriority[next] || 0) > (statusPriority[current] || 0) ? next : current;
 }
 
+function projectScopedNodes(nodes: ApprovalChainNode[], projectId?: number | null) {
+  if (!projectId) return nodes;
+
+  const projected = nodes.flatMap((node) => {
+    const assignees = fallbackAssignees(node).filter(
+      (assignee) =>
+        Number(assignee.project_id) === Number(projectId) &&
+        !isNonApplicableProjectSkip(assignee.comment),
+    );
+    if (!assignees.length) return [];
+
+    const project = assignees[0];
+    const nodeStatus = assignees
+      .map((assignee) => textValue(assignee.node_status) || textValue(assignee.status) || "waiting")
+      .reduce(chooseStageStatus);
+
+    return [{
+      ...node,
+      scope_type: "project",
+      scope_id: Number(projectId),
+      project_code: project.project_code || node.project_code || "",
+      project_name: project.project_name || node.project_name || "",
+      node_status: nodeStatus,
+      assignees,
+      blocking_nodes: [],
+    }];
+  });
+
+  return projected.map((node, index) => ({
+    ...node,
+    blocking_nodes: projected
+      .slice(0, index)
+      .filter((previous) => !["approved", "skipped", "cancelled"].includes(previous.node_status))
+      .map((previous) => ({
+        node_id: previous.node_id,
+        node_name: previous.node_name,
+        status: previous.node_status,
+      })),
+  }));
+}
+
 function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
   const rows = new Map<string, StageProjectRow>();
   for (const assignee of fallbackAssignees(node)) {
@@ -390,17 +432,9 @@ function StageCard({ node, nodeNumber }: { node: ApprovalChainNode; nodeNumber: 
   );
 }
 
-export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
-  if (!nodes.length) return null;
-
-  const hasRejected = nodes.some((node) => node.node_status === "rejected");
-  const hasActive = nodes.some((node) => node.node_status === "active");
-  const submitStatus = hasRejected ? "待提交" : "已提交";
-  const submitHint = hasRejected
-    ? "有项目块退回，流程回到提交人。"
-    : hasActive
-      ? "已提交，正在按审批模板流转。"
-      : "已提交，等待审批模板节点处理。";
+export function ApprovalChain({ nodes = [], projectId }: ApprovalChainProps) {
+  const displayNodes = projectScopedNodes(nodes, projectId);
+  if (!displayNodes.length) return null;
 
   return (
     <section
@@ -411,33 +445,15 @@ export function ApprovalChain({ nodes = [] }: ApprovalChainProps) {
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <strong className="text-xs text-foreground">审批链路</strong>
         <span className="text-[11px] text-muted-foreground">
-          流程阶段、项目块审批人与状态
+          {projectId ? "当前项目块的实际审批节点" : "流程阶段、项目块审批人与状态"}
         </span>
       </div>
       <div className="block w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1">
         <ol className="inline-flex min-w-max max-w-none items-stretch">
-          <li className="flex items-stretch">
-            <div className={cn(stageCardClass, hasRejected && "border-destructive/50")}>
-              <div className="absolute -left-1 top-3 size-2 rounded-full bg-border" />
-              <div className="flex items-start justify-between gap-2">
-                <strong className="min-w-0 break-words text-sm leading-5 text-foreground">提交</strong>
-                <Badge
-                  variant={hasRejected ? "destructive" : "secondary"}
-                  className="max-w-20 shrink-0 whitespace-normal text-center text-[10px] leading-4"
-                >
-                  {submitStatus}
-                </Badge>
-              </div>
-              <p className="mt-2 rounded-sm bg-muted/40 px-2 py-1.5 text-xs leading-5 text-muted-foreground">
-                {submitHint}
-              </p>
-            </div>
-            <Connector show={nodes.length > 0} />
-          </li>
-          {nodes.map((node, index) => (
+          {displayNodes.map((node, index) => (
             <li className="flex items-stretch" key={`${node.node_key}-${node.scope_id || node.node_id}`}>
               <StageCard node={node} nodeNumber={`阶段${index + 1}`} />
-              <Connector show={index < nodes.length - 1} />
+              <Connector show={index < displayNodes.length - 1} />
             </li>
           ))}
         </ol>

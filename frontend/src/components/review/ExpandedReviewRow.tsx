@@ -220,7 +220,7 @@ export function ExpandedReviewRow({ timesheetId, projectId, colSpan }: ExpandedR
                     审批链路暂未加载
                   </div>
                 ) : (
-                  <ApprovalChain nodes={data.approval_chain} />
+                  <ApprovalChain nodes={data.approval_chain} projectId={projectId} />
                 )}
                 <ApprovalRecords nodes={data.approval_chain} projectId={projectId} />
               </div>

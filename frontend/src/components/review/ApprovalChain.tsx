@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import {
   formatApprovalAuditTime,
   getAssigneeAuditSummary,
+  isNonApplicableProjectAssignee,
   isNonApplicableProjectSkip,
 } from "@/lib/approvalAudit";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval";
@@ -132,7 +133,7 @@ function hasHistoricalAssigneeRecord(assignee: ApprovalChainAssignee) {
     assignee.action ||
       assignee.acted_at ||
       assignee.comment ||
-      isNonApplicableProjectSkip(assignee.comment) ||
+      isNonApplicableProjectAssignee(assignee) ||
       historicalStatuses.has(status),
   );
 }
@@ -169,7 +170,7 @@ function assigneeProjectLabel(assignee: ApprovalChainAssignee) {
 }
 
 function assigneeDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
-  if (isNonApplicableProjectSkip(assignee.comment)) return "approved";
+  if (isNonApplicableProjectAssignee(assignee)) return "skipped";
   const nodeStatus = textValue(assignee.node_status || node.node_status);
   const assigneeStatus = textValue(assignee.status);
   if (openStatuses.has(nodeStatus) && ["cancelled", "delegated"].includes(assigneeStatus)) return nodeStatus;
@@ -178,7 +179,7 @@ function assigneeDisplayStatus(assignee: ApprovalChainAssignee, node: ApprovalCh
 }
 
 function isEffectiveStageAssignee(assignee: ApprovalChainAssignee, node: ApprovalChainNode) {
-  if (isNonApplicableProjectSkip(assignee.comment)) return false;
+  if (isNonApplicableProjectAssignee(assignee)) return false;
   const nodeStatus = textValue(assignee.node_status || node.node_status);
   const assigneeStatus = textValue(assignee.status) || nodeStatus;
   const action = textValue(assignee.action);
@@ -209,7 +210,7 @@ function projectScopedNodes(nodes: ApprovalChainNode[], projectId?: number | nul
     const assignees = fallbackAssignees(node).filter(
       (assignee) =>
         Number(assignee.project_id) === Number(projectId) &&
-        !isNonApplicableProjectSkip(assignee.comment),
+        !isNonApplicableProjectAssignee(assignee),
     );
     if (!assignees.length) return [];
 
@@ -230,17 +231,7 @@ function projectScopedNodes(nodes: ApprovalChainNode[], projectId?: number | nul
     }];
   });
 
-  return projected.map((node, index) => ({
-    ...node,
-    blocking_nodes: projected
-      .slice(0, index)
-      .filter((previous) => !["approved", "skipped", "cancelled"].includes(previous.node_status))
-      .map((previous) => ({
-        node_id: previous.node_id,
-        node_name: previous.node_name,
-        status: previous.node_status,
-      })),
-  }));
+  return projected;
 }
 
 function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
@@ -267,7 +258,7 @@ function stageProjectRows(node: ApprovalChainNode): StageProjectRow[] {
       status: existing ? chooseStageStatus(existing.status, status) : status,
       kind: "项目块",
       approverNames: Array.from(approverNames),
-      nonApplicable: Boolean(existing?.nonApplicable || isNonApplicableProjectSkip(assignee.comment)),
+      nonApplicable: Boolean(existing?.nonApplicable || isNonApplicableProjectAssignee(assignee)),
       approvedAt: [existing?.approvedAt, approvedAt].filter(Boolean).sort().at(-1) || null,
     });
   }
@@ -477,7 +468,7 @@ export function ApprovalRecords({ nodes = [], projectId }: ApprovalRecordsProps)
           source: recordSource(node, assignee),
           actor: assigneeKey(assignee),
           status,
-          statusLabel: readableStatus(status),
+          statusLabel: summary.statusLabel,
           actionLabel: summary.actionLabel,
           timeLabel: summary.timeLabel,
           commentLabel: summary.commentLabel,

@@ -100,9 +100,10 @@ describe("ApprovalChain", () => {
             project_name: "咨询项目",
             assignee_user_id: 0,
             assignee_name: null,
+            assignee_route_source: "not_applicable_project_business_type",
             status: "skipped",
             action: "skipped",
-            comment: "Not applicable for project business type",
+            comment: "route repair",
           },
           {
             node_id: 6,
@@ -231,11 +232,39 @@ describe("ApprovalChain", () => {
     expect(within(waitingRow).getByText("那钦")).toBeInTheDocument();
     expect(within(waitingRow).getByText("待审核")).toBeInTheDocument();
     expect(within(skippedRow).getByText("无需审批")).toBeInTheDocument();
-    expect(within(skippedRow).getByText("已通过")).toBeInTheDocument();
+    expect(within(skippedRow).getByText("已跳过")).toBeInTheDocument();
   });
 });
 
 describe("ApprovalRecords", () => {
+  it("labels non-applicable history explicitly instead of presenting it as approval", () => {
+    const node = baseNode({
+      node_status: "skipped",
+      assignees: [
+        {
+          node_id: 1,
+          node_status: "skipped",
+          project_id: 101,
+          project_code: "CC26001",
+          project_name: "咨询项目",
+          assignee_user_id: 10,
+          assignee_name: "历史审批人",
+          assignee_route_source: "not_applicable_project_business_type",
+          status: "cancelled",
+          action: "cancelled",
+          comment: "route repair",
+        },
+      ],
+    });
+
+    render(<ApprovalRecords nodes={[node]} projectId={101} />);
+
+    expect(screen.getAllByText("不适用").length).toBeGreaterThan(0);
+    expect(screen.getByText("状态：不适用")).toBeInTheDocument();
+    expect(screen.getByText("该项目无需经过此审批节点")).toBeInTheDocument();
+    expect(screen.queryByText("已通过")).not.toBeInTheDocument();
+  });
+
   it("keeps cancelled route candidates in audit records while the chain hides them", () => {
     const node = baseNode({
       assignees: [

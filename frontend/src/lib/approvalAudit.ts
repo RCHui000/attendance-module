@@ -45,6 +45,15 @@ export function isNonApplicableProjectSkip(value?: string | null) {
   return String(value || "").trim() === "Not applicable for project business type";
 }
 
+export function isNonApplicableProjectAssignee(
+  assignee: Pick<ApprovalChainAssignee, "comment" | "assignee_route_source">,
+) {
+  return (
+    isNonApplicableProjectSkip(assignee.comment) ||
+    String(assignee.assignee_route_source || "").trim() === "not_applicable_project_business_type"
+  );
+}
+
 export function deriveApprovalDisplayStatus(
   sheetStatus: string,
   nodes: ApprovalNodeLike[] = [],
@@ -81,12 +90,12 @@ export function formatApprovalAuditTime(value?: string | null) {
 export function getAssigneeAuditSummary(assignee: ApprovalChainAssignee) {
   const rawAction = String(assignee.action || assignee.status || "").trim();
   const rawStatus = String(assignee.status || "").trim();
-  if (isNonApplicableProjectSkip(assignee.comment)) {
+  if (isNonApplicableProjectAssignee(assignee)) {
     return {
-      actionLabel: "已通过",
+      actionLabel: "不适用",
       timeLabel: formatApprovalAuditTime(assignee.acted_at),
-      commentLabel: "",
-      statusLabel: "已通过",
+      commentLabel: "该项目无需经过此审批节点",
+      statusLabel: "不适用",
     };
   }
   return {

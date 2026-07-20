@@ -1,0 +1,33 @@
+{
+  "version": "V0.19.1",
+  "released_at": "2026-07-21",
+  "base_version": "V0.19.0",
+  "commit": "tag:V0.19.1",
+  "summary": "Show each project task's real approval route without unrelated project stages or a synthetic submission node.",
+  "database": {
+    "new_migrations": [],
+    "notes": [
+      "No database changes; runtime approval nodes and audit records remain unchanged."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.19.1",
+    "notes": [
+      "Projects in mixed timesheets now display only their own applicable approval stages and statuses.",
+      "Business-type nodes marked not applicable are omitted from the project chain instead of appearing as passed stages.",
+      "Historical not-applicable audit records are labelled explicitly as not applicable rather than approved.",
+      "The synthetic submission card is removed so the diagram starts at the first real approval stage.",
+      "Desktop and mobile task details use the same project-scoped chain projection."
+    ]
+  },
+  "verification": [
+    "Run git diff --check against V0.19.0.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.19.1.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.19.1.",
+    "Run the production timesheet-withdraw smoke test in a rollback transaction."
+  ],
+  "known_warnings": []
+}

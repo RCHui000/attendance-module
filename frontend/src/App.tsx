@@ -1,19 +1,22 @@
-import { lazy, Suspense, useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import type { ReactElement } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { APP_NAME } from "@/lib/constants";
+import { getStoredToken } from "@/lib/authToken";
 import { useAuthStore } from "@/stores/authStore";
 import { useRealtime } from "@/hooks/useRealtime";
 import { AppLayout } from "@/components/layout/AppLayout";
-
-const LoginPage = lazy(() => import("@/pages/LoginPage"));
-const TimesheetPage = lazy(() => import("@/pages/TimesheetPage"));
-const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
-const ReviewPage = lazy(() => import("@/pages/ReviewPage"));
-const ReportPage = lazy(() => import("@/pages/ReportPage"));
-const EmployeesPage = lazy(() => import("@/pages/EmployeesPage"));
-const LeavePage = lazy(() => import("@/pages/LeavePage"));
-const AppsPage = lazy(() => import("@/pages/AppsPage"));
+import {
+  AppsPage,
+  DashboardPage,
+  EmployeesPage,
+  LeavePage,
+  LoginPage,
+  ReportPage,
+  ReviewPage,
+  TimesheetPage,
+  preloadPage,
+} from "@/pageModules";
 
 function PermissionRoute({
   resource,
@@ -40,34 +43,62 @@ function LoadingScreen() {
   );
 }
 
+function RouteLoadingScreen() {
+  return (
+    <section aria-label="页面加载中" className="animate-pulse space-y-4 py-1">
+      <div className="h-10 w-full rounded-md bg-muted/70" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="h-24 rounded-md bg-muted/60" />
+        ))}
+      </div>
+      <div className="h-72 rounded-md bg-muted/50" />
+    </section>
+  );
+}
+
 function AuthenticatedApp() {
   const { canAccess } = useAuthStore();
   useRealtime();
 
   const defaultRoute = canAccess("dashboard") ? "/dashboard" : "/timesheet";
 
+  useEffect(() => {
+    void preloadPage(defaultRoute.slice(1));
+  }, [defaultRoute]);
+
   return (
     <AppLayout>
-      <Routes>
-        <Route index element={<Navigate to={defaultRoute} replace />} />
-        <Route path="timesheet" element={<PermissionRoute resource="timesheet"><TimesheetPage /></PermissionRoute>} />
-        <Route path="leave" element={<PermissionRoute resource="leave"><LeavePage /></PermissionRoute>} />
-        <Route path="dashboard" element={<PermissionRoute resource="dashboard"><DashboardPage /></PermissionRoute>} />
-        <Route path="review" element={<PermissionRoute resource="review"><ReviewPage /></PermissionRoute>} />
-        <Route path="report" element={<PermissionRoute resource="report"><ReportPage /></PermissionRoute>} />
-        <Route path="employees" element={<PermissionRoute resource="system_management"><EmployeesPage /></PermissionRoute>} />
-        <Route path="apps" element={<PermissionRoute resource="apps"><AppsPage /></PermissionRoute>} />
-      </Routes>
+      <Suspense fallback={<RouteLoadingScreen />}>
+        <Routes>
+          <Route index element={<Navigate to={defaultRoute} replace />} />
+          <Route path="timesheet" element={<PermissionRoute resource="timesheet"><TimesheetPage /></PermissionRoute>} />
+          <Route path="leave" element={<PermissionRoute resource="leave"><LeavePage /></PermissionRoute>} />
+          <Route path="dashboard" element={<PermissionRoute resource="dashboard"><DashboardPage /></PermissionRoute>} />
+          <Route path="review" element={<PermissionRoute resource="review"><ReviewPage /></PermissionRoute>} />
+          <Route path="report" element={<PermissionRoute resource="report"><ReportPage /></PermissionRoute>} />
+          <Route path="employees" element={<PermissionRoute resource="system_management"><EmployeesPage /></PermissionRoute>} />
+          <Route path="apps" element={<PermissionRoute resource="apps"><AppsPage /></PermissionRoute>} />
+        </Routes>
+      </Suspense>
     </AppLayout>
   );
 }
 
 export default function App() {
   const { isAuthenticated, isLoading, checkSession } = useAuthStore();
+  const location = useLocation();
 
   useEffect(() => {
-    checkSession();
+    void checkSession();
   }, [checkSession]);
+
+  useEffect(() => {
+    if (getStoredToken()) {
+      const requestedPage = location.pathname.split("/").filter(Boolean)[0];
+      if (requestedPage) void preloadPage(requestedPage);
+    }
+  }, [location.pathname]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -81,9 +112,5 @@ export default function App() {
     );
   }
 
-  return (
-    <Suspense fallback={<LoadingScreen />}>
-      <AuthenticatedApp />
-    </Suspense>
-  );
+  return <AuthenticatedApp />;
 }

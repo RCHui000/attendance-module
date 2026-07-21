@@ -18,7 +18,7 @@ The dashboard module shows project operating metrics and a BI workbench over app
 
 | Hook | Endpoint | Method | Purpose |
 | --- | --- | --- | --- |
-| `useProjects` | `/api/projects` | GET | Project master data, finance fields, configured owners. |
+| `useProjects` | `/api/projects?view=dashboard` | GET | Lightweight project finance fields without owner/role or historical-labor expansion. |
 | `useProjects` | `/api/reports/weekly` | GET | Labor totals in selected range. |
 | `useProjects` | `/api/reports/labor-matrix` | GET | Project x period labor matrix where needed by BI views. |
 | `useDashboardAnalysis` | `/api/dashboard/analysis` | GET | Backend BI aggregation for project ranking, trend, load, and source rows. |
@@ -34,6 +34,8 @@ The dashboard module shows project operating metrics and a BI workbench over app
 - Department and employee contribution views.
 
 Only reportable timesheet statuses are counted: `approved`, `locked`, `summarized`.
+
+The chart-heavy analysis workbench is a nested lazy chunk. Dashboard overview and mobile first content render without waiting for the chart engine; the analysis chunk loads only when its boundary is rendered.
 
 ## Mobile UX
 

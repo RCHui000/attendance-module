@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { PsaAnimatedLogo } from "./PsaAnimatedLogo";
 import { SidebarSettingsMenu } from "./SidebarSettingsMenu";
 import { NAV_ITEMS } from "./navItems";
+import { preloadPage } from "@/pageModules";
 
 export function Sidebar() {
   const location = useLocation();
@@ -45,6 +46,8 @@ export function Sidebar() {
                   "bg-white font-medium text-sidebar-bg hover:bg-white hover:text-sidebar-bg",
               )}
               aria-current={currentView === item.view ? "page" : undefined}
+              onPointerEnter={() => void preloadPage(item.view)}
+              onFocus={() => void preloadPage(item.view)}
               onClick={() => navigate(`/${item.view}`)}
             >
               <Icon className="size-4 shrink-0 max-[1179px]:size-4.5" />

@@ -1,4 +1,4 @@
-import { clearStoredToken, getStoredToken } from "./supabase";
+import { clearStoredToken, getStoredToken } from "./authToken";
 
 const AUTH_URL =
   import.meta.env.VITE_SUPABASE_AUTH_URL ||

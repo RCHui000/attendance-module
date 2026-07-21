@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ApprovalChain, ApprovalRecords } from "@/components/review/ApprovalChain";
+import { ApprovalChain } from "@/components/review/ApprovalChain";
 import { useTimesheetDetail } from "@/hooks/useApprovals";
 import { statusText } from "@/lib/constants";
 
@@ -175,7 +175,6 @@ export function MobileTimesheetDetail({ timesheetId, projectId }: MobileTimeshee
         ) : (
           <ApprovalChain nodes={data.approval_chain} projectId={projectId} />
         )}
-        <ApprovalRecords nodes={data.approval_chain} projectId={projectId} />
       </div>
     </div>
   );

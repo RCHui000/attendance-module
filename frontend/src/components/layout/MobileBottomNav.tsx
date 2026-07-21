@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { NAV_ITEMS, type NavItem } from "./navItems";
+import { preloadPage } from "@/pageModules";
 
 const MOBILE_NAV_ORDER = ["review", "timesheet", "dashboard", "report"] as const;
 
@@ -36,6 +37,8 @@ export function MobileBottomNav() {
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               aria-current={active ? "page" : undefined}
+              onPointerDown={() => void preloadPage(item.view)}
+              onFocus={() => void preloadPage(item.view)}
               onClick={() => navigate(`/${item.view}`)}
             >
               <Icon className="size-4 shrink-0" />

@@ -2,18 +2,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   formatApprovalAuditTime,
-  getAssigneeAuditSummary,
   isNonApplicableProjectAssignee,
   isNonApplicableProjectSkip,
 } from "@/lib/approvalAudit";
 import type { ApprovalChainAssignee, ApprovalChainNode } from "@/types/approval";
 
 interface ApprovalChainProps {
-  nodes?: ApprovalChainNode[];
-  projectId?: number | null;
-}
-
-interface ApprovalRecordsProps {
   nodes?: ApprovalChainNode[];
   projectId?: number | null;
 }
@@ -62,16 +56,6 @@ const statusVariant: Record<string, Variant> = {
 
 const stageCardClass =
   "relative w-56 max-w-[calc(100vw-3.5rem)] shrink-0 rounded-md border bg-background p-2.5 text-xs sm:w-64";
-
-const historicalStatuses = new Set([
-  "approved",
-  "rejected",
-  "skipped",
-  "cancelled",
-  "delegated",
-  "needs_revision",
-  "revision_required",
-]);
 
 const openStatuses = new Set(["active", "pending", "waiting", "needs_reapproval"]);
 
@@ -125,21 +109,6 @@ function fallbackAssignees(node: ApprovalChainNode): ApprovalChainAssignee[] {
       acted_at: node.completed_at || node.activated_at || null,
     },
   ];
-}
-
-function hasHistoricalAssigneeRecord(assignee: ApprovalChainAssignee) {
-  const status = textValue(assignee.status);
-  return Boolean(
-    assignee.action ||
-      assignee.acted_at ||
-      assignee.comment ||
-      isNonApplicableProjectAssignee(assignee) ||
-      historicalStatuses.has(status),
-  );
-}
-
-function recordAssignees(node: ApprovalChainNode) {
-  return fallbackAssignees(node).filter(hasHistoricalAssigneeRecord);
 }
 
 function assigneeKey(assignee: ApprovalChainAssignee) {
@@ -314,34 +283,6 @@ function projectLabelFromNode(node: ApprovalChainNode) {
   return "周表";
 }
 
-function recordProjectId(node: ApprovalChainNode, assignee?: ApprovalChainAssignee) {
-  return assignee?.project_id || (node.scope_type === "project" ? node.scope_id : null) || null;
-}
-
-function recordProjectLabel(node: ApprovalChainNode, assignee?: ApprovalChainAssignee) {
-  const code = textValue(assignee?.project_code) || textValue(node.project_code);
-  const name = textValue(assignee?.project_name) || textValue(node.project_name);
-  if (code || name) return [code, name].filter(Boolean).join(" ");
-  if (isDepartmentSummaryNode(node)) return "汇总确认";
-  const projectId = recordProjectId(node, assignee);
-  return projectId ? `项目 #${projectId}` : "周表";
-}
-
-function recordKey(node: ApprovalChainNode, assignee: ApprovalChainAssignee, index: number) {
-  return [
-    node.node_id,
-    assignee.assignee_user_id || "system",
-    assignee.status || "status",
-    assignee.action || "action",
-    assignee.acted_at || "no-time",
-    index,
-  ].join(":");
-}
-
-function recordSource(node: ApprovalChainNode, assignee: ApprovalChainAssignee) {
-  return textValue(assignee.assignee_route_source) || textValue(node.assignee_role) || textValue(node.resolver_role);
-}
-
 function Connector({ show }: { show: boolean }) {
   if (!show) return null;
   return (
@@ -449,92 +390,6 @@ export function ApprovalChain({ nodes = [], projectId }: ApprovalChainProps) {
           ))}
         </ol>
       </div>
-    </section>
-  );
-}
-
-export function ApprovalRecords({ nodes = [], projectId }: ApprovalRecordsProps) {
-  const records = nodes
-    .flatMap((node) =>
-      recordAssignees(node).map((assignee, index) => {
-        const summary = getAssigneeAuditSummary(assignee);
-        const resolvedProjectId = recordProjectId(node, assignee);
-        const status = assignee.status || node.node_status;
-        return {
-          key: recordKey(node, assignee, index),
-          projectId: resolvedProjectId,
-          projectLabel: recordProjectLabel(node, assignee),
-          nodeName: displayNodeName(node),
-          source: recordSource(node, assignee),
-          actor: assigneeKey(assignee),
-          status,
-          statusLabel: summary.statusLabel,
-          actionLabel: summary.actionLabel,
-          timeLabel: summary.timeLabel,
-          commentLabel: summary.commentLabel,
-          orderTime: assignee.acted_at ? Date.parse(assignee.acted_at) || 0 : 0,
-        };
-      }),
-    )
-    .filter((record) => record.actor)
-    .filter((record) => projectId == null || Number(record.projectId) === Number(projectId))
-    .sort((a, b) => a.orderTime - b.orderTime || a.nodeName.localeCompare(b.nodeName));
-
-  if (!records.length) {
-    return (
-      <section className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-        暂无审批记录
-      </section>
-    );
-  }
-
-  const groups = new Map<string, typeof records>();
-  for (const record of records) {
-    const key = `${record.projectId || "summary"}:${record.projectLabel}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(record);
-  }
-
-  return (
-    <section aria-label="审批记录" className="space-y-2">
-      <div className="flex items-center gap-2">
-        <strong className="text-xs text-foreground">审批记录</strong>
-        <span className="text-[11px] text-muted-foreground">按项目块归集完整处理记录</span>
-      </div>
-      {[...groups.entries()].map(([key, items]) => (
-        <div key={key} className="rounded-md border border-border bg-card p-3">
-          <div className="mb-2 text-sm font-semibold text-foreground">{items[0]?.projectLabel || "周表"}</div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {items.map((item) => (
-              <article key={item.key} className="rounded-md border border-border/70 bg-muted/20 p-2.5 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={statusVariant[item.status] || "secondary"} className="text-[10px] leading-4">
-                    {item.actionLabel}
-                  </Badge>
-                  {item.timeLabel ? (
-                    <span className="tabular-nums text-muted-foreground">{item.timeLabel}</span>
-                  ) : null}
-                </div>
-                <div className="mt-2 space-y-1 leading-5">
-                  <div className="break-words text-foreground">{item.nodeName}</div>
-                  <div className="break-words text-muted-foreground">
-                    {item.actor}
-                  </div>
-                  <div className="break-words text-muted-foreground">状态：{item.statusLabel}</div>
-                  {item.source ? (
-                    <div className="break-words text-muted-foreground">来源：{item.source}</div>
-                  ) : null}
-                  {item.commentLabel ? (
-                    <p className="break-words rounded-sm bg-background/70 px-2 py-1 text-muted-foreground">
-                      {item.commentLabel}
-                    </p>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      ))}
     </section>
   );
 }

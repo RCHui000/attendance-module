@@ -1,7 +1,7 @@
 ﻿import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { RealtimeClient } from "@supabase/realtime-js";
-import { getStoredToken } from "@/lib/supabase";
+import { getStoredToken } from "@/lib/authToken";
+import type { RealtimeChannel, RealtimeClient } from "@supabase/realtime-js";
 
 const CHANNEL_NAME = "psa-supabase-sync";
 type SyncModule =
@@ -96,29 +96,41 @@ export function useRealtime() {
       }, 250);
     };
 
-    const realtime = new RealtimeClient(REALTIME_URL, {
-      params: { apikey: apiKey },
-      accessToken: async () => getStoredToken(),
-      heartbeatIntervalMs: 20_000,
-      reconnectAfterMs: (tries: number) => Math.min(tries * 1_000, 10_000),
-    });
+    let cancelled = false;
+    let realtime: RealtimeClient | null = null;
+    let channel: RealtimeChannel | null = null;
 
-    const channel = realtime.channel("psa-db-changes");
-    Object.entries(TABLE_MODULES).forEach(([table, modules]) => {
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        () => scheduleRefresh(modules),
-      );
-    });
-    channel.subscribe();
-    realtime.connect();
+    const connect = async () => {
+      const { RealtimeClient: Client } = await import("@supabase/realtime-js");
+      if (cancelled) return;
+
+      realtime = new Client(REALTIME_URL, {
+        params: { apikey: apiKey },
+        accessToken: async () => getStoredToken(),
+        heartbeatIntervalMs: 20_000,
+        reconnectAfterMs: (tries: number) => Math.min(tries * 1_000, 10_000),
+      });
+
+      channel = realtime.channel("psa-db-changes");
+      Object.entries(TABLE_MODULES).forEach(([table, modules]) => {
+        channel?.on(
+          "postgres_changes",
+          { event: "*", schema: "public", table },
+          () => scheduleRefresh(modules),
+        );
+      });
+      channel.subscribe();
+      realtime.connect();
+    };
+
+    void connect();
 
     return () => {
+      cancelled = true;
       if (refreshTimer) clearTimeout(refreshTimer);
       localChannel?.close();
-      realtime.removeChannel(channel);
-      realtime.disconnect();
+      if (channel) realtime?.removeChannel(channel);
+      realtime?.disconnect();
     };
   }, [queryClient]);
 }

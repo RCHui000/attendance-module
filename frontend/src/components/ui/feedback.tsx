@@ -59,8 +59,8 @@ export function ErrorState({
 export function RefreshBadge({ show, label = "更新中" }: { show: boolean; label?: string }) {
   if (!show) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-      <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/20 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm">
+      <span className="size-1.5 animate-pulse rounded-full bg-brand-accent" aria-hidden="true" />
       {label}
     </span>
   );

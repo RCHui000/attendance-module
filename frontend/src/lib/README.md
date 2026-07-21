@@ -7,7 +7,8 @@
 | File | Responsibility |
 | --- | --- |
 | `api.ts` | Main API router, PostgREST helper, RPC calls, aggregation logic. |
-| `supabase.ts` | Self-hosted Supabase client, login alias resolution, and access-token storage helpers. |
+| `supabase.ts` | Lazily loaded self-hosted Supabase Auth client and login alias resolution. |
+| `authToken.ts` | Lightweight local access-token storage used by bootstrap and PostgREST calls. |
 | `constants.ts` | App constants, role text, status text, holiday calendar, design/version constants. |
 | `utils.ts` | UI utility helpers such as class merging. |
 
@@ -27,7 +28,7 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 | `/api/password/change` | POST | `{ login?, oldPassword, newPassword }` | `{ ok }` | Proxies to controlled server endpoint. |
 | `/api/change-password` | POST | password payload | `{ ok }` | Legacy-compatible password change endpoint. |
 | `/api/me` | GET | none | `{ user }` | Resolves JWT to employee and role. |
-| `/api/bootstrap` | GET | none | Current user, permissions, projects, current week | Compatibility bootstrap. |
+| `/api/bootstrap` | GET | none | Current user, permissions, current week | Identity-only compatibility bootstrap; project data loads per page. |
 | `/api/timesheet` | GET | `weekStart` | `Timesheet` | Creates missing sheet lazily for the current week/month-split period. |
 | `/api/timesheet-detail` | GET | `timesheetId` | approval detail payload | Used by desktop expanded rows and mobile inline detail. |
 | `/api/timesheet/save` | POST | `SaveTimesheetPayload` | `{ ok, timesheet }` | Only draft/rejected/revision-required sheets are editable. |
@@ -37,7 +38,7 @@ All hooks call this function. It dispatches by URL path in `handleApi`.
 | `/api/approval-templates/save` | POST | approval template payload | `{ ok, templates }` | Admin-only template metadata and node update. |
 | `/api/overtime/action` | POST | `{ id, status, comment? }` | RPC result | OT is currently reserved in UI. |
 | `/api/overtime/pending` | GET | `weekStart?` | OT pending list | Derived from approval tasks. |
-| `/api/projects` | GET | none | project list | Includes service type, owners, roles, financial and labor fields. |
+| `/api/projects` | GET | `view=full|brief|dashboard` | project list | Full configuration by default; lightweight brief/dashboard views avoid historical labor scans. |
 | `/api/projects/save` | POST | project payload | `{ ok, projects }` | Upserts project and refreshes pending routes. |
 | `/api/project-department-owners/save` | POST | `{ projectId, departmentOwners }` | `{ ok, projects }` | Maintains project department owner rows. |
 | `/api/projects/delete` | POST | `{ id }` | `{ ok, projects }` | Soft deletes by `status = deleted`. |

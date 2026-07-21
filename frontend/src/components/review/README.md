@@ -44,6 +44,7 @@ Important fields used by the UI:
 - Project-scope tasks approve or reject one project block step. Multiple project blocks can still run in parallel, but each project block can contain a serial chain.
 - Serial timesheet chains are generated when the sheet is submitted: consulting projects use the submitter department's consulting project owner and department owner; PMCC or mixed PM + consulting sheets keep the PMCC collaboration chain, while each project block only requires the nodes that apply to its business type.
 - Project-scoped task details project the approval graph to the selected project only. Nodes marked as not applicable for that project's business type are omitted from the chain diagram, while their underlying audit records remain stored.
+- Approved project cards show the approver, approved status, and approval time directly. The detail view does not repeat the same facts in a separate approval-record panel.
 - The chain diagram starts at the first real approval stage; submission is represented by the timesheet status and is not rendered as a synthetic approval node.
 - Missing middle roles are optional and omitted from the generated graph.
 - Consecutive steps assigned to the same employee are collapsed to the last step.

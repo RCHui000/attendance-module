@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { api, recordDepartmentOwnerLogin } from "@/lib/api";
 import { useAppStore } from "@/stores/appStore";
-import { clearStoredToken, signInWithLogin, signOutFromSupabase } from "@/lib/supabase";
+import { clearStoredToken } from "@/lib/authToken";
 import type { CurrentUser, BootstrapData, PermissionAccess, PermissionMap, SidebarOrderMap } from "@/types/auth";
 
 interface AuthState {
@@ -78,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (login: string, password: string) => {
+    const { signInWithLogin } = await import("@/lib/supabase");
     await signInWithLogin(login, password);
     markLoginUsageEvent();
     window.location.reload();
@@ -85,6 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try {
+      const { signOutFromSupabase } = await import("@/lib/supabase");
       await signOutFromSupabase();
       await api("/api/logout", { method: "POST" });
     } catch {

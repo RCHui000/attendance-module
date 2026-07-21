@@ -1,12 +1,18 @@
+import { lazy, Suspense } from "react";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import type { PeriodType } from "@/components/dashboard/periodUtils";
-import { DashboardAnalysisWorkbench } from "@/components/dashboard/DashboardAnalysisWorkbench";
 import { formatMoney } from "@/utils/dates";
 import type { DashboardData } from "@/types/project";
 import { TrendingUp } from "lucide-react";
 import { MobileMetricGrid } from "./MobileMetricGrid";
 import { MobileRankingList } from "./MobileRankingList";
 import { DashboardProjectCard } from "./DashboardProjectCard";
+
+const DashboardAnalysisWorkbench = lazy(() =>
+  import("@/components/dashboard/DashboardAnalysisWorkbench").then((module) => ({
+    default: module.DashboardAnalysisWorkbench,
+  })),
+);
 
 interface DashboardMobileProps {
   data: DashboardData;
@@ -136,7 +142,11 @@ export function DashboardMobile({
           <h2 className="text-sm font-semibold">分析入口</h2>
           <span className="text-xs text-muted-foreground">项目 / 部门 / 人员</span>
         </div>
-        <DashboardAnalysisWorkbench startDate={dates.startDate} endDate={dates.endDate} />
+        <Suspense
+          fallback={<div aria-label="分析加载中" className="h-48 animate-pulse rounded-md bg-muted/60" />}
+        >
+          <DashboardAnalysisWorkbench startDate={dates.startDate} endDate={dates.endDate} />
+        </Suspense>
       </section>
     </div>
   );

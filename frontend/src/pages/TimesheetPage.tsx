@@ -81,7 +81,7 @@ export default function TimesheetPage() {
   // Fetch projects for the dropdown
   const { data: projectList } = useQuery<ProjectBrief[]>({
     queryKey: ["timesheet-projects"],
-    queryFn: () => api<ProjectBrief[]>("/api/projects"),
+    queryFn: () => api<ProjectBrief[]>("/api/projects?view=brief"),
     staleTime: 60_000,
   });
 

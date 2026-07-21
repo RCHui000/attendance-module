@@ -26,6 +26,8 @@ The layout module owns the application shell: navigation, branding, topbar conte
 
 Each item has a stable `id` and explicit numeric default `order`. Rendering uses the current role's `sidebarOrder` from `/api/bootstrap` when configured, then falls back to the default order after permission filtering. Visibility is resolved from the platform RBAC matrix returned by `/api/bootstrap`.
 
+Route modules preload on navigation intent. Route-level Suspense stays inside the authenticated shell so sidebar and topbar remain stable while a page chunk loads.
+
 `Sidebar.tsx` checks these resource keys: `dashboard`, `review`, `timesheet`, `leave`, `report`, `system_management`, and `apps`. `应用中心` remains the last normal sidebar option, not a sticky footer item.
 
 ## UI Conventions
@@ -42,7 +44,7 @@ Each item has a stable `id` and explicit numeric default `order`. Rendering uses
 | `authStore.login` | Supabase Auth SDK | n/a | Resolve login alias, call `signInWithPassword`, and store JWT. |
 | `authStore.logout` | `/api/logout` | POST | Clear token. |
 | password change UI | `/api/password/change` | POST | Change initial or existing password. |
-| `authStore.checkSession` | `/api/bootstrap` | GET | Resolve current user, role, resource permissions, projects, and current week. |
+| `authStore.checkSession` | `/api/bootstrap` | GET | Resolve current user, role, resource permissions, and current week. |
 
 ## Version Display
 

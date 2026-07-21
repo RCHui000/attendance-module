@@ -21,7 +21,7 @@ The timesheet module lets an employee fill weekly project workdays, save drafts,
 | `useTimesheet` | `/api/timesheet?weekStart=YYYY-MM-DD` | GET | Load or lazily create the current user's week/month-split sheet. |
 | `useSaveTimesheet` | `/api/timesheet/save` | POST | Save draft entries and remark. |
 | `useSubmitTimesheet` | `/api/timesheet/action` | POST | Submit the sheet into approval workflow. |
-| `TimesheetPage` project dropdown | `/api/projects` | GET | Load active projects for row assignment. |
+| `TimesheetPage` project dropdown | `/api/projects?view=brief` | GET | Load only project identity/type fields needed for row assignment. |
 
 ## Save Payload
 

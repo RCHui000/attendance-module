@@ -1,10 +1,9 @@
-import { useMemo, useCallback } from "react";
+import { lazy, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDashboard, useDashboardAnalysis } from "@/hooks/useProjects";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { MetricCards } from "@/components/dashboard/MetricCards";
 import { DashboardTable } from "@/components/dashboard/DashboardTable";
-import { DashboardAnalysisWorkbench } from "@/components/dashboard/DashboardAnalysisWorkbench";
 import { DashboardMobile } from "@/pages/dashboard/DashboardMobile";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { computePeriodDates, type PeriodType } from "@/components/dashboard/periodUtils";
@@ -17,6 +16,12 @@ import { buildAnalysisEntities, type AnalysisEntity, type AnalysisView } from "@
 import { FileDown, MoveRight } from "lucide-react";
 
 type DashboardTab = "overview" | "analytics";
+
+const DashboardAnalysisWorkbench = lazy(() =>
+  import("@/components/dashboard/DashboardAnalysisWorkbench").then((module) => ({
+    default: module.DashboardAnalysisWorkbench,
+  })),
+);
 
 function OverviewInsightCard({
   title,
@@ -397,20 +402,22 @@ export default function DashboardPage() {
           {/* ---- Analytics Tab ---- */}
           {activeTab === "analytics" && (
             <section aria-label="分析">
-              <DashboardAnalysisWorkbench
-                startDate={dates.startDate}
-                endDate={dates.endDate}
-                periodType={periodType}
-                year={year}
-                month={month}
-                quarter={quarter}
-                weekStart={weekStart}
-                onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
-                onYearChange={(value) => updateDashboardParams({ year: String(value) })}
-                onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
-                onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
-                onWeekStartChange={(value) => updateDashboardParams({ weekStart: value })}
-              />
+              <Suspense fallback={<DashboardOverviewSkeleton />}>
+                <DashboardAnalysisWorkbench
+                  startDate={dates.startDate}
+                  endDate={dates.endDate}
+                  periodType={periodType}
+                  year={year}
+                  month={month}
+                  quarter={quarter}
+                  weekStart={weekStart}
+                  onPeriodTypeChange={(t) => updateDashboardParams({ period: t })}
+                  onYearChange={(value) => updateDashboardParams({ year: String(value) })}
+                  onMonthChange={(value) => updateDashboardParams({ month: String(value) })}
+                  onQuarterChange={(value) => updateDashboardParams({ quarter: String(value) })}
+                  onWeekStartChange={(value) => updateDashboardParams({ weekStart: value })}
+                />
+              </Suspense>
             </section>
           )}
           </>

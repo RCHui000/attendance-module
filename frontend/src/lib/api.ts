@@ -1,4 +1,4 @@
-import { getStoredToken, clearStoredToken } from "./supabase";
+import { getStoredToken, clearStoredToken } from "./authToken";
 import { accessRank, decodeJwt, payload, rest, type AnyRow } from "./restClient";
 import { deriveApprovalDisplayStatus, isFinalReviewedTimesheetStatus } from "@/lib/approvalAudit";
 import { getTimesheetPeriodDays, isoDate, timesheetPeriodStartOfDate } from "@/utils/dates";
@@ -249,22 +249,25 @@ async function currentUser(): Promise<AnyRow | null> {
   if (!row) return null;
   if (row.is_active === false) return null;
 
-  const profile = (await rest<AnyRow[]>(
-    `/employee_profiles?select=org_id,employment_status&employee_id=eq.${row.id}&limit=1`,
-  ).catch(() => []))[0];
+  const [profiles, roles] = await Promise.all([
+    rest<AnyRow[]>(
+      `/employee_profiles?select=org_id,employment_status&employee_id=eq.${row.id}&limit=1`,
+    ).catch(() => []),
+    rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`),
+  ]);
+  const profile = profiles[0];
   const employmentStatus = String(profile?.employment_status || "active").toLowerCase();
   if (["terminated", "inactive", "resigned", "离职", "已离职"].includes(employmentStatus)) return null;
 
-  const roles = await rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`);
-  const department = await (async () => {
-    const orgRows = profile?.org_id
-      ? await rest<AnyRow[]>(`/organizations?select=org_name&id=eq.${profile.org_id}&limit=1`)
-      : [];
-    return String(orgRows[0]?.org_name || "");
-  })().catch(() => "");
   const roleRow = roles[0];
-  const permissions = roleRow?.role ? await currentUserPermissions(roleRow.role) : {};
-  const sidebarOrder = roleRow?.role ? await currentUserSidebarOrder(roleRow.role) : {};
+  const [orgRows, permissions, sidebarOrder] = await Promise.all([
+    profile?.org_id
+      ? rest<AnyRow[]>(`/organizations?select=org_name&id=eq.${profile.org_id}&limit=1`).catch(() => [])
+      : Promise.resolve([]),
+    roleRow?.role ? currentUserPermissions(roleRow.role) : Promise.resolve({}),
+    roleRow?.role ? currentUserSidebarOrder(roleRow.role) : Promise.resolve({}),
+  ]);
+  const department = String(orgRows[0]?.org_name || "");
   return {
     id: Number(row.id),
     name: row.name,
@@ -622,7 +625,39 @@ async function deleteAppCenterItem(body: AnyRow): Promise<AnyRow> {
   return { ok: true, apps: await appCenterItems() };
 }
 
-async function projects(): Promise<AnyRow[]> {
+type ProjectListView = "full" | "brief" | "dashboard";
+
+async function projects(view: ProjectListView = "full"): Promise<AnyRow[]> {
+  if (view === "brief") {
+    const rows = await rest<AnyRow[]>(
+      "/projects?select=id,code,name,work_kind,business_type,status&status=neq.deleted&order=code.asc",
+    );
+    return rows.map((project) => ({
+      ...project,
+      business_type: project.business_type || inferProjectBusinessType(project.code),
+      work_kind: project.work_kind || "project",
+    }));
+  }
+
+  if (view === "dashboard") {
+    const rows = await rest<AnyRow[]>(
+      "/projects?select=id,code,name,status,work_kind,contract_amount,received_amount,receivable_amount,planned_labor_days,labor_budget_amount&status=neq.deleted&order=code.asc",
+    );
+    return rows.map((project) => {
+      const contract = Number(project.contract_amount || 0);
+      const received = Number(project.received_amount || 0);
+      return {
+        ...project,
+        work_kind: project.work_kind || "project",
+        planned_labor_days: Number(project.planned_labor_days || 0),
+        labor_budget_amount: Number(project.labor_budget_amount || 0),
+        contract_amount: contract,
+        received_amount: received,
+        receivable_amount: Number(project.receivable_amount ?? Math.max(contract - received, 0)),
+      };
+    });
+  }
+
   const [rows, orgs, employees, labor, sheets, departmentOwners, projectRoles] = await Promise.all([
     rest<AnyRow[]>("/projects?select=*&status=neq.deleted&order=code.asc"),
     rest<AnyRow[]>("/organizations?select=id,org_name"),
@@ -899,7 +934,7 @@ async function approvalTasks(
 ): Promise<AnyRow> {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated");
-  const admin = await isAdmin();
+  const admin = user.role === "admin";
   const reviewedPeriodStart = timesheetPeriodStartOfDate(weekStart || todayMonday());
   const reviewedStart = reviewStartDate || reviewedPeriodStart;
   const reviewedEnd = reviewEndDate || reviewedPeriodStart;
@@ -1527,14 +1562,19 @@ async function handleApi<T>(path: string, options: RequestInit): Promise<T> {
   if (url.pathname === "/api/me") return { user: await currentUser() } as T;
   if (url.pathname === "/api/bootstrap") {
     const user = await currentUser();
-    const projectRows = user ? await projects().catch(() => []) : [];
-    return { currentUser: user, permissions: user?.permissions || {}, sidebarOrder: user?.sidebarOrder || {}, users: [], projects: projectRows, currentWeek: todayMonday(), dbRecommendation: "Supabase PostgREST" } as T;
+    return { currentUser: user, permissions: user?.permissions || {}, sidebarOrder: user?.sidebarOrder || {}, users: [], projects: [], currentWeek: todayMonday(), dbRecommendation: "Supabase PostgREST" } as T;
   }
   if (url.pathname === "/api/organizations") return organizations() as T;
   if (url.pathname === "/api/employees") return listEmployees() as T;
   if (url.pathname === "/api/permissions") return permissionConfig() as T;
   if (url.pathname === "/api/apps") return appCenterItems() as T;
-  if (url.pathname === "/api/projects") return projects() as T;
+  if (url.pathname === "/api/projects") {
+    const requestedView = url.searchParams.get("view");
+    const view: ProjectListView = requestedView === "brief" || requestedView === "dashboard"
+      ? requestedView
+      : "full";
+    return projects(view) as T;
+  }
   if (url.pathname === "/api/project-role-requirements") {
     return projectRoleRequirements(url.searchParams.get("businessType")) as T;
   }

@@ -14,7 +14,7 @@ export function useDashboard(startDate: string, endDate: string) {
     queryKey: ["dashboard", "v2", startDate, endDate],
     queryFn: async () => {
       const [projectBase, laborMatrix] = await Promise.all([
-        api<ProjectBase[]>("/api/projects"),
+        api<ProjectBase[]>("/api/projects?view=dashboard"),
         api<LaborMatrixRow[]>(
           `/api/reports/labor-matrix?startDate=${startDate}&endDate=${endDate}`,
         ),

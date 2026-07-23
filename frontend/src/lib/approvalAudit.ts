@@ -42,7 +42,10 @@ const statusLabels: Record<string, string> = {
 };
 
 export function isNonApplicableProjectSkip(value?: string | null) {
-  return String(value || "").trim() === "Not applicable for project business type";
+  return [
+    "Not applicable for project business type",
+    "Source review bypassed for department-owner submission",
+  ].includes(String(value || "").trim());
 }
 
 export function isNonApplicableProjectAssignee(
@@ -50,7 +53,10 @@ export function isNonApplicableProjectAssignee(
 ) {
   return (
     isNonApplicableProjectSkip(assignee.comment) ||
-    String(assignee.assignee_route_source || "").trim() === "not_applicable_project_business_type"
+    [
+      "not_applicable_project_business_type",
+      "department_owner_submitter",
+    ].includes(String(assignee.assignee_route_source || "").trim())
   );
 }
 

@@ -1,0 +1,37 @@
+{
+  "version": "V0.19.2",
+  "released_at": "2026-07-24",
+  "base_version": "V0.19.1",
+  "commit": "tag:V0.19.2",
+  "summary": "Prevent Cost Consulting department-owner submissions from flowing backwards to subordinate reviewers and improve application loading performance.",
+  "database": {
+    "new_migrations": [
+      "142_cc_department_owner_submission_routing.sql"
+    ],
+    "notes": [
+      "Cost Consulting department-owner submissions bypass the source-side project-owner and department-owner stages.",
+      "Consulting-only submissions complete without an approval task; PMCC project blocks continue through their applicable PM-side stages.",
+      "Running approval graphs are repaired so obsolete source-side pending tasks are skipped and downstream collaboration stages resume."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.19.2",
+    "notes": [
+      "Approval-chain views omit source-side stages bypassed because the submitter is the department owner.",
+      "Page modules are loaded on demand and shared bootstrap requests are deduplicated to improve initial and cross-page loading.",
+      "Realtime invalidation is coalesced to reduce redundant refreshes while preserving current data."
+    ]
+  },
+  "verification": [
+    "Run git diff --check against V0.19.1.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.19.2.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run scripts/assert-cc-department-owner-submission-routing.sql against the migrated production database in a rollback transaction.",
+    "Confirm timesheet 206 no longer has Cost Consulting source-side pending tasks and retains PM-side pending tasks.",
+    "Run deploy/scripts/pre-deploy-check.sh on the cloud host with EXPECTED_VERSION=V0.19.2.",
+    "Run scripts/smoke-frontend-render.mjs against production with EXPECTED_VERSION=V0.19.2."
+  ],
+  "known_warnings": []
+}

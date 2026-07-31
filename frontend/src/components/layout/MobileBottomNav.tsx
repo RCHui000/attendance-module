@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { NAV_ITEMS, type NavItem } from "./navItems";

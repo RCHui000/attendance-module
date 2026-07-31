@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { useDashboard, useDashboardAnalysis } from "@/hooks/useProjects";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { MetricCards } from "@/components/dashboard/MetricCards";

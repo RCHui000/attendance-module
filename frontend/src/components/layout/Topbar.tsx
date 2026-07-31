@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router";
 import { cn } from "@/lib/utils";
 import { SegmentedPill } from "@/components/ui/segmented-pill";
 import { LayoutDashboard, TrendingUp } from "lucide-react";

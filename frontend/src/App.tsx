@@ -1,6 +1,6 @@
 import { Suspense, useEffect } from "react";
 import type { ReactElement } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router";
 import { APP_NAME } from "@/lib/constants";
 import { getStoredToken } from "@/lib/authToken";
 import { useAuthStore } from "@/stores/authStore";

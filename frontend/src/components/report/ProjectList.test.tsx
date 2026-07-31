@@ -1,10 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectList } from "./ProjectList";
 
+const mediaQueryMock = vi.hoisted(() => ({ isMobile: true }));
+
 vi.mock("@/hooks/useMediaQuery", () => ({
-  useIsMobile: () => true,
+  useIsMobile: () => mediaQueryMock.isMobile,
 }));
 
 vi.mock("@/hooks/useReport", () => ({
@@ -40,6 +42,10 @@ vi.mock("@/lib/api", () => ({
 }));
 
 describe("ProjectList mobile editor layering", () => {
+  beforeEach(() => {
+    mediaQueryMock.isMobile = true;
+  });
+
   it("keeps the project editor above its blur backdrop", () => {
     render(<ProjectList />);
 
@@ -51,5 +57,18 @@ describe("ProjectList mobile editor layering", () => {
     expect(backdrop).toHaveClass("z-modal");
     expect(dialog).toHaveClass("z-modal");
     expect(dialog).not.toHaveClass("max-[767px]:z-modal");
+  });
+
+  it("keeps desktop editor selects above the project configuration cards", () => {
+    mediaQueryMock.isMobile = false;
+    const { container } = render(<ProjectList />);
+
+    fireEvent.click(within(container).getByRole("button", { name: /CC26001/ }));
+    const trigger = container.querySelector<HTMLElement>('[data-slot="select-trigger"]');
+    expect(trigger).not.toBeNull();
+    fireEvent.click(trigger!);
+
+    const popup = document.body.querySelector('[data-slot="select-content"]');
+    expect(popup).toHaveClass("z-modal-popover");
   });
 });

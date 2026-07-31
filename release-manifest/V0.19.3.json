@@ -1,0 +1,38 @@
+{
+  "version": "V0.19.3",
+  "released_at": "2026-08-01",
+  "base_version": "V0.19.2",
+  "commit": "tag:V0.19.3",
+  "summary": "Keep project configuration select menus above the modal editor and deploy the pending department-owner approval routing correction.",
+  "database": {
+    "new_migrations": [
+      "142_cc_department_owner_submission_routing.sql"
+    ],
+    "notes": [
+      "Production is upgraded from V0.19.1, so migration 142 is included in this deployment.",
+      "Cost Consulting department-owner submissions bypass subordinate source-side approval stages while PMCC project blocks continue through applicable PM-side stages."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.19.3",
+    "notes": [
+      "Project work-kind, service-type, and owner select menus use the modal popover layer on desktop and mobile.",
+      "Select menus now render above project configuration cards instead of being obscured by the editor stacking context.",
+      "The loading and Realtime refresh improvements released in V0.19.2 are included in the production upgrade.",
+      "Frontend transitive dependencies are refreshed and React Router is upgraded to 8.3.0 after the August 2026 security audit."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.19.3.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Back up PostgreSQL and the application directory before applying migrations.",
+    "Confirm migration 142 is recorded in the production migration ledger.",
+    "Run scripts/assert-cc-department-owner-submission-routing.sql in its rollback transaction.",
+    "Run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.19.3.",
+    "Run scripts/smoke-frontend-render.mjs against https://xpjs.asia with EXPECTED_VERSION=V0.19.3."
+  ],
+  "known_warnings": []
+}

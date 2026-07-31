@@ -557,7 +557,7 @@ export function ProjectList() {
                   <SelectTrigger>
                     <SelectValue placeholder="选择工时分类" />
                   </SelectTrigger>
-                  <SelectContent layer={isMobile ? "modal" : "dropdown"}>
+                  <SelectContent layer="modal">
                     <SelectItem value="project">普通项目</SelectItem>
                     <SelectItem value="leave">请假</SelectItem>
                   </SelectContent>
@@ -569,7 +569,7 @@ export function ProjectList() {
                   <SelectTrigger disabled={isLeaveWork}>
                     <SelectValue placeholder="选择服务类型" />
                   </SelectTrigger>
-                  <SelectContent layer={isMobile ? "modal" : "dropdown"}>
+                  <SelectContent layer="modal">
                     <SelectItem value={NONE}>未识别</SelectItem>
                     {serviceTypes.map((type) => (
                       <SelectItem key={type} value={type}>
@@ -614,7 +614,7 @@ export function ProjectList() {
                               <SelectTrigger className="min-w-0">
                                 {userId ? employeeLabel(employeeById.get(userId)) : <SelectValue placeholder={roleLabels[role]} />}
                               </SelectTrigger>
-                              <SelectContent layer={isMobile ? "modal" : "dropdown"}>
+                              <SelectContent layer="modal">
                                 <SelectItem value={NONE}>未配置</SelectItem>
                                 {roleCandidates(role).map((employee) => (
                                   <SelectItem key={employee.id} value={String(employee.id)}>

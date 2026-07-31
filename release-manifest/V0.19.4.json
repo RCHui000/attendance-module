@@ -1,0 +1,42 @@
+{
+  "version": "V0.19.4",
+  "released_at": "2026-08-01",
+  "base_version": "V0.19.3",
+  "commit": "tag:V0.19.4",
+  "summary": "Prevent portaled controls from falling behind project and modal surfaces, and reduce first-screen and route-transition latency.",
+  "database": {
+    "new_migrations": [
+      "143_current_user_bootstrap_rpc.sql"
+    ],
+    "notes": [
+      "Authenticated startup identity, platform role, permissions, department, and sidebar order are returned by one security-definer RPC.",
+      "The bootstrap function remains unavailable to anon and selects the highest configured platform role when legacy multi-role data exists."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.19.4",
+    "notes": [
+      "Select menus inherit a semantic dropdown or modal-popover layer from their containing surface.",
+      "The desktop project editor no longer creates a modal stacking context; mobile project selects remain above the modal editor.",
+      "Authenticated startup uses one RPC with a short token-keyed cache instead of eight requests across three serial waves.",
+      "Accessible routes preload during browser idle time, navigation uses real links, and React and TanStack vendors are split into stable cacheable chunks.",
+      "Production Nginx compresses JavaScript, CSS, JSON, manifests, XML, SVG, and text responses with gzip.",
+      "The sidebar logo is reduced from a 583 KB source PNG to a 13 KB display-sized WebP with fixed dimensions and deferred decoding.",
+      "Large project and organization directories use content visibility to reduce off-screen rendering work."
+    ]
+  },
+  "verification": [
+    "Run git diff --check.",
+    "Run npm --prefix frontend run lint.",
+    "Run npm --prefix frontend run test:unit.",
+    "Run npm --prefix frontend run build with VITE_APP_VERSION=V0.19.4.",
+    "Run npm --prefix frontend audit --audit-level=high.",
+    "Run the mocked desktop and mobile project select elementFromPoint Playwright regression.",
+    "Back up PostgreSQL, the application directory, and production.env before applying migration 143.",
+    "Run scripts/assert-current-user-bootstrap.sql in its rollback transaction.",
+    "Run scripts/assert-function-grants.sql and deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.19.4.",
+    "Run scripts/smoke-frontend-render.mjs and scripts/audit-frontend-performance.mjs against https://xpjs.asia.",
+    "Confirm hashed assets return Content-Encoding gzip and immutable cache headers."
+  ],
+  "known_warnings": []
+}

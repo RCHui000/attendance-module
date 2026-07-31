@@ -25,6 +25,7 @@ import { formatMoney } from "@/utils/dates";
 import { cn } from "@/lib/utils";
 import { descendantOrgIds } from "@/utils/orgTree";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { PortalLayerContext } from "@/components/ui/portal-layer";
 import { Save, Search, Trash2, X, Plus } from "lucide-react";
 import type { Employee, Organization } from "@/types/employee";
 import type { ProjectBase, ProjectBusinessType, ProjectRoleKey, ProjectRoleRequirement, ProjectWorkKind } from "@/types/project";
@@ -465,7 +466,7 @@ export function ProjectList() {
                 key={project.id}
                 type="button"
                 className={cn(
-                  "mb-2 w-full rounded-md border border-transparent p-3 text-left transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:border-border hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none motion-reduce:transition-none",
+                  "mb-2 w-full rounded-md border border-transparent p-3 text-left [content-visibility:auto] [contain-intrinsic-size:88px] transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:border-border hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none motion-reduce:transition-none",
                   selectedId === project.id && "border-border bg-muted",
                 )}
                 onClick={() => selectProject(project)}
@@ -501,11 +502,12 @@ export function ProjectList() {
         aria-modal={isMobile && selectedId && editorOpen ? true : undefined}
         aria-label={isMobile && selectedId && editorOpen ? "项目配置" : undefined}
         className={cn(
-          "z-modal rounded-lg border border-border bg-white p-4",
-          "max-[767px]:fixed max-[767px]:inset-x-3 max-[767px]:top-6 max-[767px]:bottom-6 max-[767px]:overflow-y-auto max-[767px]:shadow-xl",
+          "rounded-lg border border-border bg-white p-4",
+          "max-[767px]:fixed max-[767px]:inset-x-3 max-[767px]:top-6 max-[767px]:bottom-6 max-[767px]:z-[var(--z-modal)] max-[767px]:overflow-y-auto max-[767px]:overscroll-contain max-[767px]:shadow-xl",
           (!isMobile || (selectedId && editorOpen)) ? "" : "max-[767px]:hidden",
         )}
       >
+        <PortalLayerContext.Provider value={isMobile ? "modal" : "dropdown"}>
         {!selectedId && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             选择左侧项目，或新建项目后维护配置
@@ -557,7 +559,7 @@ export function ProjectList() {
                   <SelectTrigger>
                     <SelectValue placeholder="选择工时分类" />
                   </SelectTrigger>
-                  <SelectContent layer="modal">
+                  <SelectContent>
                     <SelectItem value="project">普通项目</SelectItem>
                     <SelectItem value="leave">请假</SelectItem>
                   </SelectContent>
@@ -569,7 +571,7 @@ export function ProjectList() {
                   <SelectTrigger disabled={isLeaveWork}>
                     <SelectValue placeholder="选择服务类型" />
                   </SelectTrigger>
-                  <SelectContent layer="modal">
+                  <SelectContent>
                     <SelectItem value={NONE}>未识别</SelectItem>
                     {serviceTypes.map((type) => (
                       <SelectItem key={type} value={type}>
@@ -614,7 +616,7 @@ export function ProjectList() {
                               <SelectTrigger className="min-w-0">
                                 {userId ? employeeLabel(employeeById.get(userId)) : <SelectValue placeholder={roleLabels[role]} />}
                               </SelectTrigger>
-                              <SelectContent layer="modal">
+                              <SelectContent>
                                 <SelectItem value={NONE}>未配置</SelectItem>
                                 {roleCandidates(role).map((employee) => (
                                   <SelectItem key={employee.id} value={String(employee.id)}>
@@ -697,6 +699,7 @@ export function ProjectList() {
             )}
           </div>
         )}
+        </PortalLayerContext.Provider>
       </div>
 
       <AlertDialog open={deleteTarget != null} onOpenChange={(open) => !open && setDeleteTarget(null)}>

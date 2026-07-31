@@ -25,10 +25,21 @@ describe("API navigation performance contracts", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("bootstraps identity without loading project or historical timesheet data", async () => {
+  it("bootstraps identity through one RPC without loading business data", async () => {
     setStoredToken(sessionToken());
     fetchMock.mockImplementation((input) => {
       const url = String(input);
+      if (url.includes("/rpc/psa_current_user_bootstrap")) {
+        return response([{
+          id: 7,
+          name: "测试员工",
+          role: "employee",
+          department: "设计咨询部",
+          is_active: true,
+          permissions: { timesheet: "write" },
+          sidebar_order: { timesheet: 10 },
+        }]);
+      }
       if (url.includes("/employees?select=id,name,is_active")) {
         return response([{ id: 7, name: "测试员工", is_active: true }]);
       }
@@ -43,11 +54,17 @@ describe("API navigation performance contracts", () => {
       return response([]);
     });
 
-    const data = await api<{ currentUser: { id: number } | null; projects: unknown[] }>("/api/bootstrap");
+    const data = await api<{
+      currentUser: { id: number; permissions: Record<string, string> } | null;
+      projects: unknown[];
+    }>("/api/bootstrap");
     const requestedUrls = fetchMock.mock.calls.map(([input]) => String(input));
 
     expect(data.currentUser?.id).toBe(7);
+    expect(data.currentUser?.permissions).toEqual({ timesheet: "write" });
     expect(data.projects).toEqual([]);
+    expect(requestedUrls).toHaveLength(1);
+    expect(requestedUrls[0]).toContain("/rpc/psa_current_user_bootstrap");
     expect(requestedUrls.some((url) => url.includes("/projects?"))).toBe(false);
     expect(requestedUrls.some((url) => url.includes("/timesheet_entries?"))).toBe(false);
     expect(requestedUrls.some((url) => url.includes("/timesheets?"))).toBe(false);

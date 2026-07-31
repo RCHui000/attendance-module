@@ -2,6 +2,7 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@/lib/utils"
+import { usePortalLayer, type PortalLayer } from "@/components/ui/portal-layer"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
@@ -54,12 +55,12 @@ function SelectTrigger({
   )
 }
 
-type SelectContentLayer = "dropdown" | "modal"
+type SelectContentLayer = "auto" | PortalLayer
 
 function SelectContent({
   className,
   children,
-  layer = "dropdown",
+  layer = "auto",
   side = "bottom",
   sideOffset = 4,
   align = "center",
@@ -73,7 +74,9 @@ function SelectContent({
   > & {
     layer?: SelectContentLayer
   }) {
-  const layerClass = layer === "modal" ? "z-modal-popover" : "z-dropdown"
+  const inheritedLayer = usePortalLayer()
+  const resolvedLayer = layer === "auto" ? inheritedLayer : layer
+  const layerClass = resolvedLayer === "modal" ? "z-modal-popover" : "z-dropdown"
 
   return (
     <SelectPrimitive.Portal>

@@ -96,7 +96,7 @@ test.describe("production smoke acceptance", () => {
     await login(page, ADMIN_LOGIN, ADMIN_PASSWORD);
     await waitForAppReady(page);
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect.poll(async () => page.locator("aside button").count()).toBeGreaterThanOrEqual(5);
+    await expect.poll(async () => page.locator("aside nav a").count()).toBeGreaterThanOrEqual(5);
     await expectLoadedTableOrEmptyState(page);
   });
 
@@ -141,6 +141,6 @@ test.describe("production smoke acceptance", () => {
     await waitForAppReady(page);
     await expect(page).toHaveURL(/\/timesheet$/);
     await expect(page.locator("table")).toBeVisible();
-    await expect.poll(async () => page.locator("aside button").count()).toBeGreaterThanOrEqual(1);
+    await expect.poll(async () => page.locator("aside nav a").count()).toBeGreaterThanOrEqual(1);
   });
 });

@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation } from "react-router";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { NAV_ITEMS, type NavItem } from "./navItems";
@@ -8,7 +8,6 @@ const MOBILE_NAV_ORDER = ["review", "timesheet", "dashboard", "report"] as const
 
 export function MobileBottomNav() {
   const location = useLocation();
-  const navigate = useNavigate();
   const { canAccess } = useAuthStore();
 
   const currentView = location.pathname.replace("/", "") || "dashboard";
@@ -27,9 +26,9 @@ export function MobileBottomNav() {
           const active = currentView === item.view;
 
           return (
-            <button
+            <Link
               key={item.id}
-              type="button"
+              to={`/${item.view}`}
               className={cn(
                 "flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-medium leading-tight transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none motion-reduce:transition-none",
                 active
@@ -39,11 +38,10 @@ export function MobileBottomNav() {
               aria-current={active ? "page" : undefined}
               onPointerDown={() => void preloadPage(item.view)}
               onFocus={() => void preloadPage(item.view)}
-              onClick={() => navigate(`/${item.view}`)}
             >
               <Icon className="size-4 shrink-0" />
               <span className="max-w-full truncate">{item.mobileLabel || item.label}</span>
-            </button>
+            </Link>
           );
         })}
       </div>

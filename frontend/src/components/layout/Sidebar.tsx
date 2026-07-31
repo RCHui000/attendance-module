@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation } from "react-router";
 import { APP_NAME, APP_VERSION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -9,7 +9,6 @@ import { preloadPage } from "@/pageModules";
 
 export function Sidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
   const { canAccess, sidebarOrder, logout, user } = useAuthStore();
 
   const currentView = location.pathname.replace("/", "") || "dashboard";
@@ -33,9 +32,9 @@ export function Sidebar() {
         {visibleItems.map((item) => {
           const Icon = item.icon;
           return (
-            <button
+            <Link
               key={item.id}
-              type="button"
+              to={`/${item.view}`}
               title={item.label}
               aria-label={item.label}
               className={cn(
@@ -48,7 +47,6 @@ export function Sidebar() {
               aria-current={currentView === item.view ? "page" : undefined}
               onPointerEnter={() => void preloadPage(item.view)}
               onFocus={() => void preloadPage(item.view)}
-              onClick={() => navigate(`/${item.view}`)}
             >
               <Icon className="size-4 shrink-0 max-[1179px]:size-4.5" />
               <span className="min-w-0 truncate max-[1179px]:sr-only">{item.label}</span>
@@ -61,7 +59,7 @@ export function Sidebar() {
               >
                 {item.label}
               </span>
-            </button>
+            </Link>
           );
         })}
       </nav>
@@ -69,7 +67,15 @@ export function Sidebar() {
       <div className="mt-auto border-t border-white/10 max-[1179px]:hidden" />
 
       <div className="-mx-3 max-[1179px]:hidden">
-        <img src="/logo/公司logo.png" alt="Logo" className="w-full object-contain opacity-90" />
+        <img
+          src="/logo/公司logo.webp"
+          alt="北京心品建设管理有限公司"
+          width={640}
+          height={138}
+          loading="lazy"
+          decoding="async"
+          className="h-auto w-full object-contain opacity-90"
+        />
       </div>
 
       <div className="mt-3 grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1.5 max-[1179px]:flex max-[1179px]:justify-center max-[1179px]:border-transparent max-[1179px]:bg-transparent max-[1179px]:px-0">

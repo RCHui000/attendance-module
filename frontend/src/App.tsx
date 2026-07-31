@@ -6,6 +6,7 @@ import { getStoredToken } from "@/lib/authToken";
 import { useAuthStore } from "@/stores/authStore";
 import { useRealtime } from "@/hooks/useRealtime";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { NAV_ITEMS } from "@/components/layout/navItems";
 import {
   AppsPage,
   DashboardPage,
@@ -67,6 +68,36 @@ function AuthenticatedApp() {
     void preloadPage(defaultRoute.slice(1));
   }, [defaultRoute]);
 
+  useEffect(() => {
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType || "")) {
+      return;
+    }
+
+    let idleId: number | undefined;
+    const timeoutId = window.setTimeout(() => {
+      const preloadAccessiblePages = () => {
+        NAV_ITEMS
+          .filter((item) => canAccess(item.resource))
+          .forEach((item) => void preloadPage(item.view));
+      };
+      if ("requestIdleCallback" in window) {
+        idleId = window.requestIdleCallback(preloadAccessiblePages, { timeout: 2_000 });
+      } else {
+        preloadAccessiblePages();
+      }
+    }, 1_200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (idleId != null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  }, [canAccess]);
+
   return (
     <AppLayout>
       <Suspense fallback={<RouteLoadingScreen />}>
@@ -94,10 +125,18 @@ export default function App() {
   }, [checkSession]);
 
   useEffect(() => {
-    if (getStoredToken()) {
-      const requestedPage = location.pathname.split("/").filter(Boolean)[0];
-      if (requestedPage) void preloadPage(requestedPage);
+    if (!getStoredToken()) {
+      void preloadPage("login");
+      return;
     }
+
+    const requestedPage = location.pathname.split("/").filter(Boolean)[0];
+    if (requestedPage) {
+      void preloadPage(requestedPage);
+      return;
+    }
+    void preloadPage("dashboard");
+    void preloadPage("timesheet");
   }, [location.pathname]);
 
   if (isLoading) {

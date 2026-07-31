@@ -3,6 +3,7 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { PortalLayerContext } from "@/components/ui/portal-layer"
 import { XIcon } from "lucide-react"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -56,7 +57,9 @@ function SheetContent({
         )}
         {...props}
       >
-        {children}
+        <PortalLayerContext.Provider value="modal">
+          {children}
+        </PortalLayerContext.Provider>
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"

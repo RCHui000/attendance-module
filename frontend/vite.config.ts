@@ -48,5 +48,24 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const normalized = id.replace(/\\/g, "/");
+            if (/node_modules\/(react|react-dom|react-router|scheduler)\//.test(normalized)) {
+              return "vendor-react";
+            }
+            if (
+              normalized.includes("/node_modules/@tanstack/react-query/") ||
+              normalized.includes("/node_modules/@tanstack/query-core/")
+            ) {
+              return "vendor-query";
+            }
+            return undefined;
+          },
+        },
+      },
+    },
   };
 });

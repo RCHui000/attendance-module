@@ -374,7 +374,7 @@ export function OrganizationPanel({
                     key={org.id}
                     type="button"
                     className={cn(
-                      "group flex w-full items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 text-left transition-[background-color,border-color,box-shadow] duration-150 hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+                      "group flex w-full items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 text-left [content-visibility:auto] [contain-intrinsic-size:48px] transition-[background-color,border-color,box-shadow] duration-150 hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
                       isSelected && "border-foreground/70 bg-row-selected shadow-focus",
                     )}
                     onClick={() => {

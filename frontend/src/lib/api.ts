@@ -239,44 +239,51 @@ function employeeDailyRate(emp?: AnyRow | null): number {
   return Number(emp.monthly_salary || 0) / (workdays || 21.75);
 }
 
-async function currentUser(): Promise<AnyRow | null> {
-  const sub = decodeJwt()?.sub;
-  if (!sub) return null;
-  const rows = await rest<AnyRow[]>(
-    `/employees?select=id,name,is_active&auth_user_id=eq.${encodeURIComponent(sub)}&limit=1`,
-  );
+const CURRENT_USER_CACHE_MS = 30_000;
+let currentUserCacheToken = "";
+let currentUserCacheExpiresAt = 0;
+let currentUserCachePromise: Promise<AnyRow | null> | null = null;
+
+async function loadCurrentUser(): Promise<AnyRow | null> {
+  const rows = await rest<AnyRow[]>("/rpc/psa_current_user_bootstrap", {
+    method: "POST",
+    body: "{}",
+  });
   const row = rows[0];
   if (!row) return null;
-  if (row.is_active === false) return null;
-
-  const [profiles, roles] = await Promise.all([
-    rest<AnyRow[]>(
-      `/employee_profiles?select=org_id,employment_status&employee_id=eq.${row.id}&limit=1`,
-    ).catch(() => []),
-    rest<AnyRow[]>(`/user_roles?select=role&employee_id=eq.${row.id}&limit=1`),
-  ]);
-  const profile = profiles[0];
-  const employmentStatus = String(profile?.employment_status || "active").toLowerCase();
-  if (["terminated", "inactive", "resigned", "离职", "已离职"].includes(employmentStatus)) return null;
-
-  const roleRow = roles[0];
-  const [orgRows, permissions, sidebarOrder] = await Promise.all([
-    profile?.org_id
-      ? rest<AnyRow[]>(`/organizations?select=org_name&id=eq.${profile.org_id}&limit=1`).catch(() => [])
-      : Promise.resolve([]),
-    roleRow?.role ? currentUserPermissions(roleRow.role) : Promise.resolve({}),
-    roleRow?.role ? currentUserSidebarOrder(roleRow.role) : Promise.resolve({}),
-  ]);
-  const department = String(orgRows[0]?.org_name || "");
   return {
     id: Number(row.id),
     name: row.name,
-    role: roleRow?.role || "employee",
-    department,
-    is_active: row.is_active ? 1 : 0,
-    permissions,
-    sidebarOrder,
+    role: row.role || "employee",
+    department: String(row.department || ""),
+    is_active: row.is_active === false ? 0 : 1,
+    permissions: row.permissions || {},
+    sidebarOrder: row.sidebar_order || {},
   };
+}
+
+async function currentUser(): Promise<AnyRow | null> {
+  const token = getStoredToken();
+  if (!token) return null;
+  const now = Date.now();
+  if (
+    currentUserCachePromise &&
+    currentUserCacheToken === token &&
+    currentUserCacheExpiresAt > now
+  ) {
+    return currentUserCachePromise;
+  }
+
+  currentUserCacheToken = token;
+  currentUserCacheExpiresAt = now + CURRENT_USER_CACHE_MS;
+  currentUserCachePromise = loadCurrentUser();
+  try {
+    return await currentUserCachePromise;
+  } catch (error) {
+    currentUserCachePromise = null;
+    currentUserCacheExpiresAt = 0;
+    throw error;
+  }
 }
 
 async function currentUsageActor(): Promise<{ id: number; name: string } | null> {
@@ -333,31 +340,6 @@ export async function recordAppCenterOpen(app: {
       is_internal: app.is_internal === true,
     },
   });
-}
-
-async function currentUserPermissions(role: string): Promise<Record<string, string>> {
-  const rows = await rest<AnyRow[]>(
-    `/role_permissions?select=resource_key,access_level&role_key=eq.${encodeURIComponent(role)}`,
-  ).catch(() => []);
-  return Object.fromEntries(rows.map((row) => [String(row.resource_key), String(row.access_level || "none")]));
-}
-
-async function currentUserSidebarOrder(role: string): Promise<Record<string, number>> {
-  const [permissions, resources] = await Promise.all([
-    rest<AnyRow[]>(
-      `/role_permissions?select=resource_key,sidebar_order&role_key=eq.${encodeURIComponent(role)}`,
-    ).catch(() => []),
-    rest<AnyRow[]>(
-      "/permission_resources?select=resource_key,sort_order&resource_group=eq.sidebar&is_active=eq.true",
-    ).catch(() => []),
-  ]);
-  const fallbackOrder = new Map(resources.map((resource) => [String(resource.resource_key), Number(resource.sort_order || 0)]));
-  return Object.fromEntries(permissions
-    .filter((row) => fallbackOrder.has(String(row.resource_key)))
-    .map((row) => [
-      String(row.resource_key),
-      Number(row.sidebar_order ?? fallbackOrder.get(String(row.resource_key)) ?? 0),
-    ]));
 }
 
 async function isAdmin(): Promise<boolean> {

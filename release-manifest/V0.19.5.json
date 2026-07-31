@@ -1,0 +1,31 @@
+{
+  "version": "V0.19.5",
+  "released_at": "2026-08-01",
+  "base_version": "V0.19.4",
+  "commit": "tag:V0.19.5",
+  "summary": "Make the V0.19.4 bootstrap migration portable to production database role names while carrying the full layering and performance release.",
+  "database": {
+    "new_migrations": [
+      "143_current_user_bootstrap_rpc.sql"
+    ],
+    "notes": [
+      "The migration no longer assumes a PostgreSQL role named postgres; the privileged migration runner remains the SECURITY DEFINER function owner.",
+      "Migration 143 was rolled back before ledger insertion during the V0.19.4 deployment attempt, so production applies the corrected migration exactly once."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.19.5",
+    "notes": [
+      "Includes all V0.19.4 semantic portal layering, one-request authenticated bootstrap, gzip, route preloading, vendor chunking, image optimization, and off-screen rendering improvements."
+    ]
+  },
+  "verification": [
+    "Confirm production remains on healthy V0.19.3 before retrying deployment.",
+    "Run git diff --check, lint, unit tests, production build, npm audit, and desktop/mobile Playwright layering checks.",
+    "Confirm migration 143 is absent before deployment, then present after the corrected migration succeeds.",
+    "Run scripts/assert-current-user-bootstrap.sql and scripts/assert-function-grants.sql.",
+    "Run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.19.5.",
+    "Confirm production assets use gzip and immutable caching, then rerun the frontend performance audit."
+  ],
+  "known_warnings": []
+}

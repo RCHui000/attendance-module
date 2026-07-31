@@ -73,7 +73,7 @@ AS $$
   FROM actor;
 $$;
 
-ALTER FUNCTION public.psa_current_user_bootstrap() OWNER TO postgres;
+-- Keep the migration runner as owner; production does not guarantee a role named postgres.
 REVOKE ALL ON FUNCTION public.psa_current_user_bootstrap() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.psa_current_user_bootstrap() TO authenticated;
 

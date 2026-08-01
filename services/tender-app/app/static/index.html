@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>深圳建设工程招标公告聚合</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <!-- Header -->
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">深圳公共资源交易中心</p>
+          <h1>建设工程招标公告聚合</h1>
+        </div>
+        <div class="topbar-actions">
+          <button id="crawlButton" type="button" class="btn-primary">🔄 抓取最新公告</button>
+        </div>
+      </section>
+
+      <!-- Stats -->
+      <section class="stats-row" id="statsRow">
+        <article>
+          <span>公告总数</span>
+          <strong id="statTotal">-</strong>
+        </article>
+        <article>
+          <span>已抓详情</span>
+          <strong id="statDetail">-</strong>
+        </article>
+        <article>
+          <span>近7日截标</span>
+          <strong id="statDeadline">-</strong>
+        </article>
+      </section>
+
+      <!-- Search & Filter -->
+      <section class="panel search-panel">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="搜索项目名称、招标人、标段名称…"
+          autocomplete="off"
+        />
+        <button id="searchButton" type="button">搜索</button>
+        <button id="clearSearchButton" type="button" class="btn-ghost" style="display:none">清除</button>
+      </section>
+
+      <!-- Crawl Status -->
+      <div id="crawlStatus" class="crawl-status" style="display:none"></div>
+
+      <!-- Announcement List -->
+      <section class="panel" id="announcementPanel">
+        <div class="section-head">
+          <h2 id="listTitle">招标公告列表</h2>
+          <span class="list-count" id="listCount"></span>
+        </div>
+        <div id="announcementList" class="announcement-list">
+          <p class="placeholder">点击右上角「抓取最新公告」开始采集数据</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Detail Modal -->
+    <dialog id="detailModal" class="detail-modal">
+      <div class="detail-modal-inner">
+        <div class="detail-modal-head">
+          <h2 id="detailTitle"></h2>
+          <button id="detailClose" type="button" class="btn-ghost">✕ 关闭</button>
+        </div>
+        <div class="detail-meta" id="detailMeta"></div>
+        <div class="detail-content" id="detailContent"></div>
+        <div class="detail-modal-foot">
+          <a id="detailOriginalLink" href="#" target="_blank" rel="noreferrer">查看原文 →</a>
+        </div>
+      </div>
+    </dialog>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

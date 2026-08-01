@@ -137,6 +137,26 @@ services:
       start_period: 10s
       retries: 3
 
+  tender-app:
+    build: ./services/tender-app
+    image: tender-app:${TENDER_APP_IMAGE_TAG:-latest}
+    container_name: tender-app
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      TZ: Asia/Shanghai
+      TENDER_ROOT_PATH: /apps/tender
+    volumes:
+      - ${TENDER_DATA_DIR:-/opt/approval-app/data/tender-app}:/app/data
+    networks:
+      - approval-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).read(1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
   nginx:
     image: nginx:1.27-alpine
     container_name: approval-nginx

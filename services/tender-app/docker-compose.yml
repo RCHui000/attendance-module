@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data:/app/data          # persist DB outside container
+    restart: unless-stopped

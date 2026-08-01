@@ -1,0 +1,39 @@
+{
+  "version": "V0.19.6",
+  "released_at": "2026-08-01",
+  "base_version": "V0.19.5",
+  "commit": "tag:V0.19.6",
+  "summary": "Restore the tender aggregation application route and make its cloud deployment durable on the main release line.",
+  "database": {
+    "new_migrations": [
+      "144_ensure_tender_app_cloud_url.sql"
+    ],
+    "notes": [
+      "The application-center card is kept on https://xpjs.asia/apps/tender/ and remains active.",
+      "The migration only updates application-center metadata and does not modify tender announcement history."
+    ]
+  },
+  "services": {
+    "tender_app": [
+      "Adds the tender-app source, image build, persistent data mount, health check, and Nginx reverse proxy to the main Compose release.",
+      "Preserves the existing /opt/approval-app/data/tender-app data directory.",
+      "Removes the unnecessary React Router dependency and its overlapping high-severity advisories."
+    ]
+  },
+  "frontend": {
+    "build_version": "V0.19.6",
+    "notes": [
+      "The PSA frontend is unchanged except for release metadata; the tender frontend is rebuilt with the /apps/tender/ asset base."
+    ]
+  },
+  "verification": [
+    "Run git diff --check, both frontend lint/build commands, tender Python unit tests, main Vitest tests, and npm production audits.",
+    "Run docker compose config and nginx -t before recreating services.",
+    "Run deploy/scripts/pre-deploy-check.sh with EXPECTED_VERSION=V0.19.6.",
+    "Run scripts/smoke-tender-app.sh and confirm the root, hashed asset, and announcements API all pass through the tender service.",
+    "Confirm the latest tender crawl remains fresh and the persistent announcement count is retained."
+  ],
+  "known_warnings": [
+    "Tender LLM analysis currently falls back to rule classification when no Agent API key is configured; aggregation and scheduled crawling remain operational."
+  ]
+}

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Database (contains scraped data, not code)
+data/*.sqlite3
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Docker / env
+.env
+*.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp test files
+*.txt
+!requirements.txt
+explore_*.py
+debug_*.py
+test_*.py
+verify_*.py
+check_*.py
+final_check.py
+!tests/test_*.py

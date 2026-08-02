@@ -44,6 +44,11 @@ else
   exit 1
 fi
 
+echo "== Verify frontend build config =="
+ENV_FILE="${ENV_FILE}" \
+DIST_DIR="${APP_CODE_DIR}/frontend/dist" \
+  bash deploy/scripts/verify-frontend-build-config.sh
+
 echo "== Frontend quality check =="
 if command -v npm >/dev/null 2>&1; then
   npm --prefix frontend run lint

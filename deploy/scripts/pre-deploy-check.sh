@@ -125,6 +125,25 @@ check_service "postgres" "yes"
 check_service "postgrest" "no"
 check_service "nginx" "yes"
 
+FRONTEND_ANON_KEY="$(strip_cr "${VITE_SUPABASE_ANON_KEY:-}")"
+if [ -z "${FRONTEND_ANON_KEY}" ]; then
+  die "VITE_SUPABASE_ANON_KEY is missing after loading ${ENV_FILE}"
+fi
+
+info "Frontend Supabase bundle config"
+if docker exec -e EXPECTED_FRONTEND_ANON_KEY="${FRONTEND_ANON_KEY}" "${APP_CONTAINER_NAME}" \
+  sh -c 'grep -R -F -q -- "$EXPECTED_FRONTEND_ANON_KEY" /app 2>/dev/null'; then
+  ok "VITE_SUPABASE_ANON_KEY is embedded in the running frontend bundle."
+else
+  die "VITE_SUPABASE_ANON_KEY is missing from the running frontend bundle."
+fi
+if docker exec "${APP_CONTAINER_NAME}" \
+  sh -c "grep -R -F -q -- '__PSA_SUPABASE_ANON_KEY__' /app 2>/dev/null"; then
+  die "Unresolved Supabase key placeholder remains in the running frontend bundle."
+else
+  ok "No unresolved Supabase key placeholder remains in the running frontend bundle."
+fi
+
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 

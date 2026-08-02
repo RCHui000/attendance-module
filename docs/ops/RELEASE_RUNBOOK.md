@@ -89,6 +89,16 @@ npm --prefix frontend run build
 
 如需从服务器生产 env 临时读取构建变量，只加载 `VITE_`、`APP_IMAGE_TAG`、`IMAGE_TAG`，构建后删除临时 env 文件。
 
+构建完成后必须校验静态产物已经包含生产 Supabase 配置。校验过程只输出通过或失败，不打印 key：
+
+```bash
+ENV_FILE=/opt/approval-app/env/production.env \
+DIST_DIR=/opt/approval-app/app/frontend/dist \
+  bash deploy/scripts/verify-frontend-build-config.sh
+```
+
+`deploy-aliyun.sh` 会在构建镜像前自动执行同一校验；`pre-deploy-check.sh` 会再次确认运行中容器的前端产物包含配置。任何一步失败都必须停止发布。
+
 ## 云端部署
 
 生产 compose 使用 `docker-compose.aliyun.yml`，公网只暴露 80、443 和 SSH。不要在公网环境使用 NAS compose 组合暴露 Postgres、PostgREST、GoTrue、Realtime 或内部应用端口。
@@ -177,6 +187,7 @@ docker compose --env-file /opt/approval-app/env/production.env -f docker-compose
 ## 已知风险
 
 - 前端空白页通常是生产 `VITE_*` 缺失。
+- 登录页出现 `supabaseKey is required` 表示前端 bundle 缺少 `VITE_SUPABASE_ANON_KEY`，不是 Supabase 服务宕机；应回滚或重新构建前端，不能通过重启数据库处理。
 - 服务器 app 目录不是 git checkout。
 - 迁移执行异常时，先检查 migration ledger，不要盲目重跑旧迁移。
 - 生产密钥、SSH key 和 `.env` 内容不得进入仓库。
